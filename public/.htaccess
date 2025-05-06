@@ -1,0 +1,9 @@
+# /public/.htaccess
+RewriteEngine On
+
+# Redirige a index.php si la URL no corresponde a un archivo o carpeta real
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Redirige todas las solicitudes a index.php
+RewriteRule ^ index.php [QSA,L]

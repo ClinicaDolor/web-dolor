@@ -1,0 +1,6 @@
+/src
+/vendor
+**/storage/
+.env
+composer.lock
+**/Config/

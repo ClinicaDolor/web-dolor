@@ -1,0 +1,301 @@
+:root {
+  box-sizing: border-box;
+
+  --primary: #501E75;
+  --primary-claro: #9548B6;
+  --primary-claro2: #a951cf;
+  --hover-color: #ececec;
+  --dark: #421a61;
+  --light: #fff;
+  --secundario: #97C586;
+
+  --header-bg: var(--primary);
+}
+*,
+*::after,
+*::before {
+  box-sizing: inherit;
+  margin: 0;
+  padding: 0;
+}
+
+header {
+  background: var(--light);
+  z-index: 9999;
+  
+}
+.branding-logo {
+  color: var(--light);
+  font-size: calc(0.8rem + 1vw);
+  text-decoration: none;
+}
+
+.navbar-logo{
+padding-left: 1.5em;
+width: 50%;
+}
+
+
+.navbar-menu {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.menu {
+  display: flex;
+  flex-direction: row;
+}
+.menu li {
+  list-style: none;
+}
+.menu li a {
+  display: block;
+  text-decoration: none;
+  color: var(--primary);
+  padding: 1.2em 1.3em;
+  font-size: 1rem;
+}
+
+/* Styling submenu */
+.has-dropdown {
+  position: relative;
+}
+.submenu {
+  position: absolute;
+  left: 0;
+  background-color: var(--dark);
+  white-space: nowrap;
+  padding: 1em 0;
+  min-width: 15em;
+
+  /* hide submenus */
+  opacity: 0;
+  transform: scaleY(0);
+  transform-origin: top center;
+}
+.submenu > li > a {
+  padding: 0.5em 1em;
+  color: var(--light);
+}
+.submenu .submenu {
+  left: -100%;
+  top: 0;
+}
+.submenu .submenu .submenu {
+  left: -100%;
+  top: 0;
+}
+
+.menu > li:hover > a,
+.submenu > li:hover > a {
+  background-color: hsla(0, 0%, 100%, 0.1);
+  color: var(--hover-color);
+  transition: 0.6s;
+}
+.menu > li:hover > a {
+  background-color: var(--dark);
+}
+
+/* Arrows */
+
+.arrow {
+  width: 0.5em;
+  height: 0.5em;
+  display: inline-block;
+  vertical-align: middle;
+  border-left: 0.15em solid currentColor;
+  border-bottom: 0.15em solid currentColor;
+  transform: rotate(-45deg);
+  margin-top: -0.25em;
+  transition: transform 100ms ease-in-out;
+}
+
+
+.botonesControl:hover{ 
+
+-webkit-transform: scale(0.8);
+-ms-transform: scale(0.8);
+transform: scale(0.8);
+transition: 1s ease;
+
+}
+
+
+/* Reveal  */
+.menu > li:hover > a + .submenu,
+.submenu > li:hover > a + .submenu {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+/* ANIMATE aRROWS */
+.menu > li:hover > a > .arrow,
+.submenu > li:hover > a > .arrow {
+  transform: rotate(225deg);
+}
+
+@media only screen and (max-width: 78.75em) {
+
+  .menu li a {
+    color: var(--primary);
+  }
+  
+  .submenu .submenu .submenu {
+    left: -100%;
+    top: 0.5em;
+  }
+  .submenu {
+    min-width: 16em;
+  }
+}
+@media only screen and (max-width: 58.75em) {
+  .menu li a {
+    font-size: 1rem;
+    color: var(--primary);
+  }
+}
+
+@media only screen and (max-width: 50em) {
+  header {
+    /*position: relative;*/
+    padding: 1.5em 2em;
+  }
+
+  .navbar-logo{
+  width: 40%;
+  }
+
+  .menu {
+    flex-flow: column;
+    position: absolute;
+    background: var(--light);
+    top: 4.55em;
+    left: 0;
+    right: 0;
+    height: 100vh;
+    padding: 0;
+    opacity: 0;
+    transform: scaleY(0);
+    transform-origin: top center;
+    transition: 200ms transform cubic-bezier(0.36, 0.4, 0.42, 1.48) 100ms, 100ms opacity ease-in-out;
+    overflow-y: scroll;
+    
+  }
+
+  .menu > li > a {
+    font-size: 1rem;
+    color: var(--primary);
+  }
+  .submenu > li > a {
+    font-size: 1rem;
+  }
+
+  .submenu {
+    top: 0;
+    padding-left: 1.5em;
+    border-left: 0.12em dotted var(--primary);
+  }
+  .submenu .submenu {
+    left: 0;
+    top: 0;
+  }
+  .submenu .submenu .submenu {
+    left: 0;
+    top: 0;
+  }
+
+  .menu > li:hover > a + .submenu,
+  .submenu > li:hover > a + .submenu {
+    position: relative;
+  }
+
+  .submenu > li > a {
+    color: var(--light);
+  }
+
+  .hamburger {
+    width: 2em;
+    height: 0.25em;
+    display: block;
+    background: var(--primary);
+    position: relative;
+    cursor: pointer;
+    transition: 0.2s transform ease-in-out;
+  }
+  .hamburger::after,
+  .hamburger::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    background: inherit;
+    width: inherit;
+    height: inherit;
+
+    transition: 0.2s transform ease-in-out;
+  }
+
+  .hamburger::after {
+    top: 0.65em;
+  }
+  .hamburger::before {
+    bottom: 0.65em;
+  }
+
+  .close::after,
+  .close::before {
+    top: 0;
+    transition: 0.2s transform ease-in-out;
+  }
+  .close::before {
+    display: none;
+  }
+  .close {
+    transform: rotate(45deg);
+    transition: 0.2s transform ease-in-out;
+  }
+  .close::after {
+    transform: rotate(-90deg);
+  }
+
+
+  /* reveal menu */
+  input[type="checkbox"]:checked + .menu {
+    position: absolute;
+    opacity: 1;
+    transform: scaleY(1);
+  }
+
+
+
+}
+
+.LoaderPage {
+  position: fixed;
+  left: 0px;
+  top: 0px;
+  width: 100%;
+  height: 100%;
+  z-index: 999999999;
+  background: url('../../../assets/images/logo-clinica-loader.gif') center center no-repeat rgb(249,249,249);
+  background-size: 250px 250px; /* Cambia el tamaño de la imagen */
+}
+
+.btn-light:hover{
+  color: #ffffff;
+  transition: 0.4s;
+  transition: background-position 0.4s ease, color 0.4s ease;
+  background: linear-gradient(to right, transparent 50%, var(--primary) 50%);
+  background-size: 201% 100%;
+  background-position: -99% 0;
+}
+
+.truncate-multiline {
+  display: -webkit-box;
+  -webkit-line-clamp: 4; /* Número de líneas a mostrar */
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.card-content{
+  height: 400px;
+}
