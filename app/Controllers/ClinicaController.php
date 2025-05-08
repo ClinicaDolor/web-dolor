@@ -210,7 +210,7 @@ class ClinicaController extends BaseController{
         $motivo_atencion = $paciente->getMotivoAtencion();
 
         $sidebarController->configureSidebar('DOCTOR', 'clinica-paciente-detalle', $sidebar, $idPaciente);
-        $sidebar->setActivarItem('Paciente');
+        $sidebar->setActivarItem('Expediente');
         $sidebarHtml = $sidebar->render();
 
         $referencia = uniqid('', true);
@@ -605,11 +605,14 @@ class ClinicaController extends BaseController{
 
     }
 
-    public function pacienteCofepris($idPaciente){
+    public function pacienteCofepris($idPaciente, $idCofepris = 0){
         $authMiddleware = new AuthMiddleware('clinica');
         $paciente = new PacienteModel($idPaciente);
         $sidebar = new Sidebar();
         $sidebarController = new SidebarController();
+        $modelCofepris = new CofeprisModel();
+
+        $modelCofepris->cofepris($idCofepris);
 
         $authMiddleware->authPermisos();        
         $fechaAlta = $paciente->getFechaAlta();
@@ -646,6 +649,19 @@ class ClinicaController extends BaseController{
         'telefono' => $telefono,
         'celular' => $celular,  
 
+        'id_cofepris' => $idCofepris,
+
+        'fecha' => $modelCofepris->getFecha(),
+        'hora' => $modelCofepris->getHora(),
+        'folio' => $modelCofepris->getFolio(),
+        'numcajas' => $modelCofepris->getNumcajas(),
+        'medicamento' => $modelCofepris->getMedicamento(),
+        'diagnostico' => $modelCofepris->getDiagnostico(),
+        'presentacion' => $modelCofepris->getPresentacion(),
+        'dosificacion' => $modelCofepris->getDosificacion(),
+        'numdias' => $modelCofepris->getNumdias(),
+        'viaadministracion' => $modelCofepris->getViaadministracion(),
+
         'sidebar' => $sidebarHtml];
         $this->view('/clinica/pacientes-cofepris.php', $data);
     }
@@ -670,7 +686,12 @@ class ClinicaController extends BaseController{
             return;
         }
 
-        $resultModel = $model->insertPacienteCofepris($data);
+        if($data['idCofepris'] == 0){
+            $resultModel = $model->insertPacienteCofepris($data);
+        }else{
+            $resultModel = $model->editPacienteCofepris($data);
+        }
+        
     
         if ($resultModel['resultado'] == 200) {
             echo HttpMethod::jsonResponse(200, true, $resultModel['mensaje']);

@@ -130,10 +130,7 @@ function tableLaboratorio(){
             document.querySelector('#Diagnostico').style.border = "";
             document.querySelector('#snow2 .ql-editor').style.border = "";
 
-            if(contenidoNota != '<p><br></p>'){
-                if(Diagnostico != ""){
-                    if(contenidoReceta != '<p><br></p>'){
-
+           
             const parametros = {
             idPaciente : idPaciente,
             referencia : referencia,
@@ -183,17 +180,7 @@ function tableLaboratorio(){
           
         });
 
-            }else{
-                document.querySelector('#snow2 .ql-editor').style.border = "2px solid #d44e31";
-            }
-
-        }else{
-            document.querySelector('#Diagnostico').style.border = "2px solid #d44e31";
-        }
-    }else{
-        document.querySelector('#snow1 .ql-editor').style.border = "2px solid #d44e31";
-    }
-
+           
     }
 
     function AgregarLaboratorio() {

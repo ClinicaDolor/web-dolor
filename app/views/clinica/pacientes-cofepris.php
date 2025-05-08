@@ -2,6 +2,15 @@
 use App\Config\Database;
 use App\Models\CofeprisModel;
 $bd = Database::getInstance();
+
+$folio = ($data['id_cofepris'] == 0)? '' : '<div><small class="text-primary">Folio: </small> <label class="fs-4">'.$data['folio'].'</label></div>';
+
+$fechaOriginal = ($data['id_cofepris'] == 0)? date('d/m/Y') : $data['fecha'];
+$fechaHora = DateTime::createFromFormat('d/m/Y', $fechaOriginal);
+$fechaFormateada = $fechaHora->format('Y-m-d');
+
+$sub_text = ($data['id_cofepris'] == 0)? 'Nuevo Registro': 'Editar Registro';
+$boton_titulo = ($data['id_cofepris'] == 0)? 'Agregar': 'Editar';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -43,8 +52,9 @@ window.addEventListener("pageshow", () => {
     });
 
 
-        function AgregarCofepris(idPaciente){
+        function AgregarCofepris(idPaciente,idCofepris){
 
+            const Fecha = document.getElementById('Fecha').value;
             const Diagnostico = document.getElementById('Diagnostico').value;
             const Medicamento = document.getElementById('Medicamento').value;
             const NumCajas = document.getElementById('NumCajas').value;
@@ -58,6 +68,8 @@ window.addEventListener("pageshow", () => {
 
             const parametros = {
             idPaciente : idPaciente,
+            idCofepris : idCofepris,
+            fecha : Fecha,
             diagnostico : Diagnostico,
             medicamento : Medicamento,
             numCajas : NumCajas,
@@ -83,7 +95,9 @@ window.addEventListener("pageshow", () => {
 
                 tableCofepris()
                 DetalleCofepris(id)
-                                
+                
+                if(idCofepris == 0){
+                document.getElementById('Fecha').value = "";
                 document.getElementById('Diagnostico').value = "";
                 document.getElementById('Medicamento').value = "";
                 document.getElementById('NumCajas').value = "";
@@ -91,6 +105,7 @@ window.addEventListener("pageshow", () => {
                 document.getElementById('Dosificacion').value = "";
                 document.getElementById('NumDias').value = "";
                 document.getElementById('ViaAdministracion').value = "";
+                }
 
                 window.open('/pdf/cofepris/' + id, '_blank');
                 
@@ -141,6 +156,7 @@ window.addEventListener("pageshow", () => {
 
                     const resultsContainer = document.getElementById('conteCofepris');
                     resultsContainer.innerHTML = data;
+                    feather.replace();
 
                     const tabla = document.querySelector("#tableCofepris");
                     if (tabla) {
@@ -151,7 +167,8 @@ window.addEventListener("pageshow", () => {
                             columns: [
                             {
                                 select: 1, sort: "desc"
-                            }
+                            },
+                            { select: [2], sortable: false },
                             ]
                         });
                     }          
@@ -289,58 +306,64 @@ window.addEventListener("pageshow", () => {
 
                 <div class="card">
                     <div class="card-header text-primary">
-                    <h4 class="card-title">Nuevo Registro</h4>
+                    <h4 class="card-title"><?=$sub_text;?></h4>
                     </div>
                     <div class="card-body">
+                    
+                    <?=$folio;?>
+                 
+                    <div class="">
+                    <label class="text-primary mb-1 mt-3"><smallal>Fecha:</smallal></label>
+                    <input type="date" class="form-control" id="Fecha" value="<?=$fechaFormateada;?>">
+                    </div>
 
                     <div class="">
                     <label class="text-primary mb-1 mt-3"><smallal>Diagnostico:</smallal></label>
-                    <textarea class="form-control fs-5" id="Diagnostico" rows="1"></textarea>
+                    <textarea class="form-control fs-5" id="Diagnostico" rows="1"><?=$data['diagnostico']?></textarea>
                     </div>
                     
                     <div class="">
                     <label class="text-primary mb-1 mt-3"><smallal>Medicamento:</smallal></label>
-                    <textarea class="form-control fs-5" id="Medicamento" rows="1"></textarea>
+                    <textarea class="form-control fs-5" id="Medicamento" rows="1"><?=$data['medicamento']?></textarea>
                     </div>
                     
                     <div class="row mt-3">
                     <div class="col-12 col-sm-6">
 
                     <label class="text-primary mb-1"><smallal>Cantidad (numero y letra):</smallal></label>
-                    <input type="text" class="form-control" id="NumCajas">
+                    <input type="text" class="form-control" id="NumCajas" value="<?=$data['numcajas']?>">
 
                     </div>
                     <div class="col-12 col-sm-6">
 
                     <label class="text-primary mb-1"><smallal>Presentación:</smallal></label>
-                    <input type="text" class="form-control" id="Presentacion">
+                    <input type="text" class="form-control" id="Presentacion" value="<?=$data['presentacion']?>">
 
                     </div>
                     </div>
 
                     <div class="">
                     <label class="text-primary mb-1 mt-3"><smallal>Dosificación:</smallal></label>
-                    <textarea class="form-control fs-5" id="Dosificacion" rows="1"></textarea>
+                    <textarea class="form-control fs-5" id="Dosificacion" rows="1"><?=$data['dosificacion']?></textarea>
                     </div>
 
                     <div class="row mt-3">
                     <div class="col-12 col-sm-6">
 
                     <label class="text-primary mb-1"><smallal>No. de días de prescripción:</smallal></label>
-                    <input type="text" class="form-control" id="NumDias">
+                    <input type="text" class="form-control" id="NumDias" value="<?=$data['numdias']?>">
 
                     </div>
                     <div class="col-12 col-sm-6">
 
                     <label class="text-primary mb-1"><smallal>Via de administración:</smallal></label>
-                    <input type="text" class="form-control" id="ViaAdministracion">
+                    <input type="text" class="form-control" id="ViaAdministracion" value="<?=$data['viaadministracion']?>">
 
                     </div>
                     </div>
-
 
                     
-                    <div class="text-end mt-3"><button class="btn btn-success" onclick="AgregarCofepris(<?=$data['idPaciente'];?>)">Agregar Cofepris <i data-feather="chevron-right"></i></button></div>
+                    <div class="text-end mt-3"><button class="btn btn-success" onclick="AgregarCofepris(<?=$data['idPaciente'];?>,<?=$data['id_cofepris'];?>)"><?=$boton_titulo;?> Cofepris<i data-feather="chevron-right"></i></button></div>
                     
                     <div class="text-center text-danger" id="mensaje"></div>
                     </div>

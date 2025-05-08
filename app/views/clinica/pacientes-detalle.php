@@ -215,6 +215,7 @@ $model = new PacienteModulosModelo();
 
                 const resultsContainer = document.getElementById('conteCofepris');
                 resultsContainer.innerHTML = data;
+                feather.replace();
 
                 const tabla = document.querySelector("#tableCofepris");
                 if (tabla) {
@@ -225,7 +226,8 @@ $model = new PacienteModulosModelo();
                         columns: [
                         {
                             select: 0, sort: "desc"
-                        }
+                        },
+                        { select: [2], sortable: false },
                         ]
                     });
                 }          

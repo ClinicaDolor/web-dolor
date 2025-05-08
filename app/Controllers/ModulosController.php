@@ -32,7 +32,7 @@ class ModulosController extends BaseController {
     $elementoModulo = "Antecedentes familiares";
        
     }else if($modulo == "antecedentes-personales-no-patologicos"){
-    $elementoModulo = "Antecedentes Personales no patológicos";
+    $elementoModulo = "Antecedentes Personales No Patológicos";
        
     }else if($modulo == "antecedentes-personales-quirurgicos"){
     $elementoModulo = "Antecedentes Personales Quirúrgicos";

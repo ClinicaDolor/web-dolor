@@ -32,19 +32,24 @@ class SidebarController {
     ],
                 
     'clinica-modulos-paciente' => [
-    ['titulo' => 'Historia Clinica', 'url' => SERVIDOR . 'clinica/modulos/paciente/' . $id, 'icono' => 'users']
+    ['titulo' => 'Pacientes', 'url' => SERVIDOR . 'clinica/pacientes', 'icono' => 'users'],
+    ['titulo' => 'Expediente', 'url' => SERVIDOR . 'clinica/paciente/'.$id, 'icono' => 'folder'],
+    ['titulo' => 'Historia Clinica', 'url' => SERVIDOR . 'clinica/modulos/paciente/' . $id, 'icono' => 'archive']
     ],
 
     'clinica-paciente-nuevo' => [
-    ['titulo' => 'Paciente Nuevo', 'url' => SERVIDOR . 'clinica/paciente/nuevo', 'icono' => 'users']
+    ['titulo' => 'Pacientes', 'url' => SERVIDOR . 'clinica/pacientes', 'icono' => 'users'],
+    ['titulo' => 'Paciente Nuevo', 'url' => SERVIDOR . 'clinica/paciente/nuevo', 'icono' => 'edit']
     ],
 
     'clinica-paciente-editar' => [
-    ['titulo' => 'Paciente Editar', 'url' => SERVIDOR . 'clinica/paciente/editar/'.$id, 'icono' => 'users']
+    ['titulo' => 'Pacientes', 'url' => SERVIDOR . 'clinica/pacientes', 'icono' => 'users'],
+    ['titulo' => 'Paciente Editar', 'url' => SERVIDOR . 'clinica/paciente/editar/'.$id, 'icono' => 'edit']
     ],
     
     'clinica-paciente-detalle' => [
-    ['titulo' => 'Paciente', 'url' => SERVIDOR . 'clinica/paciente/'.$id, 'icono' => 'users']
+    ['titulo' => 'Pacientes', 'url' => SERVIDOR . 'clinica/pacientes', 'icono' => 'users'],
+    ['titulo' => 'Expediente', 'url' => SERVIDOR . 'clinica/paciente/'.$id, 'icono' => 'folder']
     ],
 
     'clinica-paciente-recetas' => [
@@ -64,7 +69,8 @@ class SidebarController {
 
     
     'clinica-paciente-pin' => [
-    ['titulo' => 'Paciente Pin', 'url' => SERVIDOR . 'clinica/paciente/pin/'.$id, 'icono' => 'users']
+    ['titulo' => 'Pacientes', 'url' => SERVIDOR . 'clinica/pacientes', 'icono' => 'users'],
+    ['titulo' => 'Paciente Pin', 'url' => SERVIDOR . 'clinica/paciente/pin/'.$id, 'icono' => 'key']
     ],
  
     'clinica-receta' => [
@@ -99,15 +105,21 @@ class SidebarController {
 
     //---------- MODULOS DE HISTORIA CLINICA ----------
     'ficha-identificiacion' => [
+    ['titulo' => 'Expediente', 'url' => SERVIDOR . 'clinica/paciente/'.$id, 'icono' => 'folder'],
+    ['titulo' => 'Historia Clinica', 'url' => SERVIDOR . 'clinica/modulos/paciente/' . $id, 'icono' => 'archive'],
     ['titulo' => 'Ficha de identificación del paciente', 'url' => SERVIDOR . 'clinica/'.$view.'/paciente/'.$id, 'icono' => 'file-text']
     ],
    
     'antecedentes-familiares' => [
+    ['titulo' => 'Expediente', 'url' => SERVIDOR . 'clinica/paciente/'.$id, 'icono' => 'folder'],
+    ['titulo' => 'Historia Clinica', 'url' => SERVIDOR . 'clinica/modulos/paciente/' . $id, 'icono' => 'archive'],
     ['titulo' => 'Antecedentes familiares', 'url' => SERVIDOR . 'clinica/'.$view.'/paciente/'.$id, 'icono' => 'file-text']
     ],
 
     'antecedentes-personales-no-patologicos' => [
-    ['titulo' => 'Antecedentes Personales No Patologicos', 'url' => SERVIDOR . 'clinica/'.$view.'/paciente/'.$id, 'icono' => 'file-text']
+    ['titulo' => 'Expediente', 'url' => SERVIDOR . 'clinica/paciente/'.$id, 'icono' => 'folder'],
+    ['titulo' => 'Historia Clinica', 'url' => SERVIDOR . 'clinica/modulos/paciente/' . $id, 'icono' => 'archive'],
+    ['titulo' => 'Antecedentes Personales No Patológicos', 'url' => SERVIDOR . 'clinica/'.$view.'/paciente/'.$id, 'icono' => 'file-text']
     ],
 
     'perfil' => [
@@ -115,26 +127,38 @@ class SidebarController {
     ],
 
     'antecedentes-personales-quirurgicos' => [
+    ['titulo' => 'Expediente', 'url' => SERVIDOR . 'clinica/paciente/'.$id, 'icono' => 'folder'],
+    ['titulo' => 'Historia Clinica', 'url' => SERVIDOR . 'clinica/modulos/paciente/' . $id, 'icono' => 'archive'],
     ['titulo' => 'Antecedentes Personales Quirúrgicos', 'url' => SERVIDOR . 'clinica/'.$view.'/paciente/'.$id, 'icono' => 'file-text']
     ],
 
     'antecedentes-personales-patologicos' => [
-    ['titulo' => 'Antecedentes Personales  Patologicos', 'url' => SERVIDOR . 'clinica/'.$view.'/paciente/'.$id, 'icono' => 'file-text']
+    ['titulo' => 'Expediente', 'url' => SERVIDOR . 'clinica/paciente/'.$id, 'icono' => 'folder'],
+    ['titulo' => 'Historia Clinica', 'url' => SERVIDOR . 'clinica/modulos/paciente/' . $id, 'icono' => 'archive'],
+    ['titulo' => 'Antecedentes Personales Patológicos', 'url' => SERVIDOR . 'clinica/'.$view.'/paciente/'.$id, 'icono' => 'file-text']
     ],
 
     'procedimientos-control-dolor' => [
+    ['titulo' => 'Expediente', 'url' => SERVIDOR . 'clinica/paciente/'.$id, 'icono' => 'folder'],
+    ['titulo' => 'Historia Clinica', 'url' => SERVIDOR . 'clinica/modulos/paciente/' . $id, 'icono' => 'archive'],
     ['titulo' => 'Procedimientos que ha utilizado para controlar el dolor', 'url' => SERVIDOR . 'clinica/'.$view.'/paciente/'.$id, 'icono' => 'file-text']
     ],
 
     'medicacion-actual' => [
+    ['titulo' => 'Expediente', 'url' => SERVIDOR . 'clinica/paciente/'.$id, 'icono' => 'folder'],
+    ['titulo' => 'Historia Clinica', 'url' => SERVIDOR . 'clinica/modulos/paciente/' . $id, 'icono' => 'archive'],
     ['titulo' => 'Medicación Actual', 'url' => SERVIDOR . 'clinica/'.$view.'/paciente/'.$id, 'icono' => 'file-text']
     ],
 
     'evaluacion-dolor' => [
+    ['titulo' => 'Expediente', 'url' => SERVIDOR . 'clinica/paciente/'.$id, 'icono' => 'folder'],
+    ['titulo' => 'Historia Clinica', 'url' => SERVIDOR . 'clinica/modulos/paciente/' . $id, 'icono' => 'archive'],
     ['titulo' => 'Evaluación del dolor', 'url' => SERVIDOR . 'clinica/'.$view.'/paciente/'.$id, 'icono' => 'file-text']
     ],
 
     'medicacion-control-dolor' => [
+    ['titulo' => 'Expediente', 'url' => SERVIDOR . 'clinica/paciente/'.$id, 'icono' => 'folder'],
+    ['titulo' => 'Historia Clinica', 'url' => SERVIDOR . 'clinica/modulos/paciente/' . $id, 'icono' => 'archive'],
     ['titulo' => 'Medicamentos que ha utilizado para controlar el dolor', 'url' => SERVIDOR . 'clinica/'.$view.'/paciente/'.$id, 'icono' => 'file-text']
     ]
 
