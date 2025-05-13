@@ -513,7 +513,9 @@ class CofeprisModel{
         cofepris.id,
         cofepris.fecha_hora,
         cofepris.id_paciente,
-        pc_paciente.nombre_completo,
+        pc_paciente.nombres,
+        pc_paciente.apellido_paterno,
+        pc_paciente.apellido_materno,
         cofepris.carpeta,
         cofepris.folio,
         cofepris.surtido
@@ -525,7 +527,7 @@ class CofeprisModel{
         $folio = $stmt->fetch(\PDO::FETCH_ASSOC);
 
         if($folio){
-            $array = array('id_cofepris' => $folio['id'], 'fecha_hora' => $folio['fecha_hora'], 'paciente' => $folio['nombre_completo'], 'surtido' => $folio['surtido']);
+            $array = array('id_cofepris' => $folio['id'], 'fecha_hora' => $folio['fecha_hora'], 'paciente' => $folio['nombres'].' '.$folio['apellido_paterno'].' '.$folio['apellido_materno'], 'surtido' => $folio['surtido']);
         }else{
             $array = array('id_cofepris' => 0, 'fecha_hora' => '', 'paciente' => '', 'surtido' => 0);
         }

@@ -148,7 +148,7 @@
                         $paciente = $folio['paciente'];
                         $estado = '<span class="badge bg-success">Finalizado</span>';
                         $descargar = '<a target="_BLANK" href="' . SERVIDOR . 'pdf/cofepris/'.$folio['id_cofepris'].'"><i data-feather="download"></i></a>';
-                        $colot_table = 'table-success';
+                        $color_table = 'table-success';
 
                       }else{
                         $fecha = '';
@@ -156,7 +156,7 @@
                         $paciente = '';
                         $estado = '<span class="badge bg-danger">Pendiente</span>';
                         $descargar = '<a"><i data-feather="download"></i></a>';
-                        $colot_table = 'table-secondary';
+                        $color_table = 'table-secondary';
 
                     }
 
@@ -168,7 +168,7 @@
                         $surtido = '<span class="badge bg-primary">Surtido</span>';
                     }
                    
-                    echo '<tr class="'.$colot_table.'">
+                    echo '<tr class="'.$color_table.'">
                         <td class="text-center fw-bold">' . $i . '</td>
                         <td>' . $fecha . ' ' . $hora . '</td>
                         <td>' . $paciente . '</td>

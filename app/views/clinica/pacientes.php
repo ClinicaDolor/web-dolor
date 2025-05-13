@@ -1,6 +1,10 @@
 <?php 
 use App\Config\Database;
+use App\Helpers\CalculadoraEdad;
 $bd = Database::getInstance();
+
+$model = new CalculadoraEdad();
+
 ?>
 
     <!DOCTYPE html>
@@ -85,7 +89,7 @@ $bd = Database::getInstance();
     <td class="text-center aling-middle"><?=$registro['id']?></td>
     <td class="text-center aling-middle"><?=$registro['fecha_alta']?></td>
     <td class="text-start aling-middle"><b><?=$registro['nombres'].' '.$registro['apellido_paterno'].' '.$registro['apellido_materno']?></b></td>
-    <td class="text-center aling-middle"><?=$registro['edad']?> años</td>
+    <td class="text-center aling-middle"><?=$model->calcularEdad($registro['fecha_nacimiento'])?> años</td>
     <td class="text-center align-middle" style="color: <?= $registro['sexo'] == 'F' ? 'pink' : 'blue' ?>;">
     <?=$registro['sexo']?>
     </td>
