@@ -14,6 +14,17 @@ use App\Controllers\ClinicaController;
     <link rel="stylesheet" href="<?=RUTA_CSS;?>app.css">
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="<?=RUTA_JS;?>loader.js"></script>
+    <script>
+        const tableStates = [
+    'datatableState',
+    'datatableState_tableNotas',
+    'datatableState_tableRecetas',
+    'datatableState_tableLaboratorio',
+    'datatableState_tableCofepris'
+    ];
+
+    tableStates.forEach(key => localStorage.removeItem(key));
+    </script>
     </head>
 
     <body>
