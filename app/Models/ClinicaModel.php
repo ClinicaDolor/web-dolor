@@ -23,7 +23,11 @@ class ClinicaModel{
         
         $sql = "INSERT INTO pc_paciente (
             id_clinica,
-            nombre_completo,
+
+            nombres,
+            apellido_paterno,
+            apellido_materno,
+
             edad,
             sexo,
             fecha_nacimiento,
@@ -65,7 +69,11 @@ class ClinicaModel{
             status
         ) VALUES (
             :id_clinica,
-            :nombre_completo,
+
+            :nombres,
+            :apellido_paterno,
+            :apellido_materno,
+
             :edad,
             :sexo,
             :fecha_nacimiento,
@@ -111,7 +119,11 @@ class ClinicaModel{
         
         $datos = [
         ':id_clinica' => $cookie['id_clinica'],
-        ':nombre_completo' => $data['NombreCompleto'],
+
+        'nombres' => $data['Nombres'],
+        'apellido_paterno' => $data['ApellidoPaterno'],
+        'apellido_materno' => $data['ApellidoMaterno'],
+
         ':edad' => $data['Edad'],
         ':sexo' => $data['Sexo'],
         ':fecha_nacimiento' => $data['FeNacimiento'],
@@ -166,7 +178,11 @@ class ClinicaModel{
     public function editPaciente($data){
 
     $sql = "UPDATE pc_paciente SET 
-    nombre_completo = :nombre_completo,
+    
+    nombres = :nombres,
+    apellido_paterno = :apellido_paterno,
+    apellido_materno = :apellido_materno,
+
     edad = :edad,
     sexo = :sexo,
     fecha_nacimiento = :fecha_nacimiento,
@@ -199,7 +215,11 @@ class ClinicaModel{
     $stmt = $this->bd->prepare($sql);
 
     $datos = [
-        'nombre_completo' => $data['NombreCompleto'],
+        
+        'nombres' => $data['Nombres'],
+        'apellido_paterno' => $data['ApellidoPaterno'],
+        'apellido_materno' => $data['ApellidoMaterno'],
+
         'edad' => $data['Edad'],
         'sexo' => $data['Sexo'],
         'fecha_nacimiento' => $data['FeNacimiento'],

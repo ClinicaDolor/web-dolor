@@ -72,6 +72,10 @@ class ClinicaController extends BaseController{
 
     $authMiddleware->authPermisos();
 
+        $nombres = $paciente->getNombres();
+        $apellido_paterno = $paciente->getApellidoPaterno();
+        $apellido_materno = $paciente->getApellidoMaterno();
+
         $nombreCompleto = $paciente->getNombreCompleto();
         $edad = $paciente->getEdad();
         $fechaNacimiento = $paciente->getFechaNacimiento();
@@ -110,6 +114,10 @@ class ClinicaController extends BaseController{
         $data = ['title' => 'Paciente Editar', 
         'titulo_boton' => 'Editar Paciente',
         'idPaciente' => $idPaciente, 
+
+        'nombres' => $nombres,
+        'apellido_paterno' => $apellido_paterno,
+        'apellido_materno' => $apellido_materno,
 
         'nombre_paciente' => $nombreCompleto, 
         'fecha_nacimiento' => $fechaNacimiento,

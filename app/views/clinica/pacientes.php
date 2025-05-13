@@ -84,7 +84,7 @@ $bd = Database::getInstance();
     <tr>
     <td class="text-center aling-middle"><?=$registro['id']?></td>
     <td class="text-center aling-middle"><?=$registro['fecha_alta']?></td>
-    <td class="text-start aling-middle"><b><?=$registro['nombre_completo']?></b></td>
+    <td class="text-start aling-middle"><b><?=$registro['nombres'].' '.$registro['apellido_paterno'].' '.$registro['apellido_materno']?></b></td>
     <td class="text-center aling-middle"><?=$registro['edad']?> años</td>
     <td class="text-center align-middle" style="color: <?= $registro['sexo'] == 'F' ? 'pink' : 'blue' ?>;">
     <?=$registro['sexo']?>

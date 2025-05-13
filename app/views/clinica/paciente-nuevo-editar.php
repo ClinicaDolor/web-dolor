@@ -22,7 +22,11 @@ $bd = Database::getInstance();
     <script>
         
         function GuardarPaciente(idPaciente){
-        const NombreCompleto = document.getElementById('NombreCompleto').value;
+
+        const Nombres = document.getElementById('Nombres').value;
+        const ApellidoPaterno = document.getElementById('ApellidoPaterno').value;
+        const ApellidoMaterno = document.getElementById('ApellidoMaterno').value;
+
         const Edad = document.getElementById('Edad').value;
         const Sexo = document.getElementById('Sexo').value;
         const EstadoCivil = document.getElementById('EstadoCivil').value;
@@ -55,7 +59,9 @@ $bd = Database::getInstance();
 
         const parametros = {
         idPaciente : idPaciente,
-        NombreCompleto : NombreCompleto,
+        Nombres : Nombres,
+        ApellidoPaterno : ApellidoPaterno,
+        ApellidoMaterno : ApellidoMaterno,
         Edad : Edad,
         Sexo : Sexo,
         EstadoCivil : EstadoCivil,
@@ -126,12 +132,23 @@ $bd = Database::getInstance();
     <div class="card-body">
     <div class="row">
 
-    <div class="col-12 col-sm-6 mb-3">
-    <h8 class="text-primary fw-bold texto">* Nombre completo:</h8>
-    <input type="text" class="form-control" id="NombreCompleto" value="<?=$data['nombre_paciente'] ?? ''?>">
+
+    <div class="col-12 col-sm-4 mb-3">
+    <h8 class="text-primary fw-bold texto">* Nombres:</h8>
+    <input type="text" class="form-control" id="Nombres" value="<?=$data['nombres'] ?? ''?>">
     </div>
 
-    <div class="col-12 col-sm-3 mb-3">
+    <div class="col-12 col-sm-4 mb-3">
+    <h8 class="text-primary fw-bold texto">* Apellido Paterno:</h8>
+    <input type="text" class="form-control" id="ApellidoPaterno" value="<?=$data['apellido_paterno'] ?? ''?>">
+    </div>
+
+    <div class="col-12 col-sm-4 mb-3">
+    <h8 class="text-primary fw-bold texto">* Apellido Materno:</h8>
+    <input type="text" class="form-control" id="ApellidoMaterno" value="<?=$data['apellido_materno'] ?? ''?>">
+    </div>
+
+    <div class="col-12 col-sm-4 mb-3">
     <h8 class="text-primary fw-bold texto">* Edad:</h8>
     <div class="input-group">
     <input type="number" class="form-control" min="0" id="Edad" value="<?=$data['edad'] ?? ''?>">
@@ -139,7 +156,7 @@ $bd = Database::getInstance();
     </div>
     </div>
 
-    <div class="col-12 col-sm-3 mb-3">
+    <div class="col-12 col-sm-4 mb-3">
     <h8 class="text-primary fw-bold texto">* Sexo:</h8>
     <select class="form-select" id="Sexo">
     <option value="<?=$data['sexo'] ?? ''?>"><?php if(isset($data['sexo'])){ echo ($data['sexo'] == 'M')? 'Masculino': 'Femenino';}else{echo 'Seleccione una opción...';} ?></option>
