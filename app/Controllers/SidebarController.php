@@ -44,6 +44,7 @@ class SidebarController {
 
     'clinica-paciente-editar' => [
     ['titulo' => 'Pacientes', 'url' => SERVIDOR . 'clinica/pacientes', 'icono' => 'users'],
+    ['titulo' => 'Expediente', 'url' => SERVIDOR . 'clinica/paciente/'.$id, 'icono' => 'folder'],
     ['titulo' => 'Paciente Editar', 'url' => SERVIDOR . 'clinica/paciente/editar/'.$id, 'icono' => 'edit']
     ],
     

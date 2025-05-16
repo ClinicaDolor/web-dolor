@@ -292,9 +292,17 @@ $model = new PacienteModulosModelo();
 
     <div class="col-12 col-sm-6 resizable">
     <div class="card">
-        
+       
     <div class="card-header">
+    
+    <div class="float-end">
+    <a href="<?=SERVIDOR?>clinica/paciente/editar/<?=$data['idPaciente']?>" class="btn icon btn-primary text-white">
+    <i data-feather="edit-2"></i>
+    </a>
+    </div>
+
     <h5 class="card-title">Información del paciente</h5>
+
     </div>
     <div class="card-body">
 
