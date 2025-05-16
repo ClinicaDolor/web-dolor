@@ -43,30 +43,38 @@ class LoginModel{
     }
 
     public function validaPaciente($pin){
-
+        // Buscar todos los accesos activos y no expirados
         $stmt = $this->bd->prepare("SELECT 
-        pc_paciente.id AS idPaciente, 
-        pc_paciente.id_clinica AS idClinica, 
-        pc_paciente.nombre_completo, 
-        pc_paciente_acceso.pin, 
-        pc_paciente_acceso.fecha_creacion, 
-        pc_paciente_acceso.fecha_expiracion 
-        FROM pc_paciente 
-        INNER JOIN pc_paciente_acceso 
-        ON pc_paciente_acceso.paciente_id = pc_paciente.id
-        WHERE pc_paciente_acceso.estatus = 0 AND fecha_expiracion > NOW()");
+            pc_paciente.id AS idPaciente, 
+            pc_paciente.id_clinica AS idClinica, 
+            CONCAT(pc_paciente.nombres, ' ', pc_paciente.apellido_paterno, ' ', pc_paciente.apellido_materno) AS nombre_completo, 
+            pc_paciente_acceso.pin, 
+            pc_paciente_acceso.fecha_creacion, 
+            pc_paciente_acceso.fecha_expiracion 
+            FROM pc_paciente 
+            INNER JOIN pc_paciente_acceso 
+            ON pc_paciente_acceso.paciente_id = pc_paciente.id
+            WHERE pc_paciente_acceso.estatus = 0 AND pc_paciente_acceso.fecha_expiracion > NOW()");
+        
         $stmt->execute();
-        $user = $stmt->fetch();
-
-        if ($user && $this->valida->verifyPassword($pin, $user['pin'])) {
-            $resultado = $this->generateToken($user['idClinica'],$user['idPaciente'],$user['nombre_completo'],'historia-clinica','Paciente');
-
-
-            return $resultado;
+        $usuarios = $stmt->fetchAll();
+    
+        // Verificar si alguno de los PINs coincide
+        foreach ($usuarios as $user) {
+            if ($this->valida->verifyPassword($pin, $user['pin'])) {
+                $resultado = $this->generateToken(
+                    $user['idClinica'],
+                    $user['idPaciente'],
+                    $user['nombre_completo'],
+                    'historia-clinica',
+                    'Paciente'
+                );
+    
+                return $resultado;
+            }
         }
-
-        return array('resultado' => 401,'token' => '');
-
+    
+        return array('resultado' => 401, 'token' => '');
     }
 
     public function generateToken($idClinica,$idUsuario, $nombre, $vista, $rol){

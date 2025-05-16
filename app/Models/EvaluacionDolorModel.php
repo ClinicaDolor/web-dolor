@@ -223,7 +223,7 @@ class EvaluacionDolorModel{
 
     $result .= '<div class="card-body">';
     }
-
+ 
     $result .= '<div class="row">
     <div class="col-12">
     <div class="row">
@@ -241,7 +241,7 @@ class EvaluacionDolorModel{
     
     <div class="col-12 ">'; 
 
-    if($idRol = "Doctor"){
+    if($idRol == "Doctor"){
     $result .= '  
     <select class="form-select mt-3  mb-2" id="colorFrente">
     <option value="#FFFFFF">Selecciona una color...</option>
@@ -348,7 +348,7 @@ class EvaluacionDolorModel{
     
     <div class="col-12">';
 
-    if($idRol = "Doctor"){
+    if($idRol == "Doctor"){
     $result .= '  
     <select class="form-select mt-3  mb-2" id="colorEspalda">
     <option value="#FFFFFF">Selecciona una color...</option>
