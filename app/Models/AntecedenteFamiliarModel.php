@@ -32,13 +32,13 @@ $this->bd = Database::getInstance();
     $preguntas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
     if (!empty($preguntas)) {
-    $result .= '<table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;">';
+    $result .= '<table class="table-bordered" border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;">';
     $result .= '    
-    <tr>
-    <th>Nombre de la enfermedad</th>
-    <th>Tipo de enfermedad</th>
-    <th>¿Alguno de tus familiares ha sido diagnosticado con esta enfermedad?</th>
-    <th>¿Qué familiar padece esta enfermedad?</th>
+    <tr class="bg-white">
+    <th class="text-start align-middle">Nombre de la enfermedad</th>
+    <th class="text-center align-middle">Tipo de enfermedad</th>
+    <th class="text-center align-middle">¿Alguno de tus familiares ha sido diagnosticado con esta enfermedad?</th>
+    <th class="text-center align-middle">¿Qué familiar padece esta enfermedad?</th>
     </tr>';
 
     foreach ($preguntas as $pregunta): 
@@ -49,10 +49,10 @@ $this->bd = Database::getInstance();
 
     $result .= '    
     <tr>
-    <td>'.$enfermedad.'</td>
-    <td>'.$tipo.'</td>
-    <td>'.$detalle .'</td>
-    <td>'.$especificar.'</td>
+    <td class="text-start align-middle">'.$enfermedad.'</td>
+    <td class="text-center align-middle">'.$tipo.'</td>
+    <td class="text-center align-middle">'.$detalle .'</td>
+    <td class="text-center align-middle">'.$especificar.'</td>
     </tr>';
     endforeach;
 
@@ -141,7 +141,6 @@ $this->bd = Database::getInstance();
     <option value="Tipo 1" ' . ($tipo === 'Tipo 1' ? 'selected' : '') . '>Tipo 1</option>
     <option value="Tipo 2" ' . ($tipo === 'Tipo 2' ? 'selected' : '') . '>Tipo 2</option>
     <option value="Gestacional" ' . ($tipo === 'Gestacional' ? 'selected' : '') . '>Gestacional</option>
-    <option value="Otro" ' . ($tipo === 'Otro' ? 'selected' : '') . '>Otro</option>
     </select>';
     }   
     $result .= '</td>
@@ -245,14 +244,8 @@ $this->bd = Database::getInstance();
     data-value="Si" value="Gestacional" '.($tipo === 'Gestacional' ? 'checked' : '').' '.(($enfermedad == 'Diabetes Mellitus' && $detalle == 'Si') ? '' : 'disabled').'>
     <h5 class="text-secondary">Gestacional</h5>
     </div>
-        
-    <div class="text-center d-flex flex-column align-items-center">
-    <input type="checkbox" class="detalle-enfermedad form-check-input custom-checkbox mb-2" onchange="editarEnfermedad('.$idEnfermedad.', this, 3, \''.$idRol.'\')" 
-    data-value="Si" value="Otro" '.($tipo === 'Otro' ? 'checked' : '').' '.(($enfermedad == 'Diabetes Mellitus' && $detalle == 'Si') ? '' : 'disabled').'>
-    <h5 class="text-secondary">Otro</h5>
-    </div>        
+               
     </div>
-
     </div>
     
     

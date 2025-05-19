@@ -1,8 +1,10 @@
 <?php 
 use App\Config\Database;
+use App\Models\PacienteModulosModelo;
 use App\Models\ProcedimientosDolorModel;
 $bd = Database::getInstance();
 
+$model2 = new PacienteModulosModelo();
 $model = new ProcedimientosDolorModel();
 $preguntas_fijas = $model->obtenerPreguntasModulos(); 
 foreach ($preguntas_fijas as $preg) {
@@ -30,6 +32,7 @@ $contenidoTratamientoDolor = $model->editorTextoTD($data['idPaciente']);
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <!-- html2pdf -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="<?=RUTA_JS;?>editor-functions.js"></script>
 <script src="<?=RUTA_JS;?>loader.js"></script>
 </head>
 
@@ -38,7 +41,7 @@ $contenidoTratamientoDolor = $model->editorTextoTD($data['idPaciente']);
 <div id="app">
 <?=$data['sidebar'];?>  
 
-<div id="main" data-rol="<?=$data['idRol'];?>" data-paciente="<?=$data['idPaciente'];?>">
+<div id="main" data-rol="<?=$data['idRol'];?>" data-paciente="<?=$data['idPaciente'];?>" data-tema="<?=$data['title'];?>">
 <nav class="navbar navbar-header navbar-expand navbar-light">
 <a class="sidebar-toggler"><span class="navbar-toggler-icon"></span></a>
 <button class="btn navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent">
@@ -62,21 +65,37 @@ $contenidoTratamientoDolor = $model->editorTextoTD($data['idPaciente']);
 </div>
 
 <div class="card-body">
-<!---------- EDITOR DE TEXTO CKEditor ---------->
-<textarea id="editor">
 
 <!-- CONTENIDO INICIAL -->
-<div class="col-12 col-sm-6 mb-3">
+<div id="contenido-fijo">
+<div class="row">
+
+<div class="col-12 mb-3">
 <h8 class="text-primary fw-bold texto"><strong>Nombre:</strong> <?=$data['nombre'] ?? ''?></h8>
 </div>
-<br>
+
+<div class="col-12 mb-3">
 <strong>A continuación, deberá registrar la fecha en que se realizó cada procedimiento, acompañada de una breve descripción del mismo y de los resultados que experimentó su paciente:</strong>
 <?=$contenidoProcedimientoDolor?>
-<br>
+</div>
+
+<div class="col-12">
 <strong>A continuación, se le preguntará si su paciente ha recibido alguno de los siguientes tratamientos. En caso afirmativo, deberá indicar los resultados que experimentó:</strong>
 <?=$contenidoTratamientoDolor?>
-</textarea>
 </div>
+
+</div>
+</div>
+
+<!---------- EDITOR DE TEXTO CKEditor ---------->
+<label class="mt-4 mb-1" for="editor"><strong>Notas adicionales:</strong></label>
+<textarea id="editor" rows="20" cols="80"><?= htmlspecialchars($contenidoEditor = $model2->contenidoEditorPAC($data['idPaciente'],$data['title'])) ?></textarea>
+</div>
+
+<div class="card-footer">
+<button class="btn btn-success float-end" onclick="guardarContenidoEditor()">Guardar cambios</button>
+</div>
+
 </div>
 </section>
 </div>

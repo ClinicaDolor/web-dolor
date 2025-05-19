@@ -1,8 +1,10 @@
 <?php 
 use App\Config\Database;
+use App\Models\PacienteModulosModelo;
 use App\Models\MedicacionDolorModel;
 $bd = Database::getInstance();
 
+$model2 = new PacienteModulosModelo();
 $model = new MedicacionDolorModel();
 $preguntas_fijas = $model->obtenerPreguntasModulos(); 
 foreach ($preguntas_fijas as $preg) {
@@ -34,6 +36,7 @@ $contenidoMedicacionDolor6 = $model->editorTextoMD($data['idPaciente'],6);
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <!-- html2pdf -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="<?=RUTA_JS;?>editor-functions.js"></script>
 <script src="<?=RUTA_JS;?>loader.js"></script>
 </head>
 
@@ -42,7 +45,7 @@ $contenidoMedicacionDolor6 = $model->editorTextoMD($data['idPaciente'],6);
 <div id="app">
 <?=$data['sidebar'];?>  
 
-<div id="main" data-rol="<?=$data['idRol'];?>" data-paciente="<?=$data['idPaciente'];?>">
+<div id="main" data-rol="<?=$data['idRol'];?>" data-paciente="<?=$data['idPaciente'];?>" data-tema="<?=$data['title'];?>">
 <nav class="navbar navbar-header navbar-expand navbar-light">
 <a class="sidebar-toggler"><span class="navbar-toggler-icon"></span></a>
 <button class="btn navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent">
@@ -66,23 +69,37 @@ $contenidoMedicacionDolor6 = $model->editorTextoMD($data['idPaciente'],6);
 </div>
 
 <div class="card-body">
-<!---------- EDITOR DE TEXTO CKEditor ---------->
-<textarea id="editor">
-
 <!-- CONTENIDO INICIAL -->
-<div class="col-12 col-sm-6 mb-3">
+<div id="contenido-fijo">
+<div class="row">
+
+<div class="col-12 mb-3">
 <h8 class="text-primary fw-bold texto"><strong>Nombre:</strong> <?=$data['nombre'] ?? ''?></h8>
 </div>
-<br>
+
+<div class="col-12 mb-3">
 <strong>A continuación, se mostrará el listado de medicamentos comúnmente utilizados para el control del dolor. Por favor, indique si el paciente ha utilizado alguno de ellos. En caso afirmativo, anote la dosis que utiliza, los resultados obtenidos y si actualmente lo sigue utilizando o no: </strong>
-<?=$contenidoMedicacionDolor1?>
-<?=$contenidoMedicacionDolor2?>
-<?=$contenidoMedicacionDolor3?>
-<?=$contenidoMedicacionDolor4?>
-<?=$contenidoMedicacionDolor5?>
-<?=$contenidoMedicacionDolor6?>
-</textarea>
 </div>
+
+<div class="col-12 mb-3"><?=$contenidoMedicacionDolor1?></div>
+<div class="col-12 mb-3"><?=$contenidoMedicacionDolor2?></div>
+<div class="col-12 mb-3"><?=$contenidoMedicacionDolor3?></div>
+<div class="col-12 mb-3"><?=$contenidoMedicacionDolor4?></div>
+<div class="col-12 mb-3"><?=$contenidoMedicacionDolor5?></div>
+<div class="col-12"><?=$contenidoMedicacionDolor6?></div>
+
+</div>
+</div>
+
+<!---------- EDITOR DE TEXTO CKEditor ---------->
+<label class="mt-4 mb-1" for="editor"><strong>Notas adicionales:</strong></label>
+<textarea id="editor" rows="20" cols="80"><?= htmlspecialchars($contenidoEditor = $model2->contenidoEditorPAC($data['idPaciente'],$data['title'])) ?></textarea>
+</div>
+
+<div class="card-footer">
+<button class="btn btn-success float-end" onclick="guardarContenidoEditor()">Guardar cambios</button>
+</div>
+
 </div>
 </section>
 </div>

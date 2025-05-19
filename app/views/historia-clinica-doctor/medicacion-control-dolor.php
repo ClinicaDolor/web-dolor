@@ -28,48 +28,78 @@ $modulos = $model->obtenerModulosM7();
     <script src="<?=RUTA_JS;?>loader.js"></script>
     
     <script>
-    document.addEventListener("DOMContentLoaded", function() {
-    contenidoPreguntas(1);
-    contenidoPreguntas(2);
-    contenidoPreguntas(3);
-    contenidoPreguntas(4);
-    contenidoPreguntas(5);
-    contenidoPreguntas(6);
-    });
- 
-    // ---------- CONTENIDO DE LAS PREGUNTAS ----------
-    function contenidoPreguntas(idCuestionario) {
-    // Limpia las preguntas anteriores, si existen
-    document.querySelectorAll('.pregunta-container').forEach(p => p.remove());
+document.addEventListener("DOMContentLoaded", function () {
+    for (let i = 1; i <= 6; i++) {
+        contenidoPreguntas(i);
+    }
+});
+
+// ---------- CONTENIDO DE LAS PREGUNTAS ----------
+function contenidoPreguntas(idCuestionario) {
+    // Limpia solo el contenedor específico si existe
+    const contenedor = document.getElementById('contePreguntas_' + idCuestionario);
+    if (contenedor) contenedor.innerHTML = ''; // Borra contenido anterior sin eliminar nodos
 
     const usuarioDiv = document.getElementById('main');
     const idPaciente = usuarioDiv.getAttribute('data-paciente');
     const idRol = usuarioDiv.getAttribute('data-rol');
 
+    // Clave única por cuestionario
+    const stateKey = `datatableMedicamentosState_${idCuestionario}`;
+    const savedState = JSON.parse(localStorage.getItem(stateKey)) || {};
+
     fetch(`/buscar/contenido-preguntas-modulo-7/${idPaciente}/${idRol}/${idCuestionario}`)
-    .then(response => response.text())
-    .then(data => {
-    // Insertar el contenido en el contenedor específico del módulo
-    document.getElementById('contePreguntas_' + idCuestionario).innerHTML = data;
-    feather.replace();
+        .then(response => response.text())
+        .then(data => {
+            document.getElementById('contePreguntas_' + idCuestionario).innerHTML = data;
+            feather.replace();
 
-    const tabla = document.querySelector("#table_medicamentos_" + idCuestionario);
-    if (tabla) {
-    dataTable = new simpleDatatables.DataTable(tabla,{
-	searchable: true,
-    fixedHeight: true,
-	columns: [
-	{
-	select: 0, sort: "asc"
-	},
-    { select: [2,3,4,5], sortable: false },
+            const tabla = document.querySelector(`#table_medicamentos_${idCuestionario}`);
+            if (tabla) {
+                const dataTable = new simpleDatatables.DataTable(tabla, {
+                    searchable: true,
+                    fixedHeight: true,
+                    perPage: savedState.perPage || 10,
+                    perPageSelect: [10, 20, 50],
+                    columns: [
+                        { select: 0, sort: savedState.sort || 'asc' },
+                        { select: [2, 3, 4, 5], sortable: false }
+                    ]
+                });
 
-	]
-    });
-    }  
-    });
+                dataTable.on('datatable.init', function () {
+                    if (savedState.page) {
+                        dataTable.page(savedState.page);
+                    }
+                    if (savedState.search) {
+                        dataTable.input.value = savedState.search;
+                        dataTable.search(savedState.search);
+                    }
+                });
+
+                dataTable.on('datatable.page', function (page) {
+                    savedState.page = page;
+                    localStorage.setItem(stateKey, JSON.stringify(savedState));
+                });
+
+                dataTable.on('datatable.perpage', function (perPage) {
+                    savedState.perPage = perPage;
+                    localStorage.setItem(stateKey, JSON.stringify(savedState));
+                });
+
+                dataTable.on('datatable.sort', function (column, direction) {
+                    savedState.sort = direction;
+                    localStorage.setItem(stateKey, JSON.stringify(savedState));
+                });
+
+                dataTable.on('datatable.search', function (query) {
+                    savedState.search = query;
+                    localStorage.setItem(stateKey, JSON.stringify(savedState));
+                });
+            }
+        });
     }
-
+    
     //---------- CONTROL SERVER ----------
     function gestionarMedicacionControl(url, parametros, callback, idUpdate = 0) {
     if(idUpdate == 1){

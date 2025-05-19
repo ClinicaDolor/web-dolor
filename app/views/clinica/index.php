@@ -20,7 +20,19 @@ use App\Controllers\ClinicaController;
     'datatableState_tableNotas',
     'datatableState_tableRecetas',
     'datatableState_tableLaboratorio',
-    'datatableState_tableCofepris'
+    'datatableState_tableCofepris',
+
+    'datatableMedicamentosState_1',
+    'datatableMedicamentosState_2',
+    'datatableMedicamentosState_3',
+    'datatableMedicamentosState_4',
+    'datatableMedicamentosState_5',
+    'datatableMedicamentosState_6',
+    'datatableProcedimientoState',
+    'datatableTratamientosState',
+    'datatableState_table_cirugia',
+    'datatableState_table_enfermedades',
+    'datatableState_table_medicacion'
     ];
 
     tableStates.forEach(key => localStorage.removeItem(key));

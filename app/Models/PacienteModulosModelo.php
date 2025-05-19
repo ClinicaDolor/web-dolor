@@ -762,7 +762,41 @@ class PacienteModulosModelo{
     return $porcentajeCumpliiento;   
     }
 
+    public function editarContenidoEditor($data){
+
+    $idPaciente = preg_replace('/[^0-9]/', '', $data['idPaciente'] ?? '');
+    $idTema = preg_replace('/[^a-zA-Z0-9_\-]/', '', $data['idTema'] ?? '');
+    $contenido = $data['contenido'] ?? '';
+    $directorio = $_SERVER['DOCUMENT_ROOT'] . "/public/assets/notas-paciente/paciente_$idPaciente";
+    if (!is_dir($directorio)) mkdir($directorio, 0777, true);
+
+    $archivo = "$directorio/$idTema.html";
+
+    if (file_put_contents($archivo, $contenido) !== false) {
+    return array('resultado' => 200,'mensaje' => '¡Se actualizo la informacion correctamente!');
+    } else {
+    return array('resultado' => 401,'mensaje' => '¡Error al actualizar la información!');
+    }
+
+    }
 
 
 
-}
+    public function contenidoEditorPAC($idPaciente, $idTema){
+    $resultado = "";
+
+    $idPacienteDOC = preg_replace('/[^0-9]/', '', $idPaciente ?? '');
+    $idTemaDOC = preg_replace('/[^a-zA-Z0-9_\-]/', '', $idTema ?? '');
+    $nombreArchivo = $idTemaDOC . ".html";
+
+    $rutaArchivo = $_SERVER['DOCUMENT_ROOT'] . "/public/assets/notas-paciente/paciente_$idPacienteDOC/$nombreArchivo";
+
+    $contenidoEditor = file_exists($rutaArchivo)
+    ? file_get_contents($rutaArchivo)
+    : '';
+
+    return $contenidoEditor;
+
+    }
+
+    }

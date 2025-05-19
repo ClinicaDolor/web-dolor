@@ -60,10 +60,8 @@ return function(RouteCollector $r) {
         $r->addRoute('POST', '/paciente/editar-medicacion-actual', ['ModulosController', 'pacienteEditMedicamento']);
         $r->addRoute('POST', '/paciente/eliminar-medicacion-actual', ['ModulosController', 'pacienteDeleteMedicamento']);
 
- 
         //----- 7. MEDICACION PARA EL DOLOR
         $r->addRoute('POST', '/paciente/editar-cuestionario-modulo7', ['ModulosController', 'pacienteEditarCuestionarioM7']);
-
 
         //----- 8. AGREGAR PROCEDIMIENTO DOLOR
         $r->addRoute('POST', '/paciente/agregar-procedimiento-dolor-modulo8', ['ModulosController', 'pacienteInsertProcedimientos']);
@@ -80,7 +78,9 @@ return function(RouteCollector $r) {
 
         $r->addRoute('POST', '/paciente/editar-evaluacion-dolor-modulo9', ['ModulosController', 'pacienteEditEvaluacion']);
 
- 
+        //----- GUARDAR CONTENIDO DEL HTML
+        $r->addRoute('POST', '/paciente/guardar-contenido-editor', ['ModulosController', 'pacienteContenidoEditor']);
+
         //----- COMENTARIOS MODULOS
         $r->addRoute('POST', '/paciente/agregar-comentario-modulo', ['ModulosController', 'pacienteComentarioModulo']);
         $r->addRoute('POST', '/paciente/eliminar-comentario-modulo', ['ModulosController', 'pacienteDeleteComentario']);

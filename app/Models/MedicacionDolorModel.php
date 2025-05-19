@@ -73,6 +73,7 @@ class MedicacionDolorModel{
     pac_respuestas_paciente_modulo_7.respuesta, 
     pac_respuestas_paciente_modulo_7.dosis, 
     pac_respuestas_paciente_modulo_7.resultados, 
+    pac_respuestas_paciente_modulo_7.descripcion, 
     pac_respuestas_paciente_modulo_7.consumo
     FROM pac_temas_modulo_7 
     INNER JOIN pac_preguntas_modulo_7 ON pac_preguntas_modulo_7.id_tema = pac_temas_modulo_7.id 
@@ -83,9 +84,9 @@ class MedicacionDolorModel{
     $modulos = $this->obtenerNameModulos($idTema);
 
     if (!empty($preguntas)) {
-    $result .= '<table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;">
+    $result .= '<table class="table-bordered" border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;">
     <tr>
-    <th colspan="6">'.$modulos.'</th>
+    <th class="text-center align-middle" colspan="7">'.$modulos.'</th>
     </tr>
     
     <tr>
@@ -94,6 +95,7 @@ class MedicacionDolorModel{
     <th class="text-start align-middle text-center" width="200px">Si/No</th>
     <th class="text-start align-middle text-center">Dosis que te utiliza</th>
     <th class="text-start align-middle text-center" width="280px">Resultados obtenidos</th>
+    <th class="text-start align-middle text-center">Descripción de resultados</th>
     <th class="text-start align-middle text-center">Aún lo utiliza</th>
     </tr>';
     
@@ -103,16 +105,18 @@ class MedicacionDolorModel{
     $respuesta = $pregunta['respuesta'];
     $dosis = $pregunta['dosis'];
     $resultados = $pregunta['resultados'];
+    $descripcion = $pregunta['descripcion'];
     $consumo = $pregunta['consumo'];
 
     $result .= '    
     <tr>
-    <td>'.$num.'</td>
-    <td>'.$preguntaPC.'</td>
-    <td>'.$respuesta.'</td>
-    <td>'.$dosis.'</td>
-    <td>'.$resultados.'</td>
-    <td>'.$consumo.'</td>
+    <td class="text-center align-middle">'.$num.'</td>
+    <td class="text-start align-middle">'.$preguntaPC.'</td>
+    <td class="text-center align-middle">'.$respuesta.'</td>
+    <td class="text-center align-middle">'.$dosis.'</td>
+    <td class="text-center align-middle">'.$resultados.'</td>
+    <td class="text-center align-middle">'.$descripcion.'</td>
+    <td class="text-center align-middle">'.$consumo.'</td>
     </tr>';
     
     $num++;
@@ -136,6 +140,7 @@ class MedicacionDolorModel{
     pac_respuestas_paciente_modulo_7.respuesta, 
     pac_respuestas_paciente_modulo_7.dosis, 
     pac_respuestas_paciente_modulo_7.resultados, 
+    pac_respuestas_paciente_modulo_7.descripcion, 
     pac_respuestas_paciente_modulo_7.consumo
     FROM pac_temas_modulo_7 
     INNER JOIN pac_preguntas_modulo_7 ON pac_preguntas_modulo_7.id_tema = pac_temas_modulo_7.id 
@@ -158,6 +163,7 @@ class MedicacionDolorModel{
     $respuesta = $pregunta['respuesta'];
     $dosis = $pregunta['dosis'];
     $resultados = $pregunta['resultados'];
+    $descripcion = $pregunta['descripcion'];
     $consumo = $pregunta['consumo'];
 
     // La primera pregunta se muestra activa
@@ -212,6 +218,10 @@ class MedicacionDolorModel{
         </div>
     </div>';
     
+    if($resultados == 'Tuve efectos adversos'){
+    $result .= '<h8 class="text-secondary fw-bold mb-1 texto"><b>Descripción de los efectos adversos:</b></h8>';
+    $result .= '<input type="text" class="form-control mb-3" value="' . ($descripcion == '' ? '' : $descripcion) . '" placeholder="Ingresa aquí la descripcion..." onchange="respuestaPreguntaSelect('.$idPaciente.','.$idRespuesta.', this, '.$idTema.', 5,\''.$idRol.'\')">';
+    }
 
     $result .= '<h8 class="text-secondary fw-bold mb-1 texto"><b>¿Sigues utilizando este medicamento actualmente?</b></h8>';
     $result .= '
@@ -310,6 +320,7 @@ class MedicacionDolorModel{
     <th class="text-start align-middle text-center" width="200px">Si/No</th>
     <th class="text-start align-middle text-center">Dosis que te utiliza</th>
     <th class="text-start align-middle text-center" width="280px">Resultados obtenidos</th>
+    <th class="text-start align-middle text-center">Descripción de resultados</th>
     <th class="text-start align-middle text-center">Aún lo utiliza</th>
     </tr>
     </thead>
@@ -322,7 +333,9 @@ class MedicacionDolorModel{
     $respuesta = $pregunta['respuesta'];
     $dosis = $pregunta['dosis'];
     $resultados = $pregunta['resultados'];
+    $descripcion = $pregunta['descripcion'];
     $consumo = $pregunta['consumo'];
+
     $result .= '<tr>';
     $result .= '<td class="text-center align-middle">'.$num.'</td>';
     $result .= '<td class="text-start align-middle">'.$preguntaPC.'</td>';
@@ -341,7 +354,7 @@ class MedicacionDolorModel{
     </td>';
 
     $result .= '<td class="text-start align-middle">
-    <select class="form-select" onchange="respuestaPreguntaSelect('.$idPaciente.','.$idRespuesta.', this, '.$idTema.', 3,\''.$idRol.'\')" ' . ($respuesta == 'Si' ? '' : 'disabled') . '>
+    <select class="form-select text-center" onchange="respuestaPreguntaSelect('.$idPaciente.','.$idRespuesta.', this, '.$idTema.', 3,\''.$idRol.'\')" ' . ($respuesta == 'Si' ? '' : 'disabled') . '>
     <option value="" disabled selected>Selecciona una opción...</option>
     <option value="Funciono" ' . ($resultados == 'Funciono' ? 'selected' : '') . '>Funciono</option>
     <option value="No funciono" ' . ($resultados == 'No funciono' ? 'selected' : '') . '>No funciono</option>
@@ -350,7 +363,12 @@ class MedicacionDolorModel{
     </td>';
 
     $result .= '<td class="text-start align-middle">
-    <select class="form-select" onchange="respuestaPreguntaSelect('.$idPaciente.','.$idRespuesta.', this, '.$idTema.', 4,\''.$idRol.'\')" ' . ($respuesta == 'Si' ? '' : 'disabled') . '>
+    <input type="text" class="form-control text-center" value="' . ($descripcion == '' ? '' : $descripcion) . '" placeholder="Ingresa aquí la descripción..." onchange="respuestaPreguntaSelect('.$idPaciente.','.$idRespuesta.', this, '.$idTema.', 5,\''.$idRol.'\')"
+    ' . ($resultados == 'Tuve efectos adversos' ? '' : 'disabled') . '>
+    </td>';
+
+    $result .= '<td class="text-start align-middle">
+    <select class="form-select text-center" onchange="respuestaPreguntaSelect('.$idPaciente.','.$idRespuesta.', this, '.$idTema.', 4,\''.$idRol.'\')" ' . ($respuesta == 'Si' ? '' : 'disabled') . '>
     <option value="" disabled selected>Selecciona una opción...</option>
     <option value="Si" ' . ($consumo == 'Si' ? 'selected' : '') . '>Sí</option>
     <option value="No" ' . ($consumo == 'No' ? 'selected' : '') . '>No</option>
@@ -380,14 +398,21 @@ class MedicacionDolorModel{
     if($opcionEdicion == 1){
     $consulta = "respuesta";
     if($data['detalle'] == "No"){
-    $consulta2 = ", dosis = '', resultados = '', consumo = ''";
+    $consulta2 = ", dosis = '', resultados = '', descripcion = '', consumo = ''";
     }  
     }else if($opcionEdicion == 2){
     $consulta = "dosis";
     }else if($opcionEdicion == 3){
     $consulta = "resultados";
+
+    if($data['detalle'] == "Funciono" || $data['detalle'] == "No funciono"){
+    $consulta2 = ", descripcion = ''";
+    }
+
     }else if($opcionEdicion == 4){
     $consulta = "consumo";
+    }else if($opcionEdicion == 5){
+    $consulta = "descripcion";
     }
 
     

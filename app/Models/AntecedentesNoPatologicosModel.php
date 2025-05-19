@@ -63,15 +63,15 @@ $this->bd = Database::getInstance();
 
 
     if (!empty($preguntas)) {
-    $result .= '<table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;">
+    $result .= '<table class="table-bordered" border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;">
     <tr>
-    <th colspan="3">'.$modulos.'</th>
+    <th class="text-center" colspan="3">'.$modulos.'</th>
     </tr>
     
     <tr>
-    <th width="20px">#</th>
-    <th>Pregunta</th>
-    <th>Respuesta</th>
+    <th class="text-center" width="20px">#</th>
+    <th class="text-start">Pregunta</th>
+    <th class="text-center">Respuesta</th>
     </tr>';
     
     $num = 1;
@@ -81,9 +81,9 @@ $this->bd = Database::getInstance();
 
     $result .= '    
     <tr>
-    <td>'.$num.'</td>
-    <td>'.$preguntaPC.'</td>
-    <td>'.$respuesta.'</td>
+    <td class="text-center">'.$num.'</td>
+    <td class="text-start">'.$preguntaPC.'</td>
+    <td class="text-center">'.$respuesta.'</td>
     </tr>';
     
     $num++;
