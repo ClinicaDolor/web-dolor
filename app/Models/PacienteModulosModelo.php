@@ -169,10 +169,11 @@ class PacienteModulosModelo{
 
     $stmt = $this->bd->query("SELECT 
     id,
-    nombre_completo,
+    nombres,
     ROUND((
     (
-    IF(nombre_completo IS NOT NULL AND nombre_completo != '', 1, 0) +
+    IF(nombres IS NOT NULL AND nombres != '', 1, 0) +
+    IF(apellido_paterno IS NOT NULL AND apellido_paterno != '', 1, 0) +
     IF(edad IS NOT NULL AND edad != '', 1, 0) +
     IF(sexo IS NOT NULL AND sexo != '', 1, 0) +
     IF(estado_civil IS NOT NULL AND estado_civil != '', 1, 0) +
@@ -184,7 +185,7 @@ class PacienteModulosModelo{
     IF(num_hijos IS NOT NULL AND num_hijos != '', 1, 0) +
     IF(edad_hijos IS NOT NULL AND edad_hijos != '', 1, 0) + 
     IF(motivo_atencion IS NOT NULL AND motivo_atencion != '', 1, 0)
-    ) / 12 * 100
+    ) / 13 * 100
     ), 0) AS porcentaje_cumplimiento
     FROM pc_paciente WHERE id = '".$idPaciente."'");
     $preguntas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
@@ -761,7 +762,41 @@ class PacienteModulosModelo{
     return $porcentajeCumpliiento;   
     }
 
+    public function editarContenidoEditor($data){
+
+    $idPaciente = preg_replace('/[^0-9]/', '', $data['idPaciente'] ?? '');
+    $idTema = preg_replace('/[^a-zA-Z0-9_\-]/', '', $data['idTema'] ?? '');
+    $contenido = $data['contenido'] ?? '';
+    $directorio = $_SERVER['DOCUMENT_ROOT'] . "/public/assets/notas-paciente/paciente_$idPaciente";
+    if (!is_dir($directorio)) mkdir($directorio, 0777, true);
+
+    $archivo = "$directorio/$idTema.html";
+
+    if (file_put_contents($archivo, $contenido) !== false) {
+    return array('resultado' => 200,'mensaje' => '¡Se actualizo la informacion correctamente!');
+    } else {
+    return array('resultado' => 401,'mensaje' => '¡Error al actualizar la información!');
+    }
+
+    }
 
 
 
-}
+    public function contenidoEditorPAC($idPaciente, $idTema){
+    $resultado = "";
+
+    $idPacienteDOC = preg_replace('/[^0-9]/', '', $idPaciente ?? '');
+    $idTemaDOC = preg_replace('/[^a-zA-Z0-9_\-]/', '', $idTema ?? '');
+    $nombreArchivo = $idTemaDOC . ".html";
+
+    $rutaArchivo = $_SERVER['DOCUMENT_ROOT'] . "/public/assets/notas-paciente/paciente_$idPacienteDOC/$nombreArchivo";
+
+    $contenidoEditor = file_exists($rutaArchivo)
+    ? file_get_contents($rutaArchivo)
+    : '';
+
+    return $contenidoEditor;
+
+    }
+
+    }

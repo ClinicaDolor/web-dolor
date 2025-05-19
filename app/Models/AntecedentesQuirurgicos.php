@@ -20,11 +20,11 @@ class AntecedentesQuirurgicos{
     $preguntas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
     
 
-    $result .= '<table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;">
+    $result .= '<table class="table-bordered" border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;">
     <tr>
-    <th>Fecha</th>
-    <th>Nombre de la cirugia</th>
-    <th>Observaciones</th>
+    <th class="text-center align-middle">Fecha</th>
+    <th class="text-center align-middle">Nombre de la cirugia</th>
+    <th class="text-center align-middle">Observaciones</th>
     </tr>';
  
     if (!empty($preguntas)) {
@@ -36,9 +36,9 @@ class AntecedentesQuirurgicos{
 
     $result .= '    
     <tr>
-    <td>'.$fecha.'</td>
-    <td>'.$cirugia.'</td>
-    <td>'.$observaciones.'</td>
+    <td class="text-center align-middle">'.$fecha.'</td>
+    <td class="text-center align-middle">'.$cirugia.'</td>
+    <td class="text-center align-middle">'.$observaciones.'</td>
     </tr>';
     
     $num++;
@@ -46,9 +46,7 @@ class AntecedentesQuirurgicos{
     }else{
     $result .= '    
     <tr>
-    <td></td>
-    <td></td>
-    <td></td>
+    <td class="text-center align-middle" colspan="3">No se encontro información</td>
     </tr>';
     }
     $result .= '</table>';

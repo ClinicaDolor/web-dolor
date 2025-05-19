@@ -77,15 +77,15 @@ $this->bd = Database::getInstance();
     $modulos = $this->obtenerNameModulos($idTema);
 
     if (!empty($preguntas)) {
-    $result .= '<table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;">
+    $result .= '<table class="table-bordered" border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;">
     <tr>
-    <th colspan="3">'.$modulos.'</th>
+    <th class="text-center align-middle" colspan="3">'.$modulos.'</th>
     </tr>
     
     <tr>
-    <th width="20px">#</th>
-    <th>Pregunta</th>
-    <th>Respuesta</th>
+    <th class="text-center align-middle" width="20px">#</th>
+    <th class="text-start align-middle">Pregunta</th>
+    <th class="text-center align-middle">Respuesta</th>
     </tr>';
     
     $num = 1;
@@ -95,9 +95,9 @@ $this->bd = Database::getInstance();
 
     $result .= '    
     <tr>
-    <td>'.$num.'</td>
-    <td>'.$preguntaPC.'</td>
-    <td>'.$respuesta.'</td>
+    <td class="text-center align-middle">'.$num.'</td>
+    <td class="text-start align-middle">'.$preguntaPC.'</td>
+    <td class="text-center align-middle">'.$respuesta.'</td>
     </tr>';
     
     $num++;
@@ -130,13 +130,13 @@ $this->bd = Database::getInstance();
     
 
     if (!empty($enfermedades)) {
-    $result .= '<table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;">
+    $result .= '<table class="table-bordered" border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;">
     <tr>
-    <th width="20px">#</th>
-    <th>Enfermedad</th>
-    <th>¿Ha sido diagnosticado con esta enfermedad en algún momento?</th>
-    <th>Tipo de enfermedad</th>
-    <th>Año de diagnostico</th>
+    <th class="text-center align-middle" width="20px">#</th>
+    <th class="text-center align-middle">Enfermedad</th>
+    <th class="text-center align-middle">¿Ha sido diagnosticado con esta enfermedad en algún momento?</th>
+    <th class="text-center align-middle">Tipo de enfermedad</th>
+    <th class="text-center align-middle">Año de diagnostico</th>
     </tr>';
     
     $num = 1;
@@ -147,11 +147,11 @@ $this->bd = Database::getInstance();
     $year = $enfermedad['year_diagnostico'];
     $result .= '    
     <tr>
-    <td>'.$num.'</td>
-    <td>'.$preguntaEnf.'</td>
-    <td>'.$respuesta.'</td>
-    <td>'.$tipo.'</td>
-    <td>'.$year.'</td>        
+    <td class="text-center align-middle">'.$num.'</td>
+    <td class="text-start align-middle">'.$preguntaEnf.'</td>
+    <td class="text-center align-middle">'.$respuesta.'</td>
+    <td class="text-center align-middle">'.$tipo.'</td>
+    <td class="text-center align-middle">'.$year.'</td>        
     </tr>';
     
     $num++;
@@ -463,13 +463,6 @@ $this->bd = Database::getInstance();
            data-value="Si" value="Gestacional" '.($tipo === 'Gestacional' ? 'checked' : '').'>
         <h5 class="text-secondary">Gestacional</h5>
     </div>
-
-    <div class="text-center d-flex flex-column align-items-center mb-2">
-        <input type="checkbox" class="form-check-input custom-checkbox mb-1"
-            onchange="editarEnfermedadV2('.$idRespuesta.', this, 2, \''.$idRol.'\')"
-            data-value="Si" value="Otro" '.($tipo === 'Otro' ? 'checked' : '').'>
-        <h5 class="text-secondary">Otro</h5>
-    </div>
     </div>';
 
     } else if ($preguntaEnf == 'Enfermedad pulmonar'){
@@ -487,13 +480,6 @@ $this->bd = Database::getInstance();
             onchange="editarEnfermedadV2('.$idRespuesta.', this, 2, \''.$idRol.'\')"
             data-value="Si" value="Asma" '.($tipo === 'Asma' ? 'checked' : '').'>
         <h5 class="text-secondary">Asma</h5>
-    </div>
-
-    <div class="text-center d-flex flex-column align-items-center mb-2">
-        <input type="checkbox" class="form-check-input custom-checkbox mb-1"
-            onchange="editarEnfermedadV2('.$idRespuesta.', this, 2, \''.$idRol.'\')"
-            data-value="Si" value="Otro" '.($tipo === 'Otro' ? 'checked' : '').'>
-        <h5 class="text-secondary">Otro</h5>
     </div>
     </div>';  
     }
@@ -573,7 +559,6 @@ $this->bd = Database::getInstance();
     <option value="Tipo 1" '.($tipo === 'Tipo 1' ? 'selected' : '').'>Tipo 1</option>
     <option value="Tipo 2" '.($tipo === 'Tipo 2' ? 'selected' : '').'>Tipo 2</option>
     <option value="Gestacional" '.($tipo === 'Gestacional' ? 'selected' : '').'>Gestacional</option>
-    <option value="Otro" '.($tipo === 'Otro' ? 'selected' : '').'>Otro</option>
     </select>';
     
     } else if ($preguntaEnf == 'Enfermedad pulmonar'){
@@ -581,7 +566,6 @@ $this->bd = Database::getInstance();
     <option value="" disabled selected>Selecciona una opción...</option>
     <option value="EPOC" '.($tipo === 'EPOC' ? 'selected' : '').'>EPOC</option>
     <option value="Asma" '.($tipo === 'Asma' ? 'selected' : '').'>Asma</option>
-    <option value="Otro" '.($tipo === 'Otro' ? 'selected' : '').'>Otro</option>
     </select>';  
     }
     }

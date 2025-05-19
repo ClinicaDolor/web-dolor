@@ -800,43 +800,70 @@ class ModulosController extends BaseController {
         return;
         }
                                 
-        $model = new EvaluacionDolorModel();
-        $resultModel = $model->eliminarImgEspalda($data);
+    $model = new EvaluacionDolorModel();
+    $resultModel = $model->eliminarImgEspalda($data);
                                 
-        if ($resultModel['resultado'] == 200) {
-        echo HttpMethod::jsonResponse(200,true,$resultModel['mensaje']);
-        } else {
-        echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
-        }
+    if ($resultModel['resultado'] == 200) {
+    echo HttpMethod::jsonResponse(200,true,$resultModel['mensaje']);
+    } else {
+    echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
+    }
                                 
-        }
+    }
 
 
 
-        public function pacienteEditEvaluacion(){
-            $data = json_decode(file_get_contents('php://input'), true);
-            $idRol = $data['idRol'];  // Obtener el idRol
-            $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
+    public function pacienteEditEvaluacion(){
+    $data = json_decode(file_get_contents('php://input'), true);
+    $idRol = $data['idRol'];  // Obtener el idRol
+    $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
                                             
-            $authMiddleware = new AuthMiddleware($view);
-            $authMiddleware->authPermisos();
-            header('Content-Type: application/json');
+    $authMiddleware = new AuthMiddleware($view);
+    $authMiddleware->authPermisos();
+    header('Content-Type: application/json');
                                 
-            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            echo HttpMethod::jsonResponse(405, false, "Método no permitido. Usa POST.");
-            return;
-            }
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    echo HttpMethod::jsonResponse(405, false, "Método no permitido. Usa POST.");
+    return;
+    }
                                 
-            $model = new EvaluacionDolorModel();
-            $resultModel = $model->editarEvaluacion($data);
+    $model = new EvaluacionDolorModel();
+    $resultModel = $model->editarEvaluacion($data);
                                 
-            if ($resultModel['resultado'] == 200) {
-            echo HttpMethod::jsonResponse(200,true,$resultModel['mensaje']);
-            } else {
-            echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
-            }
+    if ($resultModel['resultado'] == 200) {
+    echo HttpMethod::jsonResponse(200,true,$resultModel['mensaje']);
+    } else {
+    echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
+    }
                                 
-            }
+    }
+
+
+    //---------- GUARDAR CONTENIDO DEL HTML ----------
+    public function pacienteContenidoEditor(){
+    $data = json_decode(file_get_contents('php://input'), true);
+    $idRol = $data['idRol'];  // Obtener el idRol
+    $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
+                                    
+    $authMiddleware = new AuthMiddleware($view);
+    $authMiddleware->authPermisos();
+    header('Content-Type: application/json');
+                        
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    echo HttpMethod::jsonResponse(405, false, "Método no permitido. Usa POST.");
+    return;
+    }
+                        
+    $model = new PacienteModulosModelo();
+    $resultModel = $model->editarContenidoEditor($data);
+                        
+    if ($resultModel['resultado'] == 200) {
+    echo HttpMethod::jsonResponse(200,true,$resultModel['mensaje']);
+    } else {
+    echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
+    }
+                        
+    } 
 
     //---------- COMENTARIOS MODULO ----------
     public function pacienteComentarioModulo(){

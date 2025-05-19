@@ -37,63 +37,122 @@ echo $model->procedimientosModulo8($data['idPaciente'], $preg);
     const idPaciente = usuarioDiv.getAttribute('data-paciente');
     const idRol = usuarioDiv.getAttribute('data-rol');
 
+    const stateKey = 'datatableProcedimientoState';
+    const savedState = JSON.parse(localStorage.getItem(stateKey)) || {};
+
     fetch(`/buscar/contenido-preguntas-modulo-8/${idPaciente}/${idRol}`)
-    .then(response => response.text())
-    .then(data => {
+        .then(response => response.text())
+        .then(data => {
+            const contenedor = document.getElementById('contePreguntas');
+            contenedor.innerHTML = data;
+            feather.replace();
 
-    const contenedor = document.getElementById('contePreguntas');
-    contenedor.innerHTML = data;
-    feather.replace();
- 
-    const tabla = document.querySelector("#table_procedimiento");
-    if (tabla) {
-    dataTable = new simpleDatatables.DataTable(tabla,{
-	searchable: true,
-    fixedHeight: true,
-	columns: [
-	{
-	select: 0, sort: "asc"
-	},
-    { select: [1,2,3], sortable: false },
+            const tabla = document.querySelector("#table_procedimiento");
+            if (tabla) {
+                const dataTable = new simpleDatatables.DataTable(tabla, {
+                    searchable: true,
+                    fixedHeight: true,
+                    perPage: savedState.perPage || 10,
+                    perPageSelect: [10, 20, 50],
+                    columns: [
+                        { select: 0, sort: savedState.sort || "asc" },
+                        { select: [1, 2, 3], sortable: false }
+                    ]
+                });
 
-	]
-    });
-    }  
+                dataTable.on('datatable.init', function () {
+                    if (savedState.page) {
+                        dataTable.page(savedState.page);
+                    }
+                    if (savedState.search) {
+                        dataTable.input.value = savedState.search;
+                        dataTable.search(savedState.search);
+                    }
+                });
 
-    });
-    } 
+                dataTable.on('datatable.page', page => {
+                    savedState.page = page;
+                    localStorage.setItem(stateKey, JSON.stringify(savedState));
+                });
 
-    //------------------------------ SECCION DE TRATAMIENTOS ------------------------------
-    function contenidoTratamientos() {
+                dataTable.on('datatable.perpage', perPage => {
+                    savedState.perPage = perPage;
+                    localStorage.setItem(stateKey, JSON.stringify(savedState));
+                });
+
+                dataTable.on('datatable.sort', (column, direction) => {
+                    savedState.sort = direction;
+                    localStorage.setItem(stateKey, JSON.stringify(savedState));
+                });
+
+                dataTable.on('datatable.search', query => {
+                    savedState.search = query;
+                    localStorage.setItem(stateKey, JSON.stringify(savedState));
+                });
+            }
+        });
+}
+
+
+function contenidoTratamientos() {
     const usuarioDiv = document.getElementById('main');
     const idPaciente = usuarioDiv.getAttribute('data-paciente');
     const idRol = usuarioDiv.getAttribute('data-rol');
 
+    const stateKey = 'datatableTratamientosState';
+    const savedState = JSON.parse(localStorage.getItem(stateKey)) || {};
+
     fetch(`/buscar/contenido-preguntas-tratamiento-modulo-8/${idPaciente}/${idRol}`)
-    .then(response => response.text())
-    .then(data => {
-    document.getElementById('conteTratamiento').innerHTML = data;
-    feather.replace();
-           
-    const tabla = document.querySelector("#table_tratamientos");
-    if (tabla) {
-    dataTable = new simpleDatatables.DataTable(tabla,{
-	searchable: true,
-    fixedHeight: true,
-	columns: [
-	{
-	select: 0, sort: "ASC"
-	},
-    { select: [1,2], sortable: false },
+        .then(response => response.text())
+        .then(data => {
+            document.getElementById('conteTratamiento').innerHTML = data;
+            feather.replace();
 
-	]
-    });
-    }  
+            const tabla = document.querySelector("#table_tratamientos");
+            if (tabla) {
+                const dataTable = new simpleDatatables.DataTable(tabla, {
+                    searchable: true,
+                    fixedHeight: true,
+                    perPage: savedState.perPage || 10,
+                    perPageSelect: [10, 20, 50],
+                    columns: [
+                        { select: 0, sort: savedState.sort || "asc" },
+                        { select: [1, 2], sortable: false }
+                    ]
+                });
 
-    });
+                dataTable.on('datatable.init', function () {
+                    if (savedState.page) {
+                        dataTable.page(savedState.page);
+                    }
+                    if (savedState.search) {
+                        dataTable.input.value = savedState.search;
+                        dataTable.search(savedState.search);
+                    }
+                });
 
-    } 
+                dataTable.on('datatable.page', page => {
+                    savedState.page = page;
+                    localStorage.setItem(stateKey, JSON.stringify(savedState));
+                });
 
+                dataTable.on('datatable.perpage', perPage => {
+                    savedState.perPage = perPage;
+                    localStorage.setItem(stateKey, JSON.stringify(savedState));
+                });
+
+                dataTable.on('datatable.sort', (column, direction) => {
+                    savedState.sort = direction;
+                    localStorage.setItem(stateKey, JSON.stringify(savedState));
+                });
+
+                dataTable.on('datatable.search', query => {
+                    savedState.search = query;
+                    localStorage.setItem(stateKey, JSON.stringify(savedState));
+                });
+            }
+        });
+    }
     //---------- CONTROL SERVER ----------
     function gestionarControlDolor(url, parametros, callback, idUpdate = 0) {
     if(idUpdate == 1){

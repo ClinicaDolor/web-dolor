@@ -2,8 +2,10 @@
 use App\Config\Database;
 use App\Models\PacienteModulosModelo;
 $bd = Database::getInstance();
-?>
+$model = new PacienteModulosModelo();
 
+?>
+ 
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -20,6 +22,7 @@ $bd = Database::getInstance();
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <!-- html2pdf -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="<?=RUTA_JS;?>editor-functions.js"></script>
 <script src="<?=RUTA_JS;?>loader.js"></script>
 </head>
 
@@ -28,7 +31,7 @@ $bd = Database::getInstance();
 <div id="app">
 <?=$data['sidebar'];?>  
 
-<div id="main" data-rol="<?=$data['idRol'];?>" data-paciente="<?=$data['idPaciente'];?>">
+<div id="main" data-rol="<?=$data['idRol'];?>" data-paciente="<?=$data['idPaciente'];?>" data-tema="<?=$data['title'];?>">
 <nav class="navbar navbar-header navbar-expand navbar-light">
 <a class="sidebar-toggler"><span class="navbar-toggler-icon"></span></a>
 <button class="btn navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent">
@@ -53,16 +56,15 @@ $bd = Database::getInstance();
 <button class="btn btn-danger float-end me-2" onclick="downloadPDF('<?=RUTA_IMAGES?>', '<?=$data['nombre']?>', '<?=$data['title']?>')"><i data-feather="printer"></i></button>
 </div>
 
-<div class="card-body">
-<!-- Editor de texto CKEditor -->
-<textarea id="editor">
+<div class="card-body pb-1">
 
+<div id="contenido-fijo">
 <!-- CONTENIDO INICIAL -->
 <div class="col-12 col-sm-6 mb-3">
 <h8 class="text-primary fw-bold texto"><strong>Nombre:</strong> <?=$data['nombre'] ?? ''?></h8>
 </div>
 
-<table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;">
+<table border="1" class="table-bordered" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;">
 
 <tr>
 <td><strong>Edad:</strong> <?= isset($data['edad']) ? $data['edad'] . ' años' : 'Sin Información' ?></td>
@@ -91,7 +93,7 @@ $bd = Database::getInstance();
 <tr>
 <td colspan="4"><strong>¿Quien lo recomienda? O porque medio se entero de la Clínica del Dolor y Cuidados Paliativos?:</strong></td>
 </tr>
-
+ 
 <tr>
 <td colspan="4"><strong>Persona que lo recomendó:</strong> <?= isset($data['quien_recomienda']) ? $data['quien_recomienda'] : 'Sin Información' ?></td>
 </tr>
@@ -135,8 +137,19 @@ $bd = Database::getInstance();
 </tr>
 
 </table>
-</textarea>
 </div>
+
+
+<!-- Editor de texto CKEditor -->
+<label class="mt-4 mb-1" for="editor"><strong>Notas adicionales:</strong></label>
+<textarea id="editor" rows="20" cols="80"><?= htmlspecialchars($contenidoEditor = $model->contenidoEditorPAC($data['idPaciente'],$data['title'])) ?></textarea>
+
+</div>
+
+<div class="card-footer">
+<button class="btn btn-success float-end" onclick="guardarContenidoEditor()">Guardar cambios</button>
+</div>
+
 </div>
 </section>
 </div>

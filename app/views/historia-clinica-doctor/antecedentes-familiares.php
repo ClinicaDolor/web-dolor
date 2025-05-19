@@ -39,13 +39,61 @@ echo $model->antecedentesFamiliares($data['idPaciente'], $enf);
     const idPaciente = usuarioDiv.getAttribute('data-paciente');
     const idRol = usuarioDiv.getAttribute('data-rol');
 
-    fetch(`/buscar/contenido-preguntas-modulo-2/${idPaciente}/${idRol}`)
-    .then(response => response.text())
-    .then(data => {
-    document.getElementById('contePreguntas').innerHTML = data;
-    feather.replace();
+    // Recuperar estado guardado (puedes usar otra clave si es otra tabla)
+    const savedState = JSON.parse(localStorage.getItem('datatablePreguntasState')) || {};
 
-    });
+    fetch(`/buscar/contenido-preguntas-modulo-2/${idPaciente}/${idRol}`)
+        .then(response => response.text())
+        .then(data => {
+            document.getElementById('contePreguntas').innerHTML = data;
+            feather.replace();
+
+            const tabla = document.querySelector("#table_enfermedades"); // Asegúrate que este ID coincida
+            if (tabla) {
+                const dataTable = new simpleDatatables.DataTable(tabla, {
+                    searchable: true,
+                    fixedHeight: true,
+                    perPage: savedState.perPage || 10,
+                    perPageSelect: [10, 20, 50],
+                    columns: [
+                        { select: 0, sort: savedState.sort || 'asc' },
+                        { select: [1, 2, 3], sortable: false }
+                    ]
+                });
+
+                // Restaurar búsqueda y página
+                dataTable.on('datatable.init', function () {
+                    if (savedState.page) {
+                        dataTable.page(savedState.page);
+                    }
+                    if (savedState.search) {
+                        dataTable.input.value = savedState.search;
+                        dataTable.search(savedState.search);
+                    }
+                });
+
+                // Guardar estado
+                dataTable.on('datatable.page', function (page) {
+                    savedState.page = page;
+                    localStorage.setItem('datatablePreguntasState', JSON.stringify(savedState));
+                });
+
+                dataTable.on('datatable.perpage', function (perPage) {
+                    savedState.perPage = perPage;
+                    localStorage.setItem('datatablePreguntasState', JSON.stringify(savedState));
+                });
+
+                dataTable.on('datatable.sort', function (column, direction) {
+                    savedState.sort = direction;
+                    localStorage.setItem('datatablePreguntasState', JSON.stringify(savedState));
+                });
+
+                dataTable.on('datatable.search', function (query) {
+                    savedState.search = query;
+                    localStorage.setItem('datatablePreguntasState', JSON.stringify(savedState));
+                });
+            }
+        });
     }
 
     // ---------- CONTENIDO DEL COMENTARIO ----------
