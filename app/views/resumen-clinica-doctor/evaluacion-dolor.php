@@ -4,10 +4,12 @@ use App\Models\PacienteModulosModelo;
 use App\Models\EvaluacionDolorModel;
 $bd = Database::getInstance();
 
-$model2 = new PacienteModulosModelo();
 $model = new EvaluacionDolorModel();
-$contenidoEvaluacionDolor= $model->editorTextoED($data['idPaciente']); 
+echo $model->cuestionarioModulo9($data['idPaciente']);
 
+$model2 = new PacienteModulosModelo();
+$contenidoEvaluacionDolor= $model->editorTextoED($data['idPaciente']); 
+  
 ?> 
 
 <!DOCTYPE html>
