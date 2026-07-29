@@ -299,36 +299,54 @@ class ClinicaModel{
 
     }
 
-    public function insertPacienteReceta($data){
+public function insertPacienteReceta($data){
 
-        $sql = "INSERT INTO receta_medica (
-            id_paciente,
-            diagnostico,
-            medicamento,
-            codigo_referencia
-        ) VALUES (
-            :id_paciente,
-            :diagnostico,
-            :medicamento,
-            :codigo_referencia
-        )";
+    $sql = "INSERT INTO receta_medica (
+        id_paciente,
+        diagnostico,
+        medicamento,
+        codigo_referencia,
+        ta,
+        fc,
+        spo2,
+        temperatura
+    ) VALUES (
+        :id_paciente,
+        :diagnostico,
+        :medicamento,
+        :codigo_referencia,
+        :ta,
+        :fc,
+        :spo2,
+        :temperatura
+    )";
 
-        $stmt = $this->bd->prepare($sql);         
+    $stmt = $this->bd->prepare($sql);
 
-        $datos = [
-            ':id_paciente' => $data['idPaciente'],
-            ':diagnostico' => $data['diagnostico'],
-            ':medicamento' => $data['medicamento'],
-            ':codigo_referencia' => $data['referencia']
-            ];
-        
-            if ($stmt->execute($datos)) {
-                return array('resultado' => 200,'mensaje' => $this->bd->lastInsertId());
-    
-            } else {
-                return array('resultado' => 401,'mensaje' => '¡Error al agregar nueva receta a la lista!');
-            }
+    $datos = [
+        ':id_paciente'       => $data['idPaciente'],
+        ':diagnostico'       => $data['diagnostico'],
+        ':medicamento'       => $data['medicamento'],
+        ':codigo_referencia' => $data['referencia'],
+        ':ta'                => $data['ta'],
+        ':fc'                => $data['fc'],
+        ':spo2'              => $data['spo2'],
+        ':temperatura'       => $data['temperatura']
+    ];
 
+    if ($stmt->execute($datos)) {
+        return array(
+            'resultado' => 200,
+            'mensaje' => $this->bd->lastInsertId()
+        );
+
+    } else {
+        return array(
+            'resultado' => 401,
+            'mensaje' => '¡Error al agregar nueva receta a la lista!'
+        );
     }
+
+}
 
 }

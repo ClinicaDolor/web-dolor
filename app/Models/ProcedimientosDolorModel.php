@@ -75,7 +75,7 @@ class ProcedimientosDolorModel{
     }else{
     $result .= '    
     <tr>
-    <td class="text-center align-middle" colspan="3"> No se encontro información</td>
+    <td class="text-center align-middle" colspan="4"> No se encontro información</td>
     </tr>';
     }
     $result .= '</table>';

@@ -11,19 +11,19 @@ class EvaluacionDolorModel{
     
     }
 
-    public function cuestionarioModulo9($idPaciente){
+public function cuestionarioModulo9($idPaciente) {
     $sql = "SELECT COUNT(*) FROM pc_paciente_evaluacion_dolor WHERE id_paciente = ?";
     $stmt = $this->bd->prepare($sql);
     $stmt->execute([$idPaciente]);
     $numero = $stmt->fetchColumn();
-                        
+
     if ($numero == 0) {
-    $sql_insert = "INSERT INTO pc_paciente_evaluacion_dolor (id_paciente) 
-    VALUES (?)";
-    $stmt_insert = $this->bd->prepare($sql_insert);
-    $stmt_insert->execute(params: [$idPaciente]);
+        $sql_insert = "INSERT INTO pc_paciente_evaluacion_dolor (id_paciente) VALUES (?)";
+        $stmt_insert = $this->bd->prepare($sql_insert);
+        $stmt_insert->execute([$idPaciente]);
     }
-    }
+}
+
 
     public function editorTextoED($idPaciente){
     $result = "";
@@ -58,7 +58,7 @@ class EvaluacionDolorModel{
     }else{
     $result .= '    
     <tr>
-    <td></td>
+    <td class="text-center">No se encontro información</td>
     </tr>';
     }
     $result .= '</table>';
