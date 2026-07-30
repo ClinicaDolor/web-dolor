@@ -26,6 +26,11 @@
 <?php include_once __DIR__ . '/../components/search-bar-doctor.php';?>
 
 <div class="main-content container-fluid">
+
+<button id="toggleButton" class="btn icon btn-light text-dark float-end" onclick="toggleSize()">
+<i id="toggleIcon" data-feather="columns"></i>
+</button>
+
 <div class="page-title">
 <h3><?=$data['title'];?></h3>
 </div>
@@ -33,7 +38,7 @@
 <section class="mt-3">
 
 <div class="row">
-<div class="col-12 col-sm-6">
+<div class="col-12 col-sm-6 resizable" data-index="0">
 
 <div class="card">
 <div class="card-header">
@@ -50,73 +55,31 @@
 
 <div class="row mt-2">
 <div class="col-12 col-sm-4">
-<label class="text-primary"><small>Fecha Alta:</small></label>
-<div class="fs-5"><?=(new DateTime($data['fecha_alta']))->format('d/m/Y');[0];?></div>
+<label class="text-primary"><small>Edad:</small></label>
+<div class="fs-5"><?=$data['edad'] ?? 'S/I';?> años</div>
+</div>
+
+<div class="col-12 col-sm-4">
+<label class="text-primary"><small>Sexo:</small></label>
+<div class="fs-5"><?=($data['sexo'] == 'M')? 'Masculino': (($data['sexo'] == 'F')? 'Femenino' : 'S/I');?></div>
 </div>
 
 <div class="col-12 col-sm-4">
 <label class="text-primary"><small>Fecha Nacimiento:</small></label>
-<div class="fs-5"><?=date("d/m/Y", strtotime($data['fecha_nacimiento']));?></div>
+<div class="fs-5"><?=!empty($data['fecha_nacimiento']) ? date("d/m/Y", strtotime($data['fecha_nacimiento'])) : 'S/I';?></div>
 </div>
-
-<div class="col-12 col-sm-4">
-<label class="text-primary"><small>Edad:</small></label>
-<div class="fs-5"><?=$data['edad'];?> años</div>
 </div>
 
 </div>
-
-<div class="row mt-2">
-
-<div class="col-12 col-sm-4">
-<label class="text-primary"><small>Sexo:</small></label>
-<div class="fs-5"><?=($data['sexo'] == 'M')? 'Masculino': 'Femenino';?></div>
-</div>
-
-<div class="col-12 col-sm-4">
-<label class="text-primary"><small>Estado Civil:</small></label>
-<div class="fs-5"><?=$data['estado_civil'];?></div>
-</div>
-
-<div class="col-12 col-sm-4">
-<label class="text-primary"><small>CURP:</small></label>
-<div class="fs-5"><?=$data['curp'];?></div>
 </div>
 
 </div>
-
-<div class="mt-3 fs-6 text-success">Contacto del paciente:</div>
-
-<div class="row mt-3">
-
-<div class="col-12 col-sm-4">
-<label class="text-primary"><small>Email:</small></label>
-<div class="fs-5"><?=$data['email'];?></div>
-</div>
-
-<div class="col-12 col-sm-4">
-<label class="text-primary"><small>Telefono:</small></label>
-<div class="fs-5"><?=$data['telefono'];?></div>
-</div>
-
-<div class="col-12 col-sm-4">
-<label class="text-primary"><small>Celular:</small></label>
-<div class="fs-5"><?=$data['celular'];?></div>
-</div>
-
-</div>         
-
-</div>
-
-</div>
-
-</div>
-<div class="col-12 col-sm-6">
+<div class="col-12 col-sm-6 resizable" data-index="1">
 
 <div class="card">
 <div class="card-header">
 <h4 class="card-title">Detalle de la Receta
-<div class="float-end"><a href="javascript:void(0)" onclick="imprimirReceta(<?=$data['id_receta'];?>, 'registrado')" class="btn icon btn-primary"><i data-feather="printer"></i></a></div>
+<div class="float-end"><a href="javascript:void(0)" onclick="imprimirReceta(<?=$data['id_receta'];?>, 'externo')" class="btn icon btn-primary"><i data-feather="printer"></i></a></div>
 </h4>
 </div>
 <div class="card-body">
@@ -124,10 +87,35 @@
 <div><small class="text-primary">Fecha: </small> <label class="fs-5"><?=$data['fecha_receta'];?></label>, <small class="text-primary">Hora: </small> <label class="fs-5"><?=$data['hora_receta'];?></label></div>
 <div class="mt-3"><small class="text-primary">Diagnostico: </small> <label class="fs-5"><?=$data['diagnostico_receta'];?></label></div>
 
+<div class="mt-4">
+<small class="text-primary">Signos Vitales:</small>
+
+<div class="row mt-2">
+<div class="col-md-6 mb-2">
+<small class="text-muted">Tensión Arterial (TA):</small><br>
+<label class="fs-5"><?=!empty($data['ta']) ? $data['ta'].' mmHg' : 'S/I';?></label>
+</div>
+
+<div class="col-md-6 mb-2">
+<small class="text-muted">Frecuencia Cardíaca (FC):</small><br>
+<label class="fs-5"><?=!empty($data['fc']) ? $data['fc'].' lpm' : 'S/I';?></label>
+</div>
+
+<div class="col-md-6 mb-2">
+<small class="text-muted">Saturación de Oxígeno (SpO₂):</small><br>
+<label class="fs-5"><?=!empty($data['spo2']) ? $data['spo2'].' %' : 'S/I';?></label>
+</div>
+
+<div class="col-md-6 mb-2">
+<small class="text-muted">Temperatura</small><br>
+<label class="fs-5"><?=!empty($data['temperatura']) ? $data['temperatura'].' °C' : 'S/I';?></label>
+</div>
+</div>
+</div>
+
 <label class="mt-4"><small class="text-primary">Medicamento: </small></label>
 <div class="fs-5"><?=$data['medicamento_receta'];?></div>
 
-    
 </div>
 </div>
 
@@ -151,7 +139,7 @@
 
 <script src="<?=RUTA_JS;?>/feather-icons/feather.min.js"></script>
 <script src="<?=RUTA_PUBLIC;?>libs/perfect-scrollbar/perfect-scrollbar.min.js"></script>
-<script src="<?=RUTA_JS;?>app.js"></script> 
+<script src="<?=RUTA_JS;?>app.js"></script>
 <script src="<?=RUTA_JS;?>main.js"></script>
 <script src="<?=RUTA_JS?>search-main.js"></script>
 
@@ -159,4 +147,3 @@
 
 </body>
 </html>
-

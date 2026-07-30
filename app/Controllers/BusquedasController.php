@@ -17,6 +17,7 @@ use App\Models\EvaluacionDolorModel;
 
 use App\Models\PacienteModulosModelo;
 use App\Models\CofeprisModel;
+use App\Models\RecetaExternoModel;
 
 class BusquedasController{
 
@@ -55,6 +56,20 @@ class BusquedasController{
 
         $model = new RecetaModel();
         echo $model->mostrarTablaRecetas($idPaciente);
+
+    }
+
+    public function tableRecetasExternos(){
+
+        $model = new RecetaExternoModel();
+        echo $model->mostrarTablaRecetas();
+
+    }
+
+    public function buscarRecetaExterno($id){
+
+        $model = new RecetaExternoModel();
+        echo $model->getReceta($id);
 
     }
 

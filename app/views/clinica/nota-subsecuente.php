@@ -57,7 +57,7 @@
                         {
                             select: 0, sort: "desc"
                         },
-                        { select: [3], sortable: false },
+                        { select: [2], sortable: false },
                         ]
                     });
                 }     
@@ -197,6 +197,7 @@
     <script src="<?=RUTA_JS;?>main.js"></script>
     <script src="<?=RUTA_PUBLIC;?>libs/simple-datatables/simple-datatables.js"></script>
     <script src="<?=RUTA_JS?>search-main.js"></script>
+    <?php include_once __DIR__ . '/../components/modal-impresion-receta.php';?>
 
 </body>
 </html>

@@ -171,7 +171,7 @@ function tableLaboratorio(){
                 document.querySelector('#snow1 .ql-editor').innerHTML = "";
                 document.querySelector('#snow2 .ql-editor').innerHTML = "";
                 
-                window.open('/pdf/receta/' + return_idReceta, '_blank');
+                imprimirReceta(return_idReceta, 'registrado');
                 window.location.href = '/clinica/nota-subsecuente/' + return_idNota;
                 
             } else {
@@ -262,7 +262,7 @@ function tableLaboratorio(){
                         {
                             select: 0, sort: "desc"
                         },
-                        { select: [3], sortable: false },
+                        { select: [2], sortable: false },
                         ]
                     });
                 }     
@@ -599,6 +599,8 @@ function tableLaboratorio(){
     <script src="<?=RUTA_PUBLIC;?>libs/quill/quill.min.js"></script>
     <script src="<?=RUTA_JS?>search-main.js"></script>
    
+<?php include_once __DIR__ . '/../components/modal-impresion-receta.php';?>
+
 <script>
 document.addEventListener("DOMContentLoaded", function () {
 

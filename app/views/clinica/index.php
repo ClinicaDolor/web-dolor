@@ -86,6 +86,19 @@ use App\Controllers\ClinicaController;
     </div>
     </a>
     </div>
+  
+    <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 mb-4">
+    <a href="<?=SERVIDOR?>clinica/recetas/nueva">
+    <div class="card border-0 rounded-4 position-relative card-mvsd-disabled">
+    <div class="card-body text-center">
+    <h5 class="text-primary mb-3 mt-2">Agregar Nueva Receta</h5>
+    <div class="col-12 mb-3">
+    <img src="<?=RUTA_IMAGES ?>/iconos/agregar-icon.png" class="img-fluid" style="max-height: 90px;">
+    </div>
+    </div>
+    </div>
+    </a>
+    </div>
     </div>
 
     </section>

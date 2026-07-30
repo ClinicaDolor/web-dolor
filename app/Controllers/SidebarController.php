@@ -28,7 +28,14 @@ $viewRolElements = [
 'DOCTOR' => [
 'clinica' => [
 ['titulo' => 'Pacientes', 'url' => SERVIDOR . 'clinica/pacientes', 'icono' => 'users'],
-['titulo' => 'Cofepris', 'url' => SERVIDOR . 'clinica/cofepris', 'icono' => 'file-text']
+['titulo' => 'Cofepris', 'url' => SERVIDOR . 'clinica/cofepris', 'icono' => 'file-text'],
+['titulo' => 'Recetas', 'url' => SERVIDOR . 'clinica/recetas', 'icono' => 'file-text']
+],
+
+'clinica-recetas' => [
+['titulo' => 'Pacientes', 'url' => SERVIDOR . 'clinica/pacientes', 'icono' => 'users'],
+['titulo' => 'Recetas', 'url' => SERVIDOR . 'clinica/recetas', 'icono' => 'file-text'],
+['titulo' => 'Nueva Receta', 'url' => SERVIDOR . 'clinica/recetas/nueva', 'icono' => 'file-text']
 ],
 
 'clinica-modulos-paciente' => [
@@ -76,7 +83,18 @@ $viewRolElements = [
 
 'clinica-receta' => [
 ['titulo' => 'Expediente', 'url' => SERVIDOR . 'clinica/paciente/'.$referencia, 'icono' => 'folder'],
-['titulo' => 'Receta', 'url' => SERVIDOR . 'clinica/receta/'.$id, 'icono' => 'file-text']
+['titulo' => 'Receta (Detalle)', 'url' => SERVIDOR . 'clinica/receta/'.$id, 'icono' => 'file-text']
+],
+
+'clinica-receta-externo' => [
+['titulo' => 'Recetas', 'url' => SERVIDOR . 'clinica/recetas', 'icono' => 'file-text'],
+['titulo' => 'Receta (Detalle)', 'url' => SERVIDOR . 'clinica/receta-externo/'.$id, 'icono' => 'file-text']
+],
+'clinica-receta-nueva' => [
+['titulo' => 'Pacientes', 'url' => SERVIDOR . 'clinica/pacientes', 'icono' => 'users'],
+
+['titulo' => 'Recetas', 'url' => SERVIDOR . 'clinica/recetas', 'icono' => 'file-text'],
+['titulo' => 'Nueva Receta', 'url' => SERVIDOR . 'clinica/recetas/nueva', 'icono' => 'file-text']
 ],
 
 'cofepris' => [
