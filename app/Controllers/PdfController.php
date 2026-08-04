@@ -328,8 +328,7 @@ $pdf->Write(0, $paciente->getCurp());
 
 $pdf->SetFont('helvetica', '', 9);
 $pdf->SetXY(47, 35);
-$pdf->Write(0, $paciente->getCalle().' '.$paciente->getNumExterior().', '.$paciente->getColonia().$paciente->getDelegacion(),', '.$paciente->getCp().', '.$paciente->getMunicipio());
-
+$pdf->Write(0, $paciente->getCalle() . ' ' . $paciente->getNumExterior() . ', ' . $paciente->getColonia() . ', ' . $paciente->getDelegacion() . ', C.P. ' . $paciente->getCp() . ', ' . $paciente->getMunicipio());
 $pdf->SetFont('helvetica', '', 10);
 $pdf->SetXY(29, 39);
 $pdf->Write(0, $model->getDiagnostico());
@@ -388,8 +387,7 @@ $pdf->Write(0, $paciente->getCurp());
 
 $pdf->SetFont('helvetica', '', 9);
 $pdf->SetXY(48, 129);
-$pdf->Write(0, $paciente->getCalle().' '.$paciente->getNumExterior().', '.$paciente->getColonia().$paciente->getDelegacion(),', '.$paciente->getCp().', '.$paciente->getMunicipio());
-
+$pdf->Write(0, $paciente->getCalle() . ' ' . $paciente->getNumExterior() . ', ' . $paciente->getColonia() . ', ' . $paciente->getDelegacion() . ', C.P. ' . $paciente->getCp() . ', ' . $paciente->getMunicipio());
 $pdf->SetFont('helvetica', '', 10);
 $pdf->SetXY(30, 132.5);
 $pdf->Write(0, $model->getDiagnostico());
@@ -447,8 +445,7 @@ $pdf->Write(0, $paciente->getCurp());
 
 $pdf->SetFont('helvetica', '', 9);
 $pdf->SetXY(48, 224.5);
-$pdf->Write(0, $paciente->getCalle().' '.$paciente->getNumExterior().', '.$paciente->getColonia().$paciente->getDelegacion(),', '.$paciente->getCp().', '.$paciente->getMunicipio());
-
+$pdf->Write(0, $paciente->getCalle() . ' ' . $paciente->getNumExterior() . ', ' . $paciente->getColonia() . ', ' . $paciente->getDelegacion() . ', C.P. ' . $paciente->getCp() . ', ' . $paciente->getMunicipio());
 $pdf->SetFont('helvetica', '', 10);
 $pdf->SetXY(29, 228.5);
 $pdf->Write(0, $model->getDiagnostico());

@@ -296,7 +296,15 @@ document.getElementById('mensaje').textContent = 'Error: ' + data.mensaje;
 
 <div class="col-12 col-sm-4 mb-3">
 <h8 class="text-primary fw-bold texto">Teléfono de casa:</h8>
-<input type="number" class="form-control" id="Telefono" value="<?=$data['telefono'] ?? ''?>">
+<input
+    type="tel"
+    class="form-control"
+    id="Telefono"
+    value="<?= htmlspecialchars($data['telefono'] ?? '') ?>"
+    maxlength="10"
+    inputmode="numeric"
+    pattern="[0-9]{10}"
+    oninput="this.value = this.value.replace(/\D/g, '')">
 </div>
 
 <div class="col-12 col-sm-4 mb-3">
@@ -328,13 +336,14 @@ oninput="this.value = this.value.replace(/\D/g, '')">
 <div class="col-12 col-sm-4 mb-3">
 <h8 class="text-primary fw-bold texto">Teléfono:</h8>
 <input
-type="tel"
-class="form-control"
-id="CuiTelefono"
-value="<?=$data['cuidador_telefono'] ?? ''?>"
-maxlength="10"
-inputmode="numeric"
-oninput="this.value = this.value.replace(/\D/g, '')">
+    type="tel"
+    class="form-control"
+    id="CuiTelefono"
+    value="<?= htmlspecialchars($data['cuidador_telefono'] ?? '') ?>"
+    maxlength="10"
+    inputmode="numeric"
+    pattern="[0-9]{10}"
+    oninput="this.value = this.value.replace(/\D/g, '')">
 </div>
 
 <div class="col-12 col-sm-4 mb-3">
@@ -345,13 +354,14 @@ oninput="this.value = this.value.replace(/\D/g, '')">
 <div class="col-12 col-sm-4 mb-3">
 <h8 class="text-primary fw-bold texto">Teléfono:</h8>
 <input
-type="tel"
-class="form-control"
-id="ResTelefono"
-value="<?=$data['res_telefono'] ?? ''?>"
-maxlength="10"
-inputmode="numeric"
-oninput="this.value = this.value.replace(/\D/g, '')">
+    type="tel"
+    class="form-control"
+    id="ResTelefono"
+    value="<?= htmlspecialchars($data['res_telefono'] ?? '') ?>"
+    maxlength="10"
+    inputmode="numeric"
+    pattern="[0-9]{10}"
+    oninput="this.value = this.value.replace(/\D/g, '')">
 </div>
 
 <div class="col-12 text-end">
