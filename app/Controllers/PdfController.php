@@ -439,7 +439,7 @@ $pdf->SetFont('helvetica', '', 9);
 $pdf->SetXY(45, 215);
 $pdf->Write(0, $paciente->getNombreCompleto());
 
-$pdf->SetFont('helvetica', '', 9);
+$pdf->SetFont('helvetica', '', 9); 
 $pdf->SetXY(44, 219.5);
 $pdf->Write(0, $paciente->getCurp());
 

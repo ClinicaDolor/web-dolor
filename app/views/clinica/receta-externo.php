@@ -20,7 +20,7 @@
 
 <?=$data['sidebar'];?>
 
-<div id="main">
+<div id="main"> 
 
 <!----- BUSCADOR DE LA BARRA DE NAVEGACION ---------->
 <?php include_once __DIR__ . '/../components/search-bar-doctor.php';?>

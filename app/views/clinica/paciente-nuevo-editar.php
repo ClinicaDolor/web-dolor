@@ -90,7 +90,7 @@ Cuidador : Cuidador,
 CuiNombre : CuiNombre,
 CuiTelefono : CuiTelefono,
 ResNombre : ResNombre,
-ResTelefono : ResTelefono
+ResTelefono : ResTelefono 
 }
 
 fetch('/clinica/paciente/insert-edit', {

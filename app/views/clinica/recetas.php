@@ -65,7 +65,7 @@ transition: all 0.3s ease-in-out;
 
 <section>
 <div class="row mt-3">
-
+ 
 <!---------- PACIENTES REGISTRADOS ---------->
 <div class="col-12 col-sm-6 resizable" data-index="0">
 

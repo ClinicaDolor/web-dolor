@@ -18,7 +18,6 @@ private $spo2;
 private $temperatura;
 
 public function __construct(){
-
 $this->bd = Database::getInstance();
 
 }

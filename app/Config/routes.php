@@ -99,7 +99,7 @@ $r->addRoute('POST', '/login', ['LoginController', 'loginClinica']);
 $r->addGroup('/pacientes', function (RouteCollector $r) {
 $r->addRoute('GET', '', ['ClinicaController', 'pacientesIndex']);
 }
-);
+); 
 
 //---------- RECETAS PACIENTES (INTERNOS Y EXTERNOS) ----------/
 $r->addRoute('GET', '/recetas', ['ClinicaController', 'recetasIndex']);

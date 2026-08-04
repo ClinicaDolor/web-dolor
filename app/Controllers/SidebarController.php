@@ -20,7 +20,7 @@ $comunElements = [
 'perfil' => ['titulo' => 'Perfil', 'url' => SERVIDOR . 'clinica/perfil', 'icono' => 'user'],
 'logout' => ['titulo' => 'Cerrar Sesión', 'url' => SERVIDOR . 'cerrar-sesion', 'icono' => 'log-out']
 ];
-
+ 
 
 //----- Listado de elementos segun el rol y su vista ----- 
 $viewRolElements = [

@@ -314,7 +314,7 @@ $sidebar->setActivarItem('Expediente');
 $sidebarHtml = $sidebar->render();
 
 $referencia = uniqid('', true);
-
+ 
 $data = ['title' => 'Expediente', 
 'idPaciente' => $idPaciente,
 'fecha_alta' => $fechaAlta, 

@@ -19,7 +19,7 @@
 <div id="app">
 
 <?=$data['sidebar'];?>
-
+ 
 <div id="main">
 
 <!----- BUSCADOR DE LA BARRA DE NAVEGACION ---------->

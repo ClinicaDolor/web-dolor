@@ -281,8 +281,8 @@ echo $model->ultimaReceta($data['idPaciente']);
 <div class="card-header text-primary">
 <h4 class="card-title">Nueva Receta</h4>
 </div>
-<div class="card-body">
 
+<div class="card-body">
 
 <div class="mb-3">
 <label class="text-primary mb-1"><smallal>Diagnostico:</smallal></label>

@@ -15,7 +15,7 @@ form.append($('<input>', { type: 'hidden', name: 'con_formato', value: conFormat
 form.appendTo('body').submit().remove();
 modal.modal('hide');
 }
-</script>
+</script> 
 
 <div class="modal fade" id="modalImprimirReceta" tabindex="-1" aria-hidden="true">
 <div class="modal-dialog modal-dialog-centered">

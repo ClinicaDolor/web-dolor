@@ -394,7 +394,7 @@ timer: 2000
 <div class="page-title">
 <h3><?=$data['title'];?></h3>
 </div>
-
+ 
 <section>
 <div class="row mt-3">
 
