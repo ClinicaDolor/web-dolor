@@ -17,143 +17,158 @@ use App\Models\EvaluacionDolorModel;
 
 use App\Models\PacienteModulosModelo;
 use App\Models\CofeprisModel;
+use App\Models\RecetaExternoModel;
 
 class BusquedasController{
 
-    public function buscarPacientes(){
+public function buscarPacientes(){
 
-        $query = $_GET['query'] ?? '';
-        $model = new BusquedasModel();
-        $suggestions = $model->getPacientes($query);
-        header('Content-Type: application/json');
-        echo json_encode($suggestions);
+$query = $_GET['query'] ?? '';
+$model = new BusquedasModel();
+$suggestions = $model->getPacientes($query);
+header('Content-Type: application/json');
+echo json_encode($suggestions);
 
-    }
+}
 
-    public function buscarReceta($idReceta){
-        
-        $model = new RecetaModel();
-        echo $model->getReceta($idReceta);
+public function buscarReceta($idReceta){
 
-    }
+$model = new RecetaModel();
+echo $model->getReceta($idReceta);
 
-    public function buscarNotaSubsecuente($idNota){
+}
 
-        $model = new NotaSubsecuenteModel();
-        echo $model->getNotaSubsecuente($idNota);
+public function buscarNotaSubsecuente($idNota){
 
-    }
+$model = new NotaSubsecuenteModel();
+echo $model->getNotaSubsecuente($idNota);
 
-    public function buscarLaboratorio($idLaboratorio){
+}
 
-        $model = new LaboratorioModel();
-        echo $model->getLaboratorio($idLaboratorio);
+public function buscarLaboratorio($idLaboratorio){
 
-    }
+$model = new LaboratorioModel();
+echo $model->getLaboratorio($idLaboratorio);
 
-    public function tableRecetas($idPaciente){
+}
 
-        $model = new RecetaModel();
-        echo $model->mostrarTablaRecetas($idPaciente);
+public function tableRecetas($idPaciente){
 
-    }
+$model = new RecetaModel();
+echo $model->mostrarTablaRecetas($idPaciente);
 
-    public function tableLaboratorio($idPaciente,$referencia){
+}
 
-        $model = new LaboratorioModel();
-        echo $model->mostrarTablaLaboratorio($idPaciente,$referencia);
+public function tableRecetasExternos(){
 
-    }
+$model = new RecetaExternoModel();
+echo $model->mostrarTablaRecetas();
 
-    public function tableNotasSubsecuentes($idPaciente,$referencia){
-        $model = new NotaSubsecuenteModel();
-        echo $model->mostrarTablaNotas($idPaciente,$referencia);
-    }
+}
 
-    //---------- CONTENIDO DE LOS MODULOS ----------
-    public function contenidoPreguntasM2($idPaciente,$idRol){
-        $model = new AntecedenteFamiliarModel();
-        echo $model->mostrarPreguntasM2($idPaciente,$idRol);
-    }
+public function buscarRecetaExterno($id){
 
-    public function contenidoPreguntasM3($idPaciente,$idRol,$idCuestionario){
-        $model = new AntecedentesNoPatologicosModel();
-        echo $model->mostrarPreguntasM3($idPaciente,$idRol,$idCuestionario);
-    }
- 
-    public function contenidoPreguntasM4($idPaciente,$idRol){
-        $model = new AntecedentesQuirurgicos();
-        echo $model->mostrarPreguntasM4($idPaciente,$idRol);
-    }
+$model = new RecetaExternoModel();
+echo $model->getReceta($id);
 
-    public function contenidoPreguntasM5V1($idPaciente,$idRol,$idCuestionario){
-        $model = new AntecedentesPatologicosModel();
-        echo $model->mostrarPreguntasM5V1($idPaciente,$idRol,$idCuestionario);
-    }
+}
 
-    public function contenidoPreguntasM5V2($idPaciente,$idRol){
-    $model = new AntecedentesPatologicosModel();
-    echo $model->mostrarPreguntasM5V2($idPaciente,$idRol);
-    }
+public function tableLaboratorio($idPaciente,$referencia){
 
-    public function contenidoPreguntasM6($idPaciente,$idRol){
-    $model = new MedicacionActualModel();
-    echo $model->mostrarPreguntasM6($idPaciente,$idRol);
-    }
-    
+$model = new LaboratorioModel();
+echo $model->mostrarTablaLaboratorio($idPaciente,$referencia);
 
-    public function contenidoPreguntasM7($idPaciente,$idRol,$idCuestionario){
-    $model = new MedicacionDolorModel();
-    echo $model->mostrarPreguntasM7($idPaciente,$idRol,$idCuestionario);
-    }
+}
 
-    public function contenidoPreguntasM8($idPaciente,$idRol){
-    $model = new ProcedimientosDolorModel();
-    echo $model->mostrarPreguntasM8($idPaciente,$idRol);
-    }
+public function tableNotasSubsecuentes($idPaciente,$referencia){
+$model = new NotaSubsecuenteModel();
+echo $model->mostrarTablaNotas($idPaciente,$referencia);
+}
 
-    public function contenidoPreguntasM8V2($idPaciente,$idRol){
-    $model = new ProcedimientosDolorModel();
-    echo $model->mostrarPreguntasM8V2($idPaciente,$idRol);
-    }
+//---------- CONTENIDO DE LOS MODULOS ----------
+public function contenidoPreguntasM2($idPaciente,$idRol){
+$model = new AntecedenteFamiliarModel();
+echo $model->mostrarPreguntasM2($idPaciente,$idRol);
+}
 
-    public function contenidoPreguntasM9($idPaciente,$idRol){
-    $model = new EvaluacionDolorModel();
-    echo $model->mostrarPreguntasFrenteM9($idPaciente,$idRol);
-    }
+public function contenidoPreguntasM3($idPaciente,$idRol,$idCuestionario){
+$model = new AntecedentesNoPatologicosModel();
+echo $model->mostrarPreguntasM3($idPaciente,$idRol,$idCuestionario);
+}
 
-    public function contenidoPreguntasM9V2($idPaciente,$idRol){
-    $model = new EvaluacionDolorModel();
-    echo $model->mostrarPreguntasEspaldaM9($idPaciente,$idRol);
-    }
- 
-    public function contenidoPreguntasM9V3($idPaciente,$idRol){
-    $model = new EvaluacionDolorModel();
-    echo $model->mostrarPreguntasM9($idPaciente,$idRol);
-    }   
+public function contenidoPreguntasM4($idPaciente,$idRol){
+$model = new AntecedentesQuirurgicos();
+echo $model->mostrarPreguntasM4($idPaciente,$idRol);
+}
 
-    //---------- CONTENIDO COMENTARIOS ----------
-    public function contenidoComentariosModulo($idPaciente,$idRol,$idModulo){
-    $model = new PacienteModulosModelo();
-    echo $model->mostrarComentariosModulo($idPaciente,$idRol,$idModulo);
-    }
+public function contenidoPreguntasM5V1($idPaciente,$idRol,$idCuestionario){
+$model = new AntecedentesPatologicosModel();
+echo $model->mostrarPreguntasM5V1($idPaciente,$idRol,$idCuestionario);
+}
 
-    public function tableCofepris($idPaciente){
-        $model = new CofeprisModel();
-        echo $model->mostrarTablaCofepris($idPaciente);
-    }
+public function contenidoPreguntasM5V2($idPaciente,$idRol){
+$model = new AntecedentesPatologicosModel();
+echo $model->mostrarPreguntasM5V2($idPaciente,$idRol);
+}
 
-    public function buscarCofepris($idCofepris){
+public function contenidoPreguntasM6($idPaciente,$idRol){
+$model = new MedicacionActualModel();
+echo $model->mostrarPreguntasM6($idPaciente,$idRol);
+}
 
-        $model = new CofeprisModel();
-        echo $model->getCofepris($idCofepris);
 
-    }
+public function contenidoPreguntasM7($idPaciente,$idRol,$idCuestionario){
+$model = new MedicacionDolorModel();
+echo $model->mostrarPreguntasM7($idPaciente,$idRol,$idCuestionario);
+}
 
-    public function buscarCofeprisFolios(){
-        $model = new CofeprisModel();
-        echo $model->getCofeprisFolios();
-    }
+public function contenidoPreguntasM8($idPaciente,$idRol){
+$model = new ProcedimientosDolorModel();
+echo $model->mostrarPreguntasM8($idPaciente,$idRol);
+}
+
+public function contenidoPreguntasM8V2($idPaciente,$idRol){
+$model = new ProcedimientosDolorModel();
+echo $model->mostrarPreguntasM8V2($idPaciente,$idRol);
+}
+
+public function contenidoPreguntasM9($idPaciente,$idRol){
+$model = new EvaluacionDolorModel();
+echo $model->mostrarPreguntasFrenteM9($idPaciente,$idRol);
+}
+
+public function contenidoPreguntasM9V2($idPaciente,$idRol){
+$model = new EvaluacionDolorModel();
+echo $model->mostrarPreguntasEspaldaM9($idPaciente,$idRol);
+}
+
+public function contenidoPreguntasM9V3($idPaciente,$idRol){
+$model = new EvaluacionDolorModel();
+echo $model->mostrarPreguntasM9($idPaciente,$idRol);
+}   
+
+//---------- CONTENIDO COMENTARIOS ----------
+public function contenidoComentariosModulo($idPaciente,$idRol,$idModulo){
+$model = new PacienteModulosModelo();
+echo $model->mostrarComentariosModulo($idPaciente,$idRol,$idModulo);
+}
+
+public function tableCofepris($idPaciente){
+$model = new CofeprisModel();
+echo $model->mostrarTablaCofepris($idPaciente);
+}
+
+public function buscarCofepris($idCofepris){
+
+$model = new CofeprisModel();
+echo $model->getCofepris($idCofepris);
+
+}
+
+public function buscarCofeprisFolios(){
+$model = new CofeprisModel();
+echo $model->getCofeprisFolios();
+}
 
 
 }

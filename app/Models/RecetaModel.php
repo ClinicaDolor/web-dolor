@@ -18,7 +18,6 @@ private $spo2;
 private $temperatura;
 
 public function __construct(){
-
 $this->bd = Database::getInstance();
 
 }
@@ -170,7 +169,7 @@ if ($data = $stmt->fetch(\PDO::FETCH_ASSOC)) {
 $fecha = (new \DateTime($data['fecha_hora']))->format('d/m/Y');
 $hora = (new \DateTime($data['fecha_hora']))->format('h:i a');
 
-$result .= '<div class="float-end"><a target="_blank" href="/pdf/receta/'.$data['id'].'" class="btn icon btn-primary"><i data-feather="printer"></i></a></div>';
+$result .= '<div class="float-end"><a href="javascript:void(0)" onclick="imprimirReceta('.$data['id'].', \'registrado\')" class="btn icon btn-primary"><i data-feather="printer"></i></a></div>';
 
 if($fecha_hora){
 $result .= '<div><small class="text-primary">Fecha: </small> <label class="fs-5">' . $fecha . '</label>, <small class="text-primary">Hora: </small> <label class="fs-5">' . $hora . '</label></div>';   

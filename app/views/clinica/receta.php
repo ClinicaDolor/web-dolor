@@ -19,7 +19,7 @@
 <div id="app">
 
 <?=$data['sidebar'];?>
-
+ 
 <div id="main">
 
 <!----- BUSCADOR DE LA BARRA DE NAVEGACION ---------->
@@ -116,7 +116,7 @@
 <div class="card">
 <div class="card-header">
 <h4 class="card-title">Detalle de la Receta
-<div class="float-end"><a target="_blank" href="/pdf/receta/<?=$data['id_receta'];?>" class="btn icon btn-primary"><i data-feather="printer"></i></a></div>
+<div class="float-end"><a href="javascript:void(0)" onclick="imprimirReceta(<?=$data['id_receta'];?>, 'registrado')" class="btn icon btn-primary"><i data-feather="printer"></i></a></div>
 </h4>
 </div>
 <div class="card-body">
@@ -154,6 +154,8 @@
 <script src="<?=RUTA_JS;?>app.js"></script> 
 <script src="<?=RUTA_JS;?>main.js"></script>
 <script src="<?=RUTA_JS?>search-main.js"></script>
+
+<?php include_once __DIR__ . '/../components/modal-impresion-receta.php';?>
 
 </body>
 </html>
