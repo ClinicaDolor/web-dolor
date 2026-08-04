@@ -17,6 +17,7 @@ $bd = Database::getInstance();
 <link rel="stylesheet" href="<?=RUTA_PUBLIC;?>libs/perfect-scrollbar/perfect-scrollbar.css">
 <link rel="stylesheet" href="<?=RUTA_CSS;?>app.css">
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="<?=RUTA_JS;?>loader.js"></script>
 
 <script>
@@ -104,7 +105,16 @@ body: JSON.stringify(parametros)
 .then(data => {
 
 if (data.resultado) {
+Swal.fire({
+title: 'Registro editado',
+text: 'El registro se editó correctamente.',
+icon: 'success',
+showConfirmButton: false,
+timer: 1500
+});
+setTimeout(function() {
 window.location.href = '/clinica/paciente/' + data.mensaje;
+}, 1500);
 } else {
 document.getElementById('mensaje').textContent = 'Error: ' + data.mensaje;
 }
