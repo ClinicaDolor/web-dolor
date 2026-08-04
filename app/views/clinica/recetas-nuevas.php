@@ -369,6 +369,27 @@ timer: 2000
 });
 }
 
+function calcularEdad() {
+    const fechaNacimiento = document.getElementById("extFechaNacimiento").value;
+
+    if (!fechaNacimiento) {
+        document.getElementById("extEdad").value = "";
+        return;
+    }
+
+    const hoy = new Date();
+    const nacimiento = new Date(fechaNacimiento);
+
+    let edad = hoy.getFullYear() - nacimiento.getFullYear();
+
+    const mes = hoy.getMonth() - nacimiento.getMonth();
+
+    if (mes < 0 || (mes === 0 && hoy.getDate() < nacimiento.getDate())) {
+        edad--;
+    }
+
+    document.getElementById("extEdad").value = edad;
+}
 </script>
 
 </head>
@@ -465,7 +486,7 @@ timer: 2000
 </div>
 <div class="col-md-4 mb-3">
 <label class="text-primary mb-1"><small>Fecha de Nacimiento:</small></label>
-<input type="date" class="form-control fs-5" id="extFechaNacimiento" oninput="limpiarBorde(this)">
+<input type="date" class="form-control fs-5" id="extFechaNacimiento" oninput="calcularEdad(); limpiarBorde(this)">
 </div>
 </div>
 
