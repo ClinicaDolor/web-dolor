@@ -147,6 +147,46 @@ return ['resultado' => 401, 'mensaje' => '¡Error al agregar nueva receta!'];
 }
 }
 
+public function update($data){
+$sql = "UPDATE receta_medica_externos SET
+nombre = :nombre,
+apellido_paterno = :apellido_paterno,
+apellido_materno = :apellido_materno,
+edad = :edad,
+sexo = :sexo,
+fecha_nacimiento = :fecha_nacimiento,
+diagnostico = :diagnostico,
+medicamento = :medicamento,
+ta = :ta,
+fc = :fc,
+spo2 = :spo2,
+temperatura = :temperatura
+WHERE id = :id";
+
+$stmt = $this->bd->prepare($sql);
+$datos = [
+':id'                 => $data['id'],
+':nombre'             => $data['nombre'],
+':apellido_paterno'   => $data['apellido_paterno'],
+':apellido_materno'   => $data['apellido_materno'] ?? null,
+':edad'               => $data['edad'] ?? null,
+':sexo'               => $data['sexo'] ?? null,
+':fecha_nacimiento'   => $data['fecha_nacimiento'] ?? null,
+':diagnostico'        => $data['diagnostico'] ?? null,
+':medicamento'        => $data['medicamento'] ?? null,
+':ta'                 => $data['ta'] ?? null,
+':fc'                 => $data['fc'] ?? null,
+':spo2'               => $data['spo2'] ?? null,
+':temperatura'        => $data['temperatura'] ?? null
+];
+
+if ($stmt->execute($datos)) {
+return ['resultado' => 200, 'mensaje' => 'Datos actualizados correctamente'];
+} else {
+return ['resultado' => 401, 'mensaje' => '¡Error al actualizar los datos!'];
+}
+}
+
 public function mostrarTablaRecetas(){
 $result = '';
 $stmt = $this->bd->query("SELECT * FROM receta_medica_externos ORDER BY fecha_hora DESC");

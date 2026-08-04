@@ -90,6 +90,10 @@ $viewRolElements = [
 ['titulo' => 'Recetas', 'url' => SERVIDOR . 'clinica/recetas', 'icono' => 'file-text'],
 ['titulo' => 'Receta (Detalle)', 'url' => SERVIDOR . 'clinica/receta-externo/'.$id, 'icono' => 'file-text']
 ],
+'clinica-receta-externo-editar' => [
+['titulo' => 'Recetas', 'url' => SERVIDOR . 'clinica/recetas', 'icono' => 'file-text'],
+['titulo' => 'Editar Receta (Externo)', 'url' => SERVIDOR . 'clinica/receta-externo/editar/'.$id, 'icono' => 'file-text']
+],
 'clinica-receta-nueva' => [
 ['titulo' => 'Pacientes', 'url' => SERVIDOR . 'clinica/pacientes', 'icono' => 'users'],
 

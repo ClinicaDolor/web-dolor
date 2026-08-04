@@ -43,10 +43,16 @@ class RecetaController extends BaseController{
         $data = ['title' => 'Receta', 
 
         'id_receta' => $idReceta,
+        'id_paciente' => $modelNota->getIdPaciente(),
         'fecha_receta' => $modelNota->getFecha(),
         'hora_receta' => $modelNota->getHora(),
         'diagnostico_receta' => $modelNota->getDiagnostico(),
         'medicamento_receta' => $modelNota->getMedicamento(),
+
+        'ta' => $modelNota->getTA(),
+        'fc' => $modelNota->getFC(),
+        'spo2' => $modelNota->getSPO2(),
+        'temperatura' => $modelNota->getTemperatura(),
 
         'fecha_alta' => $fechaAlta, 
         'nombre_paciente' => $nombreCompleto, 

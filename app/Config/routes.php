@@ -125,7 +125,9 @@ $r->addRoute('GET', '/receta/paciente/{idPaciente}', ['ClinicaController', 'paci
 $r->addRoute('POST', '/paciente/insert-receta', ['ClinicaController', 'pacienteInsertReceta']);
 
 $r->addRoute('GET', '/receta-externo/{id}', ['ClinicaController', 'recetaExternoDetalle']);
+$r->addRoute('GET', '/receta-externo/editar/{id}', ['ClinicaController', 'recetaExternoEditar']);
 $r->addRoute('POST', '/paciente/insert-receta-externo', ['ClinicaController', 'pacienteInsertRecetaExterno']);
+$r->addRoute('POST', '/paciente/edit-receta-externo', ['ClinicaController', 'pacienteEditRecetaExterno']);
 
 $r->addRoute('GET', '/laboratorio/{idLaboratorio}', ['LaboratorioController', 'laboratorio']);
 $r->addRoute('GET', '/laboratorio/paciente/{idPaciente}', ['ClinicaController', 'pacienteLaboratorio']);

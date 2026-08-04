@@ -36,98 +36,83 @@ $pdf->AddPage();
 
 $conFormato = isset($_POST['con_formato']) ? (int)$_POST['con_formato'] : 1;
 
+// 1. Configuración de coordenadas según el formato elegido
 if ($conFormato) {
-$imagePath = '../public/assets/images/receta2.jpg';
-// Colocar la imagen de fondo en las coordenadas (0, 0) y ajustarla al tamaño de la página
-$pdf->Image($imagePath, 0, 0, 215.9, 139.7);
+$img   = '../public/assets/images/receta2.jpg';
+$c = [
+'nomX' => 43, 'diagX' => 43, 'nacX' => 187, 'sexY' => 55.4, 'sexX' => 179.1,
+'taY' => 64, 'taX' => 190, 'fcY' => 69.5, 'fcX' => 190, 'spoY' => 74.8, 'spoX' => 193, 'tempY' => 81, 'tempX' => 193
+];
+} else {
+$img   = '../public/assets/images/receta3.jpg';
+$c = [
+'nomX' => 40, 'diagX' => 40, 'nacX' => null, 'sexY' => 53.5, 'sexX' => 177.5,
+'taY' => 62.8, 'taX' => 189, 'fcY' => 68, 'fcX' => 191, 'spoY' => 73.8, 'spoX' => 191, 'tempY' => 79.1, 'tempX' => 191
+];
 }
 
+// 2. Función helper para reducir la sintaxis de pintado
+$put = function($pdf, $x, $y, $txt, $fontSize = 9, $w = 0, $h = 0) {
+if ($txt === '' || $txt === null) return;
+$pdf->SetFont('courier', '', $fontSize);
+$pdf->SetY($y);
+$pdf->SetX($x);
+$pdf->Cell($w, $h, $txt, 0, 1, 'L');
+};
 
-$pdf->SetFont('courier', '', 11);
-$pdf->SetY(27);
-$pdf->SetX(43);
-$pdf->Cell(0, 0, $paciente->getNombreCompleto(), 0, 1, 'L');
-$pdf->Ln(0);
+// --- DIBUJO DE LA RECETA ---
 
+$pdf->Image($img, 0, 0, 215.9, 139.7);
 
-$pdf->SetFont('courier', '', 9);
-$pdf->SetY(43);
-$pdf->SetX(187);
-$pdf->Cell(0, 0, $paciente->getFechaNacimiento(), 0, 1, 'L');
-$pdf->Ln(0);
+// Nombre del paciente
+$put($pdf, $c['nomX'], 27, $paciente->getNombreCompleto(), 11);
 
-$pdf->SetFont('courier', '', 9);
-$pdf->SetY(48.5);
-$pdf->SetX(190);
-$pdf->Cell(0, 0, $edad.' años', 0, 1, 'L');
-$pdf->Ln(0);
-
-$pdf->SetFont('courier', '', 9);
-
-if($paciente->getSexo() == 'M'){
-$pdf->SetY(55.4);
-$pdf->SetX(179.1);
-}else{
-$pdf->SetY(59.4);
-$pdf->SetX(179.1);
+// Fecha Nacimiento (Separada o completa según el formato)
+$fechaRaw = $paciente->getFechaNacimiento();
+if ($fechaRaw) {
+$time = strtotime(str_replace('/', '-', $fechaRaw));
+if ($conFormato) {
+$put($pdf, $c['nacX'], 43, $fechaRaw, 9);
+} else {
+$put($pdf, 202, 43, date('d', $time), 9);
+$put($pdf, 193, 43, date('m', $time), 9);
+$put($pdf, 182.1, 43, date('Y', $time), 9);
+}
 }
 
-$pdf->Cell(0, 0, 'X', 0, 1, 'L');
-$pdf->Ln(0);
+// Edad y Sexo
+$put($pdf, $conFormato ? 190 : 189, $conFormato ? 48.5 : 48, $edad . ' años', 9);
+$put($pdf, $c['sexX'], ($paciente->getSexo() == 'M') ? $c['sexY'] : $c['sexY'] + 4.1, 'X', 9);
 
-$pdf->SetFont('courier', '', 11);
-$pdf->SetY(44);
-$pdf->SetX(9.2);
-$pdf->Cell(0, 0, 'Fecha: '.$model->getFecha(), 0, 1, 'L');
-$pdf->Ln(2);
+// Fecha de la consulta
+$put($pdf, 9.2, 44, 'Fecha: ' . $model->getFecha(), 11);
 
+// Ajuste dinámico de tamaño de fuente para el Diagnóstico
 $diagnostico = trim($model->getDiagnostico());
-
-$xInicio = 43;
-$xFin = 195;          // Límite derecho donde quieres que termine
-
-$ancho = $xFin - $xInicio;
-
+$anchoMax = 195 - $c['diagX'];
 $tamano = 12;
-$pdf->SetFont('courier', '', $tamano);
 
-while ($pdf->GetStringWidth($diagnostico) > $ancho && $tamano > 6) {
+$pdf->SetFont('courier', '', $tamano);
+while ($pdf->GetStringWidth($diagnostico) > $anchoMax && $tamano > 6) {
 $tamano -= 0.5;
 $pdf->SetFont('courier', '', $tamano);
 }
 
 $pdf->SetY(33.6);
-$pdf->SetX($xInicio);
-$pdf->Cell($ancho, 5, $diagnostico, 0, 0, 'L');
+$pdf->SetX($c['diagX']);
+$pdf->Cell($anchoMax, 5, $diagnostico, 0, 0, 'L');
 
+// Texto Formateado
 $pdf->SetFont('courier', '', 9.8);
 $pdf->SetY(51);
 $pdf->SetX(9.2);
 $pdf->MultiCell(160, 1, $textoFormateado);
 
-$pdf->SetFont('courier', '', 8.5);
-$pdf->SetY(64);
-$pdf->SetX(190);
-$pdf->Cell(0, 0, !empty($model->getTA()) ? $model->getTA() . ' mmHg' : '', 0, 1, 'L');
-$pdf->Ln(2);
-
-$pdf->SetFont('courier', '', 8.5);
-$pdf->SetY(69.5);
-$pdf->SetX(190);
-$pdf->Cell(0, 0, !empty($model->getFC()) ? $model->getFC() . ' lpm' : '', 0, 1, 'L');
-$pdf->Ln(2);
-
-$pdf->SetFont('courier', '', 8.5);
-$pdf->SetY(74.8);
-$pdf->SetX(193);
-$pdf->Cell(0, 0, !empty($model->getSPO2()) ? $model->getSPO2() . ' %' : '', 0, 1, 'L');
-$pdf->Ln(2);
-
-$pdf->SetFont('courier', '', 8.5);
-$pdf->SetY(81);
-$pdf->SetX(193);
-$pdf->Cell(0, 0, !empty($model->getTemperatura()) ? $model->getTemperatura() : '', 0, 1, 'L');
-$pdf->Ln(2);
+// Signos Vitales
+$put($pdf, $c['taX'], $c['taY'], $model->getTA() ? $model->getTA() . ' mmHg' : '', 8.5);
+$put($pdf, $c['fcX'], $c['fcY'], $model->getFC() ? $model->getFC() . ' lpm' : '', 8.5);
+$put($pdf, $c['spoX'], $c['spoY'], $model->getSPO2() ? $model->getSPO2() . ' %' : '', 8.5);
+$put($pdf, $c['tempX'], $c['tempY'], $model->getTemperatura() ?? '', 8.5);
 
 $pdf->Output('Receta ' . $paciente->getNombreCompleto() . '.pdf', 'I');
 
@@ -156,95 +141,83 @@ $pdf->AddPage();
 
 $conFormato = isset($_POST['con_formato']) ? (int)$_POST['con_formato'] : 1;
 
+// 1. Configuración de coordenadas según el formato elegido
 if ($conFormato) {
-$imagePath = '../public/assets/images/receta2.jpg';
-$pdf->Image($imagePath, 0, 0, 215.9, 139.7);
+$img   = '../public/assets/images/receta2.jpg';
+$c = [
+'nomX' => 43, 'diagX' => 43, 'nacX' => 187, 'sexY' => 55.4, 'sexX' => 179.1,
+'taY' => 64, 'taX' => 190, 'fcY' => 69.5, 'fcX' => 190, 'spoY' => 74.8, 'spoX' => 193, 'tempY' => 81, 'tempX' => 193
+];
+} else {
+$img   = '../public/assets/images/receta3.jpg';
+$c = [
+'nomX' => 40, 'diagX' => 40, 'nacX' => null, 'sexY' => 53.5, 'sexX' => 177.5,
+'taY' => 62.8, 'taX' => 189, 'fcY' => 68, 'fcX' => 191, 'spoY' => 73.8, 'spoX' => 191, 'tempY' => 79.1, 'tempX' => 191
+];
 }
 
-$pdf->SetFont('courier', '', 11);
-$pdf->SetY(27);
-$pdf->SetX(43);
-$pdf->Cell(0, 0, $model->getNombreCompleto(), 0, 1, 'L');
-$pdf->Ln(0);
+// 2. Función helper para reducir la sintaxis de pintado
+$put = function($pdf, $x, $y, $txt, $fontSize = 9, $w = 0, $h = 0) {
+if ($txt === '' || $txt === null) return;
+$pdf->SetFont('courier', '', $fontSize);
+$pdf->SetY($y);
+$pdf->SetX($x);
+$pdf->Cell($w, $h, $txt, 0, 1, 'L');
+};
 
-$pdf->SetFont('courier', '', 9);
-$pdf->SetY(43);
-$pdf->SetX(187);
-$pdf->Cell(0, 0, $model->getFechaNacimiento(), 0, 1, 'L');
-$pdf->Ln(0);
+// --- DIBUJO DE LA RECETA ---
 
-$pdf->SetFont('courier', '', 9);
-$pdf->SetY(48.5);
-$pdf->SetX(190);
-$pdf->Cell(0, 0, $edad.' años', 0, 1, 'L');
-$pdf->Ln(0);
+$pdf->Image($img, 0, 0, 215.9, 139.7);
 
-$pdf->SetFont('courier', '', 9);
+// Nombre del paciente
+$put($pdf, $c['nomX'], 27, $model->getNombreCompleto(), 11);
 
-if($model->getSexo() == 'M'){
-$pdf->SetY(55.4);
-$pdf->SetX(179.1);
-}else{
-$pdf->SetY(59.4);
-$pdf->SetX(179.1);
+// Fecha Nacimiento (Separada o completa según el formato)
+$fechaRaw = $model->getFechaNacimiento();
+if ($fechaRaw) {
+$time = strtotime(str_replace('/', '-', $fechaRaw));
+if ($conFormato) {
+$put($pdf, $c['nacX'], 43, $fechaRaw, 9);
+} else {
+$put($pdf, 202, 43, date('d', $time), 9);
+$put($pdf, 193, 43, date('m', $time), 9);
+$put($pdf, 182.1, 43, date('Y', $time), 9);
+}
 }
 
-$pdf->Cell(0, 0, 'X', 0, 1, 'L');
-$pdf->Ln(0);
+// Edad y Sexo
+$put($pdf, $conFormato ? 190 : 189, $conFormato ? 48.5 : 48, $edad . ' años', 9);
+$put($pdf, $c['sexX'], ($model->getSexo() == 'M') ? $c['sexY'] : $c['sexY'] + 4.1, 'X', 9);
 
-$pdf->SetFont('courier', '', 11);
-$pdf->SetY(44);
-$pdf->SetX(9.2);
-$pdf->Cell(0, 0, 'Fecha: '.$model->getFecha(), 0, 1, 'L');
-$pdf->Ln(2);
+// Fecha de la consulta
+$put($pdf, 9.2, 44, 'Fecha: ' . $model->getFecha(), 11);
 
+// Ajuste dinámico de tamaño de fuente para el Diagnóstico
 $diagnostico = trim($model->getDiagnostico());
-
-$xInicio = 43;
-$xFin = 195;
-
-$ancho = $xFin - $xInicio;
-
+$anchoMax = 195 - $c['diagX'];
 $tamano = 12;
-$pdf->SetFont('courier', '', $tamano);
 
-while ($pdf->GetStringWidth($diagnostico) > $ancho && $tamano > 6) {
+$pdf->SetFont('courier', '', $tamano);
+while ($pdf->GetStringWidth($diagnostico) > $anchoMax && $tamano > 6) {
 $tamano -= 0.5;
 $pdf->SetFont('courier', '', $tamano);
 }
 
 $pdf->SetY(33.6);
-$pdf->SetX($xInicio);
-$pdf->Cell($ancho, 5, $diagnostico, 0, 0, 'L');
+$pdf->SetX($c['diagX']);
+$pdf->Cell($anchoMax, 5, $diagnostico, 0, 0, 'L');
 
+// Texto Formateado
 $pdf->SetFont('courier', '', 9.8);
 $pdf->SetY(51);
 $pdf->SetX(9.2);
 $pdf->MultiCell(160, 1, $textoFormateado);
 
-$pdf->SetFont('courier', '', 8.5);
-$pdf->SetY(64);
-$pdf->SetX(190);
-$pdf->Cell(0, 0, !empty($model->getTA()) ? $model->getTA() . ' mmHg' : '', 0, 1, 'L');
-$pdf->Ln(2);
-
-$pdf->SetFont('courier', '', 8.5);
-$pdf->SetY(69.5);
-$pdf->SetX(190);
-$pdf->Cell(0, 0, !empty($model->getFC()) ? $model->getFC() . ' lpm' : '', 0, 1, 'L');
-$pdf->Ln(2);
-
-$pdf->SetFont('courier', '', 8.5);
-$pdf->SetY(74.8);
-$pdf->SetX(193);
-$pdf->Cell(0, 0, !empty($model->getSPO2()) ? $model->getSPO2() . ' %' : '', 0, 1, 'L');
-$pdf->Ln(2);
-
-$pdf->SetFont('courier', '', 8.5);
-$pdf->SetY(81);
-$pdf->SetX(193);
-$pdf->Cell(0, 0, !empty($model->getTemperatura()) ? $model->getTemperatura() : '', 0, 1, 'L');
-$pdf->Ln(2);
+// Signos Vitales
+$put($pdf, $c['taX'], $c['taY'], $model->getTA() ? $model->getTA() . ' mmHg' : '', 8.5);
+$put($pdf, $c['fcX'], $c['fcY'], $model->getFC() ? $model->getFC() . ' lpm' : '', 8.5);
+$put($pdf, $c['spoX'], $c['spoY'], $model->getSPO2() ? $model->getSPO2() . ' %' : '', 8.5);
+$put($pdf, $c['tempX'], $c['tempY'], $model->getTemperatura() ?? '', 8.5);
 
 $pdf->Output('Receta ' . $model->getNombreCompleto() . '.pdf', 'I');
 

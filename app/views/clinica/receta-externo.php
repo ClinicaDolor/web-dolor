@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="<?=RUTA_PUBLIC;?>libs/perfect-scrollbar/perfect-scrollbar.css">
 <link rel="stylesheet" href="<?=RUTA_CSS;?>app.css">
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="<?=RUTA_JS;?>loader.js"></script>
 
 </head>
@@ -42,6 +43,11 @@
 
 <div class="card">
 <div class="card-header">
+<div class="float-end">
+<a href="<?=SERVIDOR?>clinica/receta-externo/editar/<?=$data['id_receta'];?>" class="btn icon btn-primary text-white">
+<i data-feather="edit-2"></i>
+</a>
+</div>
 <h4 class="card-title">Información del Paciente</h4>
 </div>
 <div class="card-body">
@@ -49,24 +55,24 @@
 <div class="row">
 <div class="col-12 col-sm-12">
 <label class="text-primary"><small>Nombre Paciente:</small></label>
-<div class="fs-4"><?=$data['nombre_paciente'];?></div>
+<div class="fs-4" id="extNombreCompleto"><?=$data['nombre_paciente'];?></div>
 </div>
 </div>
 
 <div class="row mt-2">
 <div class="col-12 col-sm-4">
 <label class="text-primary"><small>Edad:</small></label>
-<div class="fs-5"><?=$data['edad'] ?? 'S/I';?> años</div>
+<div class="fs-5" id="extEdadTexto"><?=$data['edad'] ?? 'S/I';?> años</div>
 </div>
 
 <div class="col-12 col-sm-4">
 <label class="text-primary"><small>Sexo:</small></label>
-<div class="fs-5"><?=($data['sexo'] == 'M')? 'Masculino': (($data['sexo'] == 'F')? 'Femenino' : 'S/I');?></div>
+<div class="fs-5" id="extSexoTexto"><?=($data['sexo'] == 'M')? 'Masculino': (($data['sexo'] == 'F')? 'Femenino' : 'S/I');?></div>
 </div>
 
 <div class="col-12 col-sm-4">
 <label class="text-primary"><small>Fecha Nacimiento:</small></label>
-<div class="fs-5"><?=!empty($data['fecha_nacimiento']) ? date("d/m/Y", strtotime($data['fecha_nacimiento'])) : 'S/I';?></div>
+<div class="fs-5" id="extFechaNacimientoTexto"><?=!empty($data['fecha_nacimiento']) ? date("d/m/Y", strtotime($data['fecha_nacimiento'])) : 'S/I';?></div>
 </div>
 </div>
 
