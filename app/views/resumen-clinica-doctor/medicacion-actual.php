@@ -1,8 +1,10 @@
 <?php 
 use App\Config\Database;
+use App\Models\PacienteModulosModelo;
 use App\Models\MedicacionActualModel;
 $bd = Database::getInstance();
 
+$model2 = new PacienteModulosModelo();
 $model = new MedicacionActualModel();
 $contenidoMedicacionActual= $model->editorTextoMA($data['idPaciente']); 
 
@@ -24,6 +26,7 @@ $contenidoMedicacionActual= $model->editorTextoMA($data['idPaciente']);
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <!-- html2pdf -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="<?=RUTA_JS;?>editor-functions.js"></script>
 <script src="<?=RUTA_JS;?>loader.js"></script>
 </head>
 
@@ -32,7 +35,7 @@ $contenidoMedicacionActual= $model->editorTextoMA($data['idPaciente']);
 <div id="app">
 <?=$data['sidebar'];?>  
 
-<div id="main" data-rol="<?=$data['idRol'];?>" data-paciente="<?=$data['idPaciente'];?>">
+<div id="main" data-rol="<?=$data['idRol'];?>" data-paciente="<?=$data['idPaciente'];?>" data-tema="<?=$data['title'];?>">
 <nav class="navbar navbar-header navbar-expand navbar-light">
 <a class="sidebar-toggler"><span class="navbar-toggler-icon"></span></a>
 <button class="btn navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent">
@@ -56,18 +59,36 @@ $contenidoMedicacionActual= $model->editorTextoMA($data['idPaciente']);
 </div>
 
 <div class="card-body">
-<!---------- EDITOR DE TEXTO CKEditor ---------->
-<textarea id="editor">
-
 <!-- CONTENIDO INICIAL -->
-<div class="col-12 col-sm-6 mb-3">
+<div id="contenido-fijo">
+<div class="row">
+
+<div class="col-12 mb-3">
 <h8 class="text-primary fw-bold texto"><strong>Nombre:</strong> <?=$data['nombre'] ?? ''?></h8>
 </div>
-<br>
+
+<div class="col-12 mb-3">
 <strong>A continuación, ingrese la información correspondiente a cada medicamento que el paciente esté utilizando, incluyendo el nombre del medicamento, el motivo de uso, el tiempo que ha estado en tratamiento, la dosis actual y el nombre del médico que lo recetó:</strong>
-<?=$contenidoMedicacionActual?>
-</textarea>
+
 </div>
+
+<div class="col-12">
+<?=$contenidoMedicacionActual?>
+</div>
+
+</div>
+</div>
+
+<!---------- EDITOR DE TEXTO CKEditor ---------->
+<label class="mt-4 mb-1" for="editor"><strong>Notas adicionales:</strong></label>
+<textarea id="editor" rows="20" cols="80"><?= htmlspecialchars($contenidoEditor = $model2->contenidoEditorPAC($data['idPaciente'],$data['title'])) ?></textarea>
+</div>
+
+
+<div class="card-footer">
+<button class="btn btn-success float-end" onclick="guardarContenidoEditor()">Guardar cambios</button>
+</div>
+
 </div>
 </section>
 </div>

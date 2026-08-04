@@ -64,20 +64,15 @@ $model = new PacienteModulosModelo();
                 resultsContainer.innerHTML = data;
                 feather.replace();
 
-                const tabla = document.querySelector("#tableNotasSubsecuentes");
-                if (tabla) {
-                    let dataTable = new simpleDatatables.DataTable(tabla,{
-                        searchable: true,
-                        fixedHeight: true,
-                        perPageSelect: false,
-                        columns: [
-                        {
-                            select: 0, sort: "desc"
-                        },
-                        { select: [2], sortable: false },
-                        ]
-                    });
-                }       
+                initPersistentDataTable("#tableNotasSubsecuentes", "datatableState_tableNotas", {
+                searchable: true,
+                fixedHeight: true,
+                perPageSelect: false,
+                columns: [
+                    { select: 0, sort: "desc" },
+                    { select: [2], sortable: false }
+                ]
+            });
                 
         });
 
@@ -100,19 +95,14 @@ $model = new PacienteModulosModelo();
                 const resultsContainer = document.getElementById('conteRecetas');
                 resultsContainer.innerHTML = data;
 
-                const tabla = document.querySelector("#tableRecetas");
-                if (tabla) {
-                    let dataTable = new simpleDatatables.DataTable(tabla,{
-                        searchable: true,
-                        fixedHeight: true,
-                        perPageSelect: false,
-                        columns: [
-                        {
-                            select: 0, sort: "desc"
-                        }
-                        ]
-                    });
-                }          
+                initPersistentDataTable("#tableRecetas", "datatableState_tableRecetas", {
+                searchable: true,
+                fixedHeight: true,
+                perPageSelect: false,
+                columns: [
+                    { select: 0, sort: "desc" }
+                ]
+            });  
         });
     }
 
@@ -133,19 +123,14 @@ $model = new PacienteModulosModelo();
                 const resultsContainer = document.getElementById('conteLaboratorio');
                 resultsContainer.innerHTML = data;
 
-                const tabla = document.querySelector("#tableLaboratorio");
-                if (tabla) {
-                    let dataTable = new simpleDatatables.DataTable(tabla,{
-                        searchable: true,
-                        fixedHeight: true,
-                        perPageSelect: false,
-                        columns: [
-                        {
-                            select: 0, sort: "desc"
-                        }
-                        ]
-                    });
-                }          
+                initPersistentDataTable("#tableLaboratorio", "datatableState_tableLaboratorio", {
+                searchable: true,
+                fixedHeight: true,
+                perPageSelect: false,
+                columns: [
+                    { select: 0, sort: "desc" }
+                ]
+            });    
         });
     }
 
@@ -215,20 +200,17 @@ $model = new PacienteModulosModelo();
 
                 const resultsContainer = document.getElementById('conteCofepris');
                 resultsContainer.innerHTML = data;
+                feather.replace();
 
-                const tabla = document.querySelector("#tableCofepris");
-                if (tabla) {
-                    let dataTable = new simpleDatatables.DataTable(tabla,{
-                        searchable: true,
-                        fixedHeight: true,
-                        perPageSelect: false,
-                        columns: [
-                        {
-                            select: 0, sort: "desc"
-                        }
-                        ]
-                    });
-                }          
+                initPersistentDataTable("#tableCofepris", "datatableState_tableCofepris", {
+                searchable: true,
+                fixedHeight: true,
+                perPageSelect: false,
+                columns: [
+                    { select: 0, sort: "desc" },
+                    { select: [2], sortable: false }
+                ]
+            });       
         });
         }
 
@@ -239,6 +221,47 @@ $model = new PacienteModulosModelo();
         function DetalleCofepris(id){
             window.location.href = '/clinica/cofepris/' + id;
         }
+
+    
+        function initPersistentDataTable(selector, storageKey, options = {}) {
+    const table = document.querySelector(selector);
+    if (!table) return;
+
+    const savedState = JSON.parse(localStorage.getItem(storageKey)) || {};
+
+    const dataTable = new simpleDatatables.DataTable(table, {
+        ...options,
+        perPage: savedState.perPage || 10,
+    });
+
+    dataTable.on('datatable.init', function () {
+        if (savedState.page) dataTable.page(savedState.page);
+        if (savedState.search) {
+            dataTable.input.value = savedState.search;
+            dataTable.search(savedState.search);
+        }
+    });
+
+    dataTable.on('datatable.page', function (page) {
+        savedState.page = page;
+        localStorage.setItem(storageKey, JSON.stringify(savedState));
+    });
+
+    dataTable.on('datatable.perpage', function (perPage) {
+        savedState.perPage = perPage;
+        localStorage.setItem(storageKey, JSON.stringify(savedState));
+    });
+
+    dataTable.on('datatable.sort', function (column, direction) {
+        savedState.sort = direction;
+        localStorage.setItem(storageKey, JSON.stringify(savedState));
+    });
+
+    dataTable.on('datatable.search', function (query) {
+        savedState.search = query;
+        localStorage.setItem(storageKey, JSON.stringify(savedState));
+    });
+}
 
     </script>
 
@@ -269,9 +292,17 @@ $model = new PacienteModulosModelo();
 
     <div class="col-12 col-sm-6 resizable">
     <div class="card">
-        
+       
     <div class="card-header">
+    
+    <div class="float-end">
+    <a href="<?=SERVIDOR?>clinica/paciente/editar/<?=$data['idPaciente']?>" class="btn icon btn-primary text-white">
+    <i data-feather="edit-2"></i>
+    </a>
+    </div>
+
     <h5 class="card-title">Información del paciente</h5>
+
     </div>
     <div class="card-body">
 

@@ -5,6 +5,7 @@ use App\Helpers\Sidebar;
 use App\Models\CofeprisModel;
 use App\Models\PacienteModel;
 use App\Helpers\CalculadoraEdad;
+use App\Core\HttpMethod;
 
 class CofeprisController extends BaseController{
 
@@ -135,6 +136,30 @@ class CofeprisController extends BaseController{
         'id_carpeta' => $idCarpeta,
         'sidebar' => $sidebarHtml];
         $this->view('/clinica/cofepris-folios.php', $data);
+
+    }
+
+    public function editSurtido(){
+
+        $authMiddleware = new AuthMiddleware('clinica');
+        $authMiddleware->authPermisos();
+
+        header('Content-Type: application/json');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            echo HttpMethod::jsonResponse(405, false, "Método no permitido. Usa POST.");
+            return;
+        }
+
+        $model = new CofeprisModel();
+        $data = json_decode(file_get_contents('php://input'), true);
+        $resultModel = $model->editarSurtido($data);
+
+            if ($resultModel['resultado'] == 200) {
+                echo HttpMethod::jsonResponse(200,true,$resultModel['mensaje']);
+            } else {
+                echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
+            }
 
     }
 }

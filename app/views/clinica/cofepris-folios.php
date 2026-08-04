@@ -14,7 +14,80 @@
     <link rel="stylesheet" href="<?=RUTA_PUBLIC;?>libs/quill/quill.snow.css">
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="<?=RUTA_JS;?>loader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+.swal2-confirm {
+    background-color: #501E75 !important; /* Azul */
+    color: #fff !important;
+}
+.swal2-cancel {
+    background-color: #6c757d !important; /* Gris */
+    color: #fff !important;
+}
+</style>
+    <script>
+        function surtirProducto(idCofepris){
 
+        Swal.fire({
+        title: '¿Estás seguro?',
+        text: "Este cambio no se puede deshacer.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, continuar',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) {
+
+            const parametros = {
+                idCofepris : idCofepris
+            };
+
+        fetch('/clinica/cofepris/edit-surtido', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(parametros)
+        })
+        .then(response => response.json())
+        .then(data => {
+
+
+        if (data.resultado) {
+
+            Swal.fire({
+            title: 'Hecho',
+            text: 'El cambio se realizó.',
+            icon: 'success',
+            showConfirmButton: false,
+            timer: 2000
+            });
+
+            setTimeout(function() {
+                location.reload()
+            }, 2000);
+
+        } else {
+
+            Swal.fire({
+            title: 'Error',
+            text: 'El cambio no fue realizó.',
+            icon: 'question',
+            showConfirmButton: false,
+            timer: 2000
+            });
+        }
+
+        });
+            
+           
+
+        }
+    });
+}
+
+
+    </script>
  </head>
 <body>
 <div class="LoaderPage"></div>
@@ -75,22 +148,31 @@
                         $paciente = $folio['paciente'];
                         $estado = '<span class="badge bg-success">Finalizado</span>';
                         $descargar = '<a target="_BLANK" href="' . SERVIDOR . 'pdf/cofepris/'.$folio['id_cofepris'].'"><i data-feather="download"></i></a>';
-                        $colot_table = 'table-success';
+                        $color_table = 'table-success';
 
-                    }else{
+                      }else{
                         $fecha = '';
                         $hora = '';
                         $paciente = '';
                         $estado = '<span class="badge bg-danger">Pendiente</span>';
                         $descargar = '<a"><i data-feather="download"></i></a>';
-                        $colot_table = 'table-secondary';
+                        $color_table = 'table-secondary';
+
                     }
 
-                    echo '<tr class="'.$colot_table.'">
+                    if($folio['id_cofepris'] == 0 && $folio['surtido'] == 0){
+                        $surtido = '';
+                    }else if($folio['id_cofepris'] != 0 && $folio['surtido'] == 0){
+                        $surtido = '<a class="pointer" onclick="surtirProducto('.$folio['id_cofepris'].')"><span class="badge bg-light">No Surtido</span></a>';
+                    }else if($folio['id_cofepris'] != 0 && $folio['surtido'] == 1){
+                        $surtido = '<span class="badge bg-primary">Surtido</span>';
+                    }
+                   
+                    echo '<tr class="'.$color_table.'">
                         <td class="text-center fw-bold">' . $i . '</td>
                         <td>' . $fecha . ' ' . $hora . '</td>
                         <td>' . $paciente . '</td>
-                        <td class="text-center">' . $estado . '</td>
+                        <td class="text-center">' . $estado . ' ' . $surtido .'</td>
                         <td class="text-center">' . $descargar . '</td>
                     </tr>';
                     
@@ -127,24 +209,56 @@
     <script src="<?=RUTA_JS?>search-main.js"></script>
     
     <script>
+    document.addEventListener("DOMContentLoaded", function() {
+    const tableElement = document.querySelector('#cofepris');
 
-let table1 = document.querySelector('#cofepris');
-let dataTable = new simpleDatatables.DataTable(table1,{
-    searchable: true,
-    fixedHeight: true,
-    perPageSelect: false,
-    perPage: 20,
-    perPageSelect: [20, 50, 100],
-    sortable: true, 
-    columns: [
-    {
-        select: 0, sort: "asc"
-    },
-    { select: [4], sortable: false },
-    ]
+    // Recuperar estado de la tabla desde localStorage
+    const savedState = JSON.parse(localStorage.getItem('datatableState')) || {};
+
+    const dataTable = new simpleDatatables.DataTable(tableElement, {
+        searchable: true,
+        fixedHeight: true,
+        perPage: savedState.perPage || 20,
+        perPageSelect: [20, 50, 100],
+        sortable: true,
+        columns: [
+            { select: 0, sort: savedState.sort || 'asc' },
+            { select: [4], sortable: false },
+        ]
+    });
+
+    // Restaurar página y búsqueda después de inicializar
+    dataTable.on('datatable.init', function () {
+        if (savedState.page) {
+            dataTable.page(savedState.page);
+        }
+        if (savedState.search) {
+            dataTable.input.value = savedState.search;
+            dataTable.search(savedState.search);
+        }
+    });
+
+    // Guardar estado cada vez que cambia algo
+    dataTable.on('datatable.page', function (page) {
+        savedState.page = page;
+        localStorage.setItem('datatableState', JSON.stringify(savedState));
+    });
+
+    dataTable.on('datatable.perpage', function (perPage) {
+        savedState.perPage = perPage;
+        localStorage.setItem('datatableState', JSON.stringify(savedState));
+    });
+
+    dataTable.on('datatable.sort', function (column, direction) {
+        savedState.sort = direction;
+        localStorage.setItem('datatableState', JSON.stringify(savedState));
+    });
+
+    dataTable.on('datatable.search', function (query) {
+        savedState.search = query;
+        localStorage.setItem('datatableState', JSON.stringify(savedState));
+    });
 });
-
-
 </script>
 
 </body>

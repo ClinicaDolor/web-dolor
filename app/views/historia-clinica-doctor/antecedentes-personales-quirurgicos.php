@@ -30,31 +30,63 @@ $bd = Database::getInstance();
     const idPaciente = usuarioDiv.getAttribute('data-paciente');
     const idRol = usuarioDiv.getAttribute('data-rol');
 
+    // Recuperar estado guardado
+    const savedState = JSON.parse(localStorage.getItem('datatableCirugiaState')) || {};
+
     fetch(`/buscar/contenido-preguntas-modulo-4/${idPaciente}/${idRol}`)
-    .then(response => response.text())
-    .then(data => {
+        .then(response => response.text())
+        .then(data => {
+            const contenedor = document.getElementById('contePreguntas');
+            contenedor.innerHTML = data;
+            feather.replace();
 
-    const contenedor = document.getElementById('contePreguntas');
-    contenedor.innerHTML = data;
-    feather.replace();
+            const tabla = document.querySelector("#table_cirugia");
+            if (tabla) {
+                const dataTable = new simpleDatatables.DataTable(tabla, {
+                    searchable: true,
+                    fixedHeight: true,
+                    perPage: savedState.perPage || 10,
+                    perPageSelect: [10, 20, 50],
+                    columns: [
+                        { select: 1, sort: savedState.sort || 'desc' },
+                        { select: [0, 1, 2, 3], sortable: false }
+                    ]
+                });
 
-    const tabla = document.querySelector("#table_cirugia");
-    if (tabla) {
-    dataTable = new simpleDatatables.DataTable(tabla,{
-	searchable: true,
-    fixedHeight: true,
-	columns: [
-	{
-	select: 1, sort: "desc"
-	},
-    { select: [0,1,2,3], sortable: false },
+                // Restaurar búsqueda y página
+                dataTable.on('datatable.init', function () {
+                    if (savedState.page) {
+                        dataTable.page(savedState.page);
+                    }
+                    if (savedState.search) {
+                        dataTable.input.value = savedState.search;
+                        dataTable.search(savedState.search);
+                    }
+                });
 
-	]
-    });
-    }   
+                // Guardar estado en localStorage
+                dataTable.on('datatable.page', function (page) {
+                    savedState.page = page;
+                    localStorage.setItem('datatableCirugiaState', JSON.stringify(savedState));
+                });
 
-    });
-    } 
+                dataTable.on('datatable.perpage', function (perPage) {
+                    savedState.perPage = perPage;
+                    localStorage.setItem('datatableCirugiaState', JSON.stringify(savedState));
+                });
+
+                dataTable.on('datatable.sort', function (column, direction) {
+                    savedState.sort = direction;
+                    localStorage.setItem('datatableCirugiaState', JSON.stringify(savedState));
+                });
+
+                dataTable.on('datatable.search', function (query) {
+                    savedState.search = query;
+                    localStorage.setItem('datatableCirugiaState', JSON.stringify(savedState));
+                });
+            }
+        });
+}
   
     //---------- CONTROL SERVER ----------
     function gestionarAntecedentesQuirurgicos(url, parametros, callback, idUpdate = 0) {

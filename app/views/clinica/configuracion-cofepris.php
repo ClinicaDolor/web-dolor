@@ -72,7 +72,7 @@
     if (folio) {
     if (file) {
 
-        $(".LoaderPage").fadeIn(0).fadeOut("slow");
+        $(".LoaderPage").fadeIn(0);
        
             const formData = new FormData();
             formData.append('file', file);

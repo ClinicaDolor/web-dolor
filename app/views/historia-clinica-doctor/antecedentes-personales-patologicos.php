@@ -62,30 +62,63 @@ echo $model->antecedentesPatologicosV2($data['idPaciente'], $preg_enfermedad);
     const idPaciente = usuarioDiv.getAttribute('data-paciente');
     const idRol = usuarioDiv.getAttribute('data-rol');
 
+    // Recuperar estado guardado
+    const savedState = JSON.parse(localStorage.getItem('datatableEnfermedadesState')) || {};
+
     fetch(`/buscar/contenido-preguntasV2-modulo-5/${idPaciente}/${idRol}`)
-    .then(response => response.text())
-    .then(data => {
-    document.getElementById('contePreguntasV2').innerHTML = data;
-    feather.replace();
+        .then(response => response.text())
+        .then(data => {
+            document.getElementById('contePreguntasV2').innerHTML = data;
+            feather.replace();
 
-    const tabla = document.querySelector("#table_enfermedades");
-    if (tabla) {
-    dataTable = new simpleDatatables.DataTable(tabla,{
-	searchable: true,
-    fixedHeight: true,
-	columns: [
-	{
-	select: 0, sort: "asc"
-	},
-    { select: [2,3,4], sortable: false },
+            const tabla = document.querySelector("#table_enfermedades");
+            if (tabla) {
+                const dataTable = new simpleDatatables.DataTable(tabla, {
+                    searchable: true,
+                    fixedHeight: true,
+                    perPage: savedState.perPage || 10,
+                    perPageSelect: [10, 20, 50],
+                    columns: [
+                        { select: 0, sort: savedState.sort || 'asc' },
+                        { select: [2, 3, 4], sortable: false }
+                    ]
+                });
 
-	]
-    });
-    }  
+                // Restaurar búsqueda y página
+                dataTable.on('datatable.init', function () {
+                    if (savedState.page) {
+                        dataTable.page(savedState.page);
+                    }
+                    if (savedState.search) {
+                        dataTable.input.value = savedState.search;
+                        dataTable.search(savedState.search);
+                    }
+                });
 
-    });
-    }
+                // Guardar estado en localStorage
+                dataTable.on('datatable.page', function (page) {
+                    savedState.page = page;
+                    localStorage.setItem('datatableEnfermedadesState', JSON.stringify(savedState));
+                });
 
+                dataTable.on('datatable.perpage', function (perPage) {
+                    savedState.perPage = perPage;
+                    localStorage.setItem('datatableEnfermedadesState', JSON.stringify(savedState));
+                });
+
+                dataTable.on('datatable.sort', function (column, direction) {
+                    savedState.sort = direction;
+                    localStorage.setItem('datatableEnfermedadesState', JSON.stringify(savedState));
+                });
+
+                dataTable.on('datatable.search', function (query) {
+                    savedState.search = query;
+                    localStorage.setItem('datatableEnfermedadesState', JSON.stringify(savedState));
+                });
+            }
+        });
+    }   
+    
     //---------- CONTROL SERVER ----------
     function gestionarAntecedentesPatologicos(url, parametros, callback, idUpdate = 0) {
     if(idUpdate == 1){

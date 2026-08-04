@@ -1,6 +1,10 @@
 <?php 
 use App\Config\Database;
+use App\Helpers\CalculadoraEdad;
 $bd = Database::getInstance();
+
+$model = new CalculadoraEdad();
+
 ?>
 
     <!DOCTYPE html>
@@ -84,8 +88,8 @@ $bd = Database::getInstance();
     <tr>
     <td class="text-center aling-middle"><?=$registro['id']?></td>
     <td class="text-center aling-middle"><?=$registro['fecha_alta']?></td>
-    <td class="text-start aling-middle"><b><?=$registro['nombre_completo']?></b></td>
-    <td class="text-center aling-middle"><?=$registro['edad']?> años</td>
+    <td class="text-start aling-middle"><b><?=$registro['nombres'].' '.$registro['apellido_paterno'].' '.$registro['apellido_materno']?></b></td>
+    <td class="text-center aling-middle"><?=$model->calcularEdad($registro['fecha_nacimiento'])?> años</td>
     <td class="text-center align-middle" style="color: <?= $registro['sexo'] == 'F' ? 'pink' : 'blue' ?>;">
     <?=$registro['sexo']?>
     </td>
@@ -119,20 +123,56 @@ $bd = Database::getInstance();
     <script src="<?=RUTA_JS?>search-main.js"></script>
 
     <script>
-    let table1 = document.querySelector('#table1');
-    let dataTable = new simpleDatatables.DataTable(table1,{
-	searchable: true,
-    fixedHeight: true,
-	columns: [
-	{
-		select: 1, sort: "desc"
-	},
-    { select: [6,7,8], sortable: false },
+    document.addEventListener("DOMContentLoaded", function () {
+    const tableElement = document.querySelector('#table1');
 
-	]
+    // Recuperar estado desde localStorage
+    const savedState = JSON.parse(localStorage.getItem('datatableState')) || {};
+
+    const dataTable = new simpleDatatables.DataTable(tableElement, {
+        searchable: true,
+        fixedHeight: true,
+        perPage: savedState.perPage || 10,
+        perPageSelect: [10, 20, 50],
+        columns: [
+            { select: 1, sort: savedState.sort || 'desc' },
+            { select: [6, 7, 8], sortable: false }
+        ]
     });
 
-    </script>
+    // Restaurar página y búsqueda después de inicializar
+    dataTable.on('datatable.init', function () {
+        if (savedState.page) {
+            dataTable.page(savedState.page);
+        }
+        if (savedState.search) {
+            dataTable.input.value = savedState.search;
+            dataTable.search(savedState.search);
+        }
+    });
+
+    // Guardar estado cuando cambian eventos importantes
+    dataTable.on('datatable.page', function (page) {
+        savedState.page = page;
+        localStorage.setItem('datatableState', JSON.stringify(savedState));
+    });
+
+    dataTable.on('datatable.perpage', function (perPage) {
+        savedState.perPage = perPage;
+        localStorage.setItem('datatableState', JSON.stringify(savedState));
+    });
+
+    dataTable.on('datatable.sort', function (column, direction) {
+        savedState.sort = direction;
+        localStorage.setItem('datatableState', JSON.stringify(savedState));
+    });
+
+    dataTable.on('datatable.search', function (query) {
+        savedState.search = query;
+        localStorage.setItem('datatableState', JSON.stringify(savedState));
+    });
+});
+</script>
 
     </body>
     </html>

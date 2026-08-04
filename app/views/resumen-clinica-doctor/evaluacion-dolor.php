@@ -1,11 +1,15 @@
 <?php 
 use App\Config\Database;
+use App\Models\PacienteModulosModelo;
 use App\Models\EvaluacionDolorModel;
 $bd = Database::getInstance();
 
 $model = new EvaluacionDolorModel();
-$contenidoEvaluacionDolor= $model->editorTextoED($data['idPaciente']); 
+echo $model->cuestionarioModulo9($data['idPaciente']);
 
+$model2 = new PacienteModulosModelo();
+$contenidoEvaluacionDolor= $model->editorTextoED($data['idPaciente']); 
+  
 ?> 
 
 <!DOCTYPE html>
@@ -24,6 +28,7 @@ $contenidoEvaluacionDolor= $model->editorTextoED($data['idPaciente']);
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <!-- html2pdf -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="<?=RUTA_JS;?>editor-functions.js"></script>
 <script src="<?=RUTA_JS;?>loader.js"></script>
 </head>
 
@@ -32,7 +37,7 @@ $contenidoEvaluacionDolor= $model->editorTextoED($data['idPaciente']);
 <div id="app">
 <?=$data['sidebar'];?>  
 
-<div id="main" data-rol="<?=$data['idRol'];?>" data-paciente="<?=$data['idPaciente'];?>">
+<div id="main" data-rol="<?=$data['idRol'];?>" data-paciente="<?=$data['idPaciente'];?>" data-tema="<?=$data['title'];?>">
 <nav class="navbar navbar-header navbar-expand navbar-light">
 <a class="sidebar-toggler"><span class="navbar-toggler-icon"></span></a>
 <button class="btn navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent">
@@ -56,14 +61,15 @@ $contenidoEvaluacionDolor= $model->editorTextoED($data['idPaciente']);
 </div>
 
 <div class="card-body">
-<!---------- EDITOR DE TEXTO CKEditor ---------->
-<textarea id="editor">
-
 <!-- CONTENIDO INICIAL -->
-<div class="col-12 col-sm-6 mb-3">
+<div id="contenido-fijo">
+<div class="row">
+
+<div class="col-12 mb-3">
 <h8 class="text-primary fw-bold texto"><strong>Nombre:</strong> <?=$data['nombre'] ?? ''?></h8>
 </div>
-<br>
+
+<div class="col-12 mb-3">
 <strong> 
 A continuación, debera de indicar las zonas donde siente malestar utilizando los siguientes colores: 
 <ul>
@@ -75,9 +81,10 @@ A continuación, debera de indicar las zonas donde siente malestar utilizando lo
 </ul>
 Evite marcar la zona con una "X". En su lugar, cúbrala por completo utilizando el color que corresponda.   
 </strong>
-<br>
-<div class="row">
-<div class="col-6">
+</div>
+
+<div class="col-xl-6 col-lg-6 col-md-12 col-sm-12 mb-3 text-center">
+  <div class=" border p-3">
   <?php
     $frentePath = RUTA_IMAGES . "evaluacion-dolor/frente/Frente_{$data['sexo']}_{$data['idPaciente']}.png";
     $frenteFile = $_SERVER['DOCUMENT_ROOT'] . parse_url($frentePath, PHP_URL_PATH);
@@ -85,12 +92,13 @@ Evite marcar la zona con una "X". En su lugar, cúbrala por completo utilizando 
       ? $frentePath
       : RUTA_IMAGES . "evaluacion-dolor/frente/Frente_{$data['sexo']}.png";
   ?>
-  <strong class="text-center"> IMAGEN DE FRENTE </strong>
-  <img src="<?= $frenteSrc ?>" alt="Frente">
+  <img width="100%" src="<?= $frenteSrc ?>" alt="Frente">
+  <p class=""><strong class="text-center"> IMAGEN DE FRENTE </strong></p>
+  </div>
 </div>
 
-<div class="col-6">
-
+<div class="col-xl-6 col-lg-6 col-md-12 col-sm-12 mb-3 text-center">
+<div class=" border p-3">
   <?php
     $espaldaPath = RUTA_IMAGES . "evaluacion-dolor/espalda/Espalda{$data['sexo']}_{$data['idPaciente']}.png";
     $espaldaFile = $_SERVER['DOCUMENT_ROOT'] . parse_url($espaldaPath, PHP_URL_PATH);
@@ -98,18 +106,30 @@ Evite marcar la zona con una "X". En su lugar, cúbrala por completo utilizando 
       ? $espaldaPath
       : RUTA_IMAGES . "evaluacion-dolor/espalda/Espalda_{$data['sexo']}.png";
   ?>
-  <strong class="text-center"> IMAGEN DE ESPALDA </strong>
-  <img src="<?= $espaldaSrc ?>" alt="Espalda">
+  <img width="100%" src="<?= $espaldaSrc ?>" alt="Espalda">
+  <p class=""><strong class="text-center"> IMAGEN DE FRENTE </strong></p>
+  </div>
 </div>
-</div>
-<br>
+
+<div class="col-12 mt-2">
 <strong>
 A continuación, deberás responder las siguientes preguntas con base en la evaluación de dolor previamente realizada. Por favor, asegúrate de responder con la mayor claridad y detalle posible para facilitar una mejor comprensión de tu malestar.  
 </strong>
 <?=$contenidoEvaluacionDolor?>
 </div>
-</textarea>
+
 </div>
+</div>
+
+<!---------- EDITOR DE TEXTO CKEditor ---------->
+<label class="mt-4 mb-1" for="editor"><strong>Notas adicionales:</strong></label>
+<textarea id="editor" rows="20" cols="80"><?= htmlspecialchars($contenidoEditor = $model2->contenidoEditorPAC($data['idPaciente'],$data['title'])) ?></textarea>
+</div>
+
+<div class="card-footer">
+<button class="btn btn-success float-end" onclick="guardarContenidoEditor()">Guardar cambios</button>
+</div>
+
 </div>
 </section>
 </div>

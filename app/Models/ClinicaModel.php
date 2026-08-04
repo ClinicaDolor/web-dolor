@@ -23,7 +23,11 @@ class ClinicaModel{
         
         $sql = "INSERT INTO pc_paciente (
             id_clinica,
-            nombre_completo,
+
+            nombres,
+            apellido_paterno,
+            apellido_materno,
+
             edad,
             sexo,
             fecha_nacimiento,
@@ -65,7 +69,11 @@ class ClinicaModel{
             status
         ) VALUES (
             :id_clinica,
-            :nombre_completo,
+
+            :nombres,
+            :apellido_paterno,
+            :apellido_materno,
+
             :edad,
             :sexo,
             :fecha_nacimiento,
@@ -111,7 +119,11 @@ class ClinicaModel{
         
         $datos = [
         ':id_clinica' => $cookie['id_clinica'],
-        ':nombre_completo' => $data['NombreCompleto'],
+
+        'nombres' => $data['Nombres'],
+        'apellido_paterno' => $data['ApellidoPaterno'],
+        'apellido_materno' => $data['ApellidoMaterno'],
+
         ':edad' => $data['Edad'],
         ':sexo' => $data['Sexo'],
         ':fecha_nacimiento' => $data['FeNacimiento'],
@@ -166,7 +178,11 @@ class ClinicaModel{
     public function editPaciente($data){
 
     $sql = "UPDATE pc_paciente SET 
-    nombre_completo = :nombre_completo,
+    
+    nombres = :nombres,
+    apellido_paterno = :apellido_paterno,
+    apellido_materno = :apellido_materno,
+
     edad = :edad,
     sexo = :sexo,
     fecha_nacimiento = :fecha_nacimiento,
@@ -199,7 +215,11 @@ class ClinicaModel{
     $stmt = $this->bd->prepare($sql);
 
     $datos = [
-        'nombre_completo' => $data['NombreCompleto'],
+        
+        'nombres' => $data['Nombres'],
+        'apellido_paterno' => $data['ApellidoPaterno'],
+        'apellido_materno' => $data['ApellidoMaterno'],
+
         'edad' => $data['Edad'],
         'sexo' => $data['Sexo'],
         'fecha_nacimiento' => $data['FeNacimiento'],
@@ -279,36 +299,54 @@ class ClinicaModel{
 
     }
 
-    public function insertPacienteReceta($data){
+public function insertPacienteReceta($data){
 
-        $sql = "INSERT INTO receta_medica (
-            id_paciente,
-            diagnostico,
-            medicamento,
-            codigo_referencia
-        ) VALUES (
-            :id_paciente,
-            :diagnostico,
-            :medicamento,
-            :codigo_referencia
-        )";
+    $sql = "INSERT INTO receta_medica (
+        id_paciente,
+        diagnostico,
+        medicamento,
+        codigo_referencia,
+        ta,
+        fc,
+        spo2,
+        temperatura
+    ) VALUES (
+        :id_paciente,
+        :diagnostico,
+        :medicamento,
+        :codigo_referencia,
+        :ta,
+        :fc,
+        :spo2,
+        :temperatura
+    )";
 
-        $stmt = $this->bd->prepare($sql);         
+    $stmt = $this->bd->prepare($sql);
 
-        $datos = [
-            ':id_paciente' => $data['idPaciente'],
-            ':diagnostico' => $data['diagnostico'],
-            ':medicamento' => $data['medicamento'],
-            ':codigo_referencia' => $data['referencia']
-            ];
-        
-            if ($stmt->execute($datos)) {
-                return array('resultado' => 200,'mensaje' => $this->bd->lastInsertId());
-    
-            } else {
-                return array('resultado' => 401,'mensaje' => '¡Error al agregar nueva receta a la lista!');
-            }
+    $datos = [
+        ':id_paciente'       => $data['idPaciente'],
+        ':diagnostico'       => $data['diagnostico'],
+        ':medicamento'       => $data['medicamento'],
+        ':codigo_referencia' => $data['referencia'],
+        ':ta'                => $data['ta'],
+        ':fc'                => $data['fc'],
+        ':spo2'              => $data['spo2'],
+        ':temperatura'       => $data['temperatura']
+    ];
 
+    if ($stmt->execute($datos)) {
+        return array(
+            'resultado' => 200,
+            'mensaje' => $this->bd->lastInsertId()
+        );
+
+    } else {
+        return array(
+            'resultado' => 401,
+            'mensaje' => '¡Error al agregar nueva receta a la lista!'
+        );
     }
+
+}
 
 }

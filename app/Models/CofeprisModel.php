@@ -109,11 +109,13 @@ class CofeprisModel{
     }
 
     public function insertPacienteCofepris($data){
-
+        date_default_timezone_set('America/Mexico_City');
         $generaFolio = $this->generarFolio();
+        $fecha_hora = $data['fecha'].' '.date("H:i:s");
 
         if($generaFolio['carpeta'] != 0){
         $sql = "INSERT INTO cofepris (
+            fecha_hora,
             id_paciente,
             carpeta,
             folio,
@@ -123,9 +125,11 @@ class CofeprisModel{
             presentacion,
             dosificacion,
             num_dias,
-            via_administracion
+            via_administracion,
+            surtido
 
         ) VALUES (
+            :fecha_hora,
             :id_paciente,
             :carpeta,
             :folio,
@@ -135,12 +139,14 @@ class CofeprisModel{
             :presentacion,
             :dosificacion,
             :num_dias,
-            :via_administracion
+            :via_administracion,
+            :surtido
         )";
 
         $stmt = $this->bd->prepare($sql);         
 
         $datos = [
+            ':fecha_hora' => $fecha_hora,
             ':id_paciente' => $data['idPaciente'],
             ':carpeta' => $generaFolio['carpeta'],
             ':folio' => $generaFolio['folio'],
@@ -150,7 +156,8 @@ class CofeprisModel{
             ':presentacion' => $data['presentacion'],
             ':dosificacion' => $data['dosificacion'],
             ':num_dias' => $data['numDias'],
-            ':via_administracion' => $data['viaAdministracion']
+            ':via_administracion' => $data['viaAdministracion'],
+            ':surtido' => 0
             ];
         
             if ($stmt->execute($datos)) {
@@ -162,6 +169,44 @@ class CofeprisModel{
         }else{
             return array('resultado' => 401,'mensaje' => $generaFolio['mensaje']);
         }
+
+    }
+
+    public function editPacienteCofepris($data){
+        date_default_timezone_set('America/Mexico_City');
+        $fecha_hora = $data['fecha'].' '.date("H:i:s");
+
+        $sql = "UPDATE cofepris SET 
+            fecha_hora = :fecha_hora,
+            diagnostico = :diagnostico,
+            medicamento = :medicamento,
+            num_cajas = :num_cajas,
+            presentacion = :presentacion,
+            dosificacion = :dosificacion,
+            num_dias = :num_dias,
+            via_administracion = :via_administracion
+            WHERE id = :id";
+
+            $stmt = $this->bd->prepare($sql);
+
+            $stmt->bindParam(':fecha_hora', $fecha_hora);
+            $stmt->bindParam(':diagnostico', $data['diagnostico']);
+            $stmt->bindParam(':medicamento', $data['medicamento']);
+            $stmt->bindParam(':num_cajas', $data['numCajas']);
+            $stmt->bindParam(':presentacion', $data['presentacion']);
+            $stmt->bindParam(':dosificacion', $data['dosificacion']);
+            $stmt->bindParam(':num_dias', $data['numDias']);
+            $stmt->bindParam(':via_administracion', $data['viaAdministracion']);
+    
+            $stmt->bindParam(':id', $data['idCofepris']);
+
+            if ($stmt->execute()) {
+
+                return array('resultado' => 200,'mensaje' => $data['idCofepris']);
+
+            } else {
+                return array('resultado' => 401,'mensaje' => '¡Error al agregar nueva nota subsecuente a la lista!');
+            }
 
     }
 
@@ -213,6 +258,7 @@ class CofeprisModel{
                 <th class="text-center">#</th>
                 <th>Fecha y Hora</th>
                 <th>Folio</th>
+                <th class="text-center" width="20"><i data-feather="edit-2" width="20"></i></th>
             </tr>
         </thead>
         <tbody>';
@@ -225,6 +271,7 @@ class CofeprisModel{
                         <td class="text-center">'.$registro['id'].'</td>
                         <td>'.$fecha_hora.'</td>
                         <td>'.$registro['folio'].'</td>
+                        <td><a href="' . SERVIDOR .'clinica/cofepris/paciente/'.$idPaciente.'/editar/'.$registro['id'].'"><i data-feather="edit-2" width="20"></i></a></td>
                         </tr>';
 
         endforeach;
@@ -466,9 +513,12 @@ class CofeprisModel{
         cofepris.id,
         cofepris.fecha_hora,
         cofepris.id_paciente,
-        pc_paciente.nombre_completo,
+        pc_paciente.nombres,
+        pc_paciente.apellido_paterno,
+        pc_paciente.apellido_materno,
         cofepris.carpeta,
-        cofepris.folio
+        cofepris.folio,
+        cofepris.surtido
         FROM cofepris 
         INNER JOIN pc_paciente 
         ON cofepris.id_paciente = pc_paciente.id
@@ -477,9 +527,9 @@ class CofeprisModel{
         $folio = $stmt->fetch(\PDO::FETCH_ASSOC);
 
         if($folio){
-            $array = array('id_cofepris' => $folio['id'], 'fecha_hora' => $folio['fecha_hora'], 'paciente' => $folio['nombre_completo']);
+            $array = array('id_cofepris' => $folio['id'], 'fecha_hora' => $folio['fecha_hora'], 'paciente' => $folio['nombres'].' '.$folio['apellido_paterno'].' '.$folio['apellido_materno'], 'surtido' => $folio['surtido']);
         }else{
-            $array = array('id_cofepris' => 0, 'fecha_hora' => '', 'paciente' => '');
+            $array = array('id_cofepris' => 0, 'fecha_hora' => '', 'paciente' => '', 'surtido' => 0);
         }
 
         return $array;
@@ -493,6 +543,31 @@ class CofeprisModel{
         $resultado = $stmt->fetch(\PDO::FETCH_ASSOC);
         $totalRegistros = $resultado['total'];
         return $totalRegistros;
+
+    }
+
+    public function editarSurtido($data){
+
+        $surtido = 1;
+        $id = $data['idCofepris'];
+
+        $sql = "UPDATE cofepris SET 
+        surtido = :surtido
+        WHERE id = :id";
+
+        $stmt = $this->bd->prepare($sql);
+
+        $stmt->bindParam(':surtido', $surtido);
+        $stmt->bindParam(':id', $id);
+
+        if ($stmt->execute()) {
+
+            return array('resultado' => 200,'mensaje' => 'OK');
+
+        } else {
+            return array('resultado' => 401,'mensaje' => '¡Error al agregar nueva nota subsecuente a la lista!');
+        }
+
 
     }
 

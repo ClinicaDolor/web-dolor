@@ -19,7 +19,7 @@ $this->bd = Database::getInstance();
     $stmt = $this->bd->query("SELECT * FROM pac_medicacion_actual_modulo_6 WHERE id_paciente = '".$idPaciente."' ORDER BY id ASC");
     $preguntas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
     
-    $result .= '<table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;">
+    $result .= '<table class="table-bordered" border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;">
     <tr>
     <th class="text-center align-middle">Nombre del medicamento</th>
     <th class="text-center align-middle">¿Para qué lo utiliza?</th>
@@ -39,11 +39,11 @@ $this->bd = Database::getInstance();
 
     $result .= '    
     <tr>
-    <td>'.$medicamento.'</td>
-    <td>'.$descripcion.'</td>
-    <td>'.$tiempo_uso.'</td>
-    <td>'.$dosis.'</td>
-    <td>'.$medico.'</td>
+    <td class="text-center align-middle">'.$medicamento.'</td>
+    <td class="text-center align-middle">'.$descripcion.'</td>
+    <td class="text-center align-middle">'.$tiempo_uso.'</td>
+    <td class="text-center align-middle">'.$dosis.'</td>
+    <td class="text-center align-middle">'.$medico.'</td>
     </tr>';
     
     $num++;
@@ -51,11 +51,7 @@ $this->bd = Database::getInstance();
     }else{
     $result .= '    
     <tr>
-    <td></td>
-    <td></td>
-    <td></td>
-    <td></td>
-    <td></td>
+    <td class="text-center align-middle" colspan="5"> No se encontro información</td>
     </tr>';
     }
     $result .= '</table>';
@@ -273,27 +269,27 @@ $result.= '<tr>';
    
 $result .= '<td class="text-center align-middle p-2">
 <span class="d-none search-value">'.$descripcion.'</span>
-<input type="text" onchange="editarMedicamento('.$idMedicamento.', this, 1, \''.$idRol.'\')" class="form-control" value="'.$descripcion.'" placeholder="Escribe aquí el nombre del medicamento...">
+<input type="text" onchange="editarMedicamento('.$idMedicamento.', this, 1, \''.$idRol.'\')" class="form-control text-center align-middle" value="'.$descripcion.'" placeholder="Escribe aquí el nombre del medicamento...">
 </td>';
 
 $result .= '<td class="text-center align-middle p-2">
 <span class="d-none search-value">'.$medicamento.'</span>
-<input type="text" onchange="editarMedicamento('.$idMedicamento.', this, 2, \''.$idRol.'\')" class="form-control" value="'.$medicamento.'" placeholder="Escribe aquí el motivo de medicación...">
+<input type="text" onchange="editarMedicamento('.$idMedicamento.', this, 2, \''.$idRol.'\')" class="form-control text-center align-middle" value="'.$medicamento.'" placeholder="Escribe aquí el motivo de medicación...">
 </td>';
 
 $result .= '<td class="text-center align-middle p-2">
 <span class="d-none search-value">'.$tiempo_uso.'</span>
-<input type="text" onchange="editarMedicamento('.$idMedicamento.', this, 3, \''.$idRol.'\')" class="form-control text-center" value="'.$tiempo_uso.'" placeholder="Escribe aquí el tiempo de tratamiento...">
+<input type="text" onchange="editarMedicamento('.$idMedicamento.', this, 3, \''.$idRol.'\')" class="form-control text-center align-middle" value="'.$tiempo_uso.'" placeholder="Escribe aquí el tiempo de tratamiento...">
 </td>';
 
 $result .= '<td class="text-center align-middle p-2">
 <span class="d-none search-value">'.$dosis.'</span>
-<input type="text" onchange="editarMedicamento('.$idMedicamento.', this, 4, \''.$idRol.'\')" class="form-control text-center" value="'.$dosis.'" placeholder="Escribe aquí la dosis que utiliza...">
+<input type="text" onchange="editarMedicamento('.$idMedicamento.', this, 4, \''.$idRol.'\')" class="form-control text-center align-middle" value="'.$dosis.'" placeholder="Escribe aquí la dosis que utiliza...">
 </td>';
 
 $result .= '<td class="text-center align-middle p-2">
 <span class="d-none search-value">'.$medico.'</span>
-<input type="text" onchange="editarMedicamento('.$idMedicamento.', this, 5, \''.$idRol.'\')" class="form-control" value="'.$medico.'" placeholder="Escribe aquí el nombre del medico...">
+<input type="text" onchange="editarMedicamento('.$idMedicamento.', this, 5, \''.$idRol.'\')" class="form-control text-center align-middle" value="'.$medico.'" placeholder="Escribe aquí el nombre del medico...">
 </td>';
 
 $result.= '<td class="text-center align-middle p-2">

@@ -169,10 +169,11 @@ class PacienteModulosModelo{
 
     $stmt = $this->bd->query("SELECT 
     id,
-    nombre_completo,
+    nombres,
     ROUND((
     (
-    IF(nombre_completo IS NOT NULL AND nombre_completo != '', 1, 0) +
+    IF(nombres IS NOT NULL AND nombres != '', 1, 0) +
+    IF(apellido_paterno IS NOT NULL AND apellido_paterno != '', 1, 0) +
     IF(edad IS NOT NULL AND edad != '', 1, 0) +
     IF(sexo IS NOT NULL AND sexo != '', 1, 0) +
     IF(estado_civil IS NOT NULL AND estado_civil != '', 1, 0) +
@@ -184,7 +185,7 @@ class PacienteModulosModelo{
     IF(num_hijos IS NOT NULL AND num_hijos != '', 1, 0) +
     IF(edad_hijos IS NOT NULL AND edad_hijos != '', 1, 0) + 
     IF(motivo_atencion IS NOT NULL AND motivo_atencion != '', 1, 0)
-    ) / 12 * 100
+    ) / 13 * 100
     ), 0) AS porcentaje_cumplimiento
     FROM pc_paciente WHERE id = '".$idPaciente."'");
     $preguntas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
@@ -562,40 +563,52 @@ class PacienteModulosModelo{
     public function porcentajeModulo7($idPaciente){
     $result = "";
 
-    $stmt = $this->bd->query("SELECT 
+$stmt = $this->bd->query("
+SELECT 
     COUNT(*) AS total_preguntas,
     SUM(
-    CASE 
-    WHEN r.respuesta IS NULL OR r.respuesta = '' THEN 0
-    WHEN r.respuesta = 'No' THEN 1
-    WHEN r.respuesta = 'Sí'
-    AND r.dosis IS NOT NULL AND r.dosis != ''
-    AND r.resultados IS NOT NULL AND r.resultados != ''
-    AND r.consumo IS NOT NULL AND r.consumo != '' THEN 1
-
-    ELSE 0
-    END
+        CASE 
+            WHEN r.respuesta IS NULL OR r.respuesta = '' THEN 0
+            WHEN r.respuesta = 'No' THEN 1
+            WHEN r.respuesta = 'Sí'
+                 AND r.dosis IS NOT NULL AND r.dosis != ''
+                 AND r.resultados IS NOT NULL AND r.resultados != ''
+                 AND r.consumo IS NOT NULL AND r.consumo != ''
+                 AND (
+                     (r.resultados = 'Tuve efectos adversos' AND r.descripcion IS NOT NULL AND r.descripcion != '')
+                     OR (r.resultados != 'Tuve efectos adversos')
+                 )
+            THEN 1
+            ELSE 0
+        END
     ) AS preguntas_validas,
     ROUND((
-    CASE 
-    WHEN COUNT(*) = 0 THEN 100
-    ELSE SUM(
-    CASE 
-    WHEN r.respuesta IS NULL OR r.respuesta = '' THEN 0
-    WHEN r.respuesta = 'No' THEN 1
-    WHEN r.respuesta = 'Sí'
-    AND r.dosis IS NOT NULL AND r.dosis != ''
-    AND r.resultados IS NOT NULL AND r.resultados != ''
-    AND r.consumo IS NOT NULL AND r.consumo != '' THEN 1
-    ELSE 0
-    END
-    ) * 100 / COUNT(*)
-    END
+        CASE 
+            WHEN COUNT(*) = 0 THEN 100
+            ELSE SUM(
+                CASE 
+                    WHEN r.respuesta IS NULL OR r.respuesta = '' THEN 0
+                    WHEN r.respuesta = 'No' THEN 1
+                    WHEN r.respuesta = 'Sí'
+                         AND r.dosis IS NOT NULL AND r.dosis != ''
+                         AND r.resultados IS NOT NULL AND r.resultados != ''
+                         AND r.consumo IS NOT NULL AND r.consumo != ''
+                         AND (
+                             (r.resultados = 'Tuve efectos adversos' AND r.descripcion IS NOT NULL AND r.descripcion != '')
+                             OR (r.resultados != 'Tuve efectos adversos')
+                         )
+                    THEN 1
+                    ELSE 0
+                END
+            ) * 100 / COUNT(*)
+        END
     ), 0) AS porcentaje_cumplimiento
-    FROM pac_respuestas_paciente_modulo_7 r
-    INNER JOIN pac_preguntas_modulo_7 p ON r.id_pregunta = p.id
-    INNER JOIN pac_temas_modulo_7 t ON p.id_tema = t.id
-    WHERE r.id_paciente = '".$idPaciente."'");
+FROM pac_respuestas_paciente_modulo_7 r
+INNER JOIN pac_preguntas_modulo_7 p ON r.id_pregunta = p.id
+INNER JOIN pac_temas_modulo_7 t ON p.id_tema = t.id
+WHERE r.id_paciente = '".$idPaciente."'
+");
+
 
     $preguntas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
     
@@ -626,33 +639,44 @@ class PacienteModulosModelo{
     
     $stmt = $this->bd->query("
     SELECT 
-    COUNT(*) AS total_procedimientos,
-    SUM(
-    CASE 
-    WHEN procedimiento IS NOT NULL AND procedimiento != ''
-    AND fecha IS NOT NULL AND fecha != ''
-    AND resultados IS NOT NULL AND resultados != ''
-    THEN 1
-    ELSE 0
-    END
-    ) AS procedimientos_validos,
-    ROUND(
-    CASE 
-    WHEN COUNT(*) = 0 THEN 100
-    ELSE (
-    SUM(
-    CASE 
-    WHEN procedimiento IS NOT NULL AND procedimiento != ''
-    AND fecha IS NOT NULL AND fecha != ''
-    AND resultados IS NOT NULL AND resultados != ''
-    THEN 1 ELSE 0
-    END
-    ) * 100.0 / COUNT(*)
-    )
-    END
-    , 0) AS porcentaje_cumplimiento
+        COUNT(*) AS total_procedimientos,
+        SUM(
+            CASE 
+                WHEN procedimiento IS NOT NULL AND procedimiento != ''
+                AND fecha IS NOT NULL AND fecha != ''
+                AND resultados IS NOT NULL AND resultados != ''
+                AND (
+                    (resultados = 'Tuve efectos adversos' AND descripcion IS NOT NULL AND descripcion != '')
+                    OR (resultados != 'Tuve efectos adversos')
+                )
+                THEN 1
+                ELSE 0
+            END
+        ) AS procedimientos_validos,
+        ROUND(
+            CASE 
+                WHEN COUNT(*) = 0 THEN 100
+                ELSE (
+                    SUM(
+                        CASE 
+                            WHEN procedimiento IS NOT NULL AND procedimiento != ''
+                            AND fecha IS NOT NULL AND fecha != ''
+                            AND resultados IS NOT NULL AND resultados != ''
+                            AND (
+                                (resultados = 'Tuve efectos adversos' AND descripcion IS NOT NULL AND descripcion != '')
+                                OR (resultados != 'Tuve efectos adversos')
+                            )
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) * 100.0 / COUNT(*)
+                )
+            END
+        , 0) AS porcentaje_cumplimiento
     FROM pac_procedimientos_dolor_modulo_8
-    WHERE id_paciente = '".$idPaciente."'");
+    WHERE id_paciente = '".$idPaciente."'
+    ");
+    
     $preguntas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
     foreach ($preguntas as $pregunta) {
@@ -669,36 +693,46 @@ class PacienteModulosModelo{
     
     $stmt = $this->bd->query("
     SELECT 
-    COUNT(*) AS total_tratamientos,
-    SUM(
-    CASE 
-    WHEN utilizo = 'No' THEN 1
-    WHEN utilizo = 'Si' AND resultado IS NOT NULL AND resultado != ''
-    AND comentarios IS NOT NULL AND comentarios != ''
-    THEN 1
-    ELSE 0
-    END
-    ) AS tratamientos_validos,
-    ROUND(
-    CASE 
-    WHEN COUNT(*) = 0 THEN 100
-    ELSE (
-    SUM(
-    CASE 
-    WHEN utilizo = 'No' THEN 1
-    WHEN utilizo = 'Si' AND resultado IS NOT NULL AND resultado != ''
-    AND comentarios IS NOT NULL AND comentarios != ''
-    THEN 1
-    ELSE 0
-    END
-    ) * 100.0 / COUNT(*)
-    )
-    END
-    , 0) AS porcentaje_cumplimiento
+        COUNT(*) AS total_tratamientos,
+        SUM(
+            CASE 
+                WHEN utilizo = 'No' THEN 1
+                WHEN utilizo = 'Si' 
+                     AND resultado IS NOT NULL AND resultado != ''
+                     AND (
+                         (resultado = 'Tuve efectos adversos' AND descripcion IS NOT NULL AND descripcion != '')
+                         OR (resultado != 'Tuve efectos adversos')
+                     )
+                THEN 1
+                ELSE 0
+            END
+        ) AS tratamientos_validos,
+        ROUND(
+            CASE 
+                WHEN COUNT(*) = 0 THEN 100
+                ELSE (
+                    SUM(
+                        CASE 
+                            WHEN utilizo = 'No' THEN 1
+                            WHEN utilizo = 'Si' 
+                                 AND resultado IS NOT NULL AND resultado != ''
+                                 AND (
+                                     (resultado = 'Tuve efectos adversos' AND descripcion IS NOT NULL AND descripcion != '')
+                                     OR (resultado != 'Tuve efectos adversos')
+                                 )
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) * 100.0 / COUNT(*)
+                )
+            END
+        , 0) AS porcentaje_cumplimiento
     FROM pac_respuestas_paciente_modulo_8 
     INNER JOIN pac_tratamientos_dolor_modulo_8 
-     ON pac_respuestas_paciente_modulo_8.id_tratamiento = pac_tratamientos_dolor_modulo_8.id
-    WHERE pac_respuestas_paciente_modulo_8.id_paciente = '".$idPaciente."'");
+        ON pac_respuestas_paciente_modulo_8.id_tratamiento = pac_tratamientos_dolor_modulo_8.id
+    WHERE pac_respuestas_paciente_modulo_8.id_paciente = '".$idPaciente."'
+    ");
+    
     $preguntas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
     
     foreach ($preguntas as $pregunta) {
@@ -761,7 +795,41 @@ class PacienteModulosModelo{
     return $porcentajeCumpliiento;   
     }
 
+    public function editarContenidoEditor($data){
+
+    $idPaciente = preg_replace('/[^0-9]/', '', $data['idPaciente'] ?? '');
+    $idTema = preg_replace('/[^a-zA-Z0-9_\-]/', '', $data['idTema'] ?? '');
+    $contenido = $data['contenido'] ?? '';
+    $directorio = $_SERVER['DOCUMENT_ROOT'] . "/public/assets/notas-paciente/paciente_$idPaciente";
+    if (!is_dir($directorio)) mkdir($directorio, 0777, true);
+
+    $archivo = "$directorio/$idTema.html";
+
+    if (file_put_contents($archivo, $contenido) !== false) {
+    return array('resultado' => 200,'mensaje' => '¡Se actualizo la informacion correctamente!');
+    } else {
+    return array('resultado' => 401,'mensaje' => '¡Error al actualizar la información!');
+    }
+
+    }
 
 
 
-}
+    public function contenidoEditorPAC($idPaciente, $idTema){
+    $resultado = "";
+
+    $idPacienteDOC = preg_replace('/[^0-9]/', '', $idPaciente ?? '');
+    $idTemaDOC = preg_replace('/[^a-zA-Z0-9_\-]/', '', $idTema ?? '');
+    $nombreArchivo = $idTemaDOC . ".html";
+
+    $rutaArchivo = $_SERVER['DOCUMENT_ROOT'] . "/public/assets/notas-paciente/paciente_$idPacienteDOC/$nombreArchivo";
+
+    $contenidoEditor = file_exists($rutaArchivo)
+    ? file_get_contents($rutaArchivo)
+    : '';
+
+    return $contenidoEditor;
+
+    }
+
+    }

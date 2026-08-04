@@ -601,3 +601,7 @@ footer{padding:0rem 1.5rem}
 .bg-gray-700{background-color:#4a5568!important}
 
 .table-sm tr td{padding: 7.5px;}
+
+.ck-editor__editable_inline {
+  min-height: 350px;  /* Cambia a la altura que desees */
+}

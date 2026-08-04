@@ -3,4 +3,5 @@
 **/storage/
 .env
 composer.lock
-**/Config/
+constantes.php
+Database.php

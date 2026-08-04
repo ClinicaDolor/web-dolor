@@ -1,8 +1,10 @@
 <?php 
 use App\Config\Database;
+use App\Models\PacienteModulosModelo;
 use App\Models\AntecedenteFamiliarModel;
 $bd = Database::getInstance();
 
+$model2 = new PacienteModulosModelo();
 $model = new AntecedenteFamiliarModel();
 
 $enfermedades_fijas = $model->enfermedadesFijas(); 
@@ -30,6 +32,7 @@ $contenidoAntescedentesFamiliares = $model->editorTextoAF($data['idPaciente']);
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <!-- html2pdf -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="<?=RUTA_JS;?>editor-functions.js"></script>
 <script src="<?=RUTA_JS;?>loader.js"></script>
 </head>
 
@@ -38,7 +41,7 @@ $contenidoAntescedentesFamiliares = $model->editorTextoAF($data['idPaciente']);
 <div id="app">
 <?=$data['sidebar'];?>  
 
-<div id="main" data-rol="<?=$data['idRol'];?>" data-paciente="<?=$data['idPaciente'];?>">
+<div id="main" data-rol="<?=$data['idRol'];?>" data-paciente="<?=$data['idPaciente'];?>" data-tema="<?=$data['title'];?>">
 <nav class="navbar navbar-header navbar-expand navbar-light">
 <a class="sidebar-toggler"><span class="navbar-toggler-icon"></span></a>
 <button class="btn navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent">
@@ -62,20 +65,36 @@ $contenidoAntescedentesFamiliares = $model->editorTextoAF($data['idPaciente']);
 </div>
 
 <div class="card-body">
-<!---------- EDITOR DE TEXTO CKEditor ---------->
-<textarea id="editor">
-
 <!-- CONTENIDO INICIAL -->
-<div class="col-12 col-sm-6 mb-3">
+<div id="contenido-fijo">
+<div class="row">
+
+<div class="col-12 mb-3">
 <h8 class="text-primary fw-bold texto"><strong>Nombre:</strong> <?=$data['nombre'] ?? ''?></h8>
 </div>
-<br>
+
+<div class="col-12 mb-3">
 <strong>A continuación, le preguntaremos si existen antecedentes familiares de alguna de las siguientes enfermedades.
 Por favor, mencione si alguno de sus familiares cercanos, como abuelos, padres, hermanos, etc., ha padecido alguna de ellas:</strong>
-<?=$contenidoAntescedentesFamiliares?>
-
-</textarea>
 </div>
+
+<div class="col-12 mb-4">
+<?=$contenidoAntescedentesFamiliares?>
+</div>
+
+</div>
+</div>
+
+
+<!---------- EDITOR DE TEXTO CKEditor ---------->
+<label class="mt-4 mb-1" for="editor"><strong>Notas adicionales:</strong></label>
+<textarea id="editor" rows="20" cols="80"><?= htmlspecialchars($contenidoEditor = $model2->contenidoEditorPAC($data['idPaciente'],$data['title'])) ?></textarea>
+</div>
+
+<div class="card-footer">
+<button class="btn btn-success float-end" onclick="guardarContenidoEditor()">Guardar cambios</button>
+</div>
+
 </div>
 </section>
 </div>

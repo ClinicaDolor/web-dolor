@@ -7,6 +7,9 @@ class PacienteModel{
     private $id_paciente;
     private $fecha_alta;
     private $nombre_completo;
+    private $nombres;
+    private $apellido_paterno;
+    private $apellido_materno;
     private $edad;
     private $fecha_nacimiento;
     private $sexo;
@@ -47,7 +50,7 @@ class PacienteModel{
         $registros = $stmt->fetch(\PDO::FETCH_ASSOC);
 
         $campos = [
-            'fecha_alta', 'nombre_completo', 'edad', 'fecha_nacimiento', 'sexo', 
+            'fecha_alta', 'nombres', 'apellido_paterno', 'apellido_materno', 'edad', 'fecha_nacimiento', 'sexo', 
             'estado_civil', 'curp', 'lugar_origen', 'lugar_residencia', 'ocupacion', 
             'num_hijos', 'edad_hijos', 'quien_recomienda', 'redes_sociales', 
             'motivo_atencion', 'calle', 'num_interior', 'num_exterior', 'colonia', 
@@ -65,8 +68,23 @@ class PacienteModel{
         return $this->fecha_alta;
     }
 
+    public function getNombres()
+    {
+        return $this->nombres;
+    }
+
+    public function getApellidoPaterno()
+    {
+        return $this->apellido_paterno;
+    }
+
+    public function getApellidoMaterno()
+    {
+        return $this->apellido_materno;
+    }
+
     public function getNombreCompleto(){
-        return $this->nombre_completo;
+        return $this->nombres.' '.$this->apellido_paterno.' '.$this->apellido_materno;
     }
 
     public function getEdad(){
@@ -187,4 +205,5 @@ class PacienteModel{
     {
         return $this->res_telefono;
     }
+
 }

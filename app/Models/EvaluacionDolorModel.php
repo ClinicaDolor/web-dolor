@@ -11,34 +11,34 @@ class EvaluacionDolorModel{
     
     }
 
-    public function cuestionarioModulo9($idPaciente){
+public function cuestionarioModulo9($idPaciente) {
     $sql = "SELECT COUNT(*) FROM pc_paciente_evaluacion_dolor WHERE id_paciente = ?";
     $stmt = $this->bd->prepare($sql);
     $stmt->execute([$idPaciente]);
     $numero = $stmt->fetchColumn();
-                        
+
     if ($numero == 0) {
-    $sql_insert = "INSERT INTO pc_paciente_evaluacion_dolor (id_paciente) 
-    VALUES (?)";
-    $stmt_insert = $this->bd->prepare($sql_insert);
-    $stmt_insert->execute(params: [$idPaciente]);
+        $sql_insert = "INSERT INTO pc_paciente_evaluacion_dolor (id_paciente) VALUES (?)";
+        $stmt_insert = $this->bd->prepare($sql_insert);
+        $stmt_insert->execute([$idPaciente]);
     }
-    }
+}
+
 
     public function editorTextoED($idPaciente){
     $result = "";
     $stmt = $this->bd->query("SELECT * FROM pc_paciente_evaluacion_dolor WHERE id_paciente = '".$idPaciente."' ORDER BY id ASC");
     $preguntas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
-    $result .= '<table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;">';
+    $result .= '<table class="table-bordered" border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;">';
  
     if (!empty($preguntas)) {
     $num = 1;
     foreach ($preguntas as $pregunta): 
-    $dolor = $pregunta['dolor'];
-    $tiempo_dolor = $pregunta['tiempo_dolor'];
-    $descripcion = $pregunta['descripcion'];
-    $incremento = $pregunta['incremento'];
+    $dolor = !empty($pregunta['dolor']) ? $pregunta['dolor'] : 'No';
+    $tiempo_dolor = !empty($pregunta['tiempo_dolor']) ? $pregunta['tiempo_dolor'] : 'Sin información';
+    $descripcion = !empty($pregunta['descripcion']) ? $pregunta['descripcion'] : 'Sin información';
+    $incremento = !empty($pregunta['incremento']) ? $pregunta['incremento'] : 'Sin información';
 
     $result .= '    
     <tr><td><strong>¿Tiene dolor actualmente?:</strong></td></tr>
@@ -58,7 +58,7 @@ class EvaluacionDolorModel{
     }else{
     $result .= '    
     <tr>
-    <td></td>
+    <td class="text-center">No se encontro información</td>
     </tr>';
     }
     $result .= '</table>';
@@ -223,7 +223,7 @@ class EvaluacionDolorModel{
 
     $result .= '<div class="card-body">';
     }
-
+ 
     $result .= '<div class="row">
     <div class="col-12">
     <div class="row">
@@ -241,7 +241,7 @@ class EvaluacionDolorModel{
     
     <div class="col-12 ">'; 
 
-    if($idRol = "Doctor"){
+    if($idRol == "Doctor"){
     $result .= '  
     <select class="form-select mt-3  mb-2" id="colorFrente">
     <option value="#FFFFFF">Selecciona una color...</option>
@@ -348,7 +348,7 @@ class EvaluacionDolorModel{
     
     <div class="col-12">';
 
-    if($idRol = "Doctor"){
+    if($idRol == "Doctor"){
     $result .= '  
     <select class="form-select mt-3  mb-2" id="colorEspalda">
     <option value="#FFFFFF">Selecciona una color...</option>
