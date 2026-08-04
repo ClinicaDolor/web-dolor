@@ -82,7 +82,7 @@ DetalleReceta(idReceta)
 document.getElementById('Diagnostico').value = "";
 document.querySelector('.ql-editor').innerHTML = "";
 
-window.open('/pdf/receta/' + idReceta, '_blank');
+imprimirReceta(idReceta, 'registrado');
 
 } else {
 document.getElementById('mensaje').textContent = 'Error: ' + data.mensaje;
@@ -281,8 +281,8 @@ echo $model->ultimaReceta($data['idPaciente']);
 <div class="card-header text-primary">
 <h4 class="card-title">Nueva Receta</h4>
 </div>
-<div class="card-body">
 
+<div class="card-body">
 
 <div class="mb-3">
 <label class="text-primary mb-1"><smallal>Diagnostico:</smallal></label>
@@ -344,6 +344,8 @@ echo $model->ultimaReceta($data['idPaciente']);
 <script src="<?=RUTA_PUBLIC;?>libs/simple-datatables/simple-datatables.js"></script>
 <script src="<?=RUTA_PUBLIC;?>libs/quill/quill.min.js"></script>
 <script src="<?=RUTA_JS?>search-main.js"></script>
+
+<?php include_once __DIR__ . '/../components/modal-impresion-receta.php';?>
 
 <script>
 
