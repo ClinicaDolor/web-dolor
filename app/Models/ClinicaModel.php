@@ -120,9 +120,9 @@ class ClinicaModel{
         $datos = [
         ':id_clinica' => $cookie['id_clinica'],
 
-        'nombres' => $data['Nombres'],
-        'apellido_paterno' => $data['ApellidoPaterno'],
-        'apellido_materno' => $data['ApellidoMaterno'],
+        ':nombres' => $data['Nombres'],
+        ':apellido_paterno' => $data['ApellidoPaterno'],
+        ':apellido_materno' => $data['ApellidoMaterno'],
 
         ':edad' => $data['Edad'],
         ':sexo' => $data['Sexo'],
