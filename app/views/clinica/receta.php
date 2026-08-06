@@ -37,6 +37,11 @@
 
 <div class="card">
 <div class="card-header">
+<div class="float-end">
+<a href="<?=SERVIDOR?>clinica/paciente/editar/<?=$data['id_paciente']?>" class="btn icon btn-primary text-white">
+<i data-feather="edit-2"></i>
+</a>
+</div>
 <h4 class="card-title">Información del Paciente</h4>
 </div>
 <div class="card-body">
@@ -123,6 +128,32 @@
 
 <div><small class="text-primary">Fecha: </small> <label class="fs-5"><?=$data['fecha_receta'];?></label>, <small class="text-primary">Hora: </small> <label class="fs-5"><?=$data['hora_receta'];?></label></div>
 <div class="mt-3"><small class="text-primary">Diagnostico: </small> <label class="fs-5"><?=$data['diagnostico_receta'];?></label></div>
+
+<div class="mt-4">
+<small class="text-primary">Signos Vitales:</small>
+
+<div class="row mt-2">
+<div class="col-md-6 mb-2">
+<small class="text-muted">Tensión Arterial (TA):</small><br>
+<label class="fs-5"><?=!empty($data['ta']) ? $data['ta'].' mmHg' : 'S/I';?></label>
+</div>
+
+<div class="col-md-6 mb-2">
+<small class="text-muted">Frecuencia Cardíaca (FC):</small><br>
+<label class="fs-5"><?=!empty($data['fc']) ? $data['fc'].' lpm' : 'S/I';?></label>
+</div>
+
+<div class="col-md-6 mb-2">
+<small class="text-muted">Saturación de Oxígeno (SpO₂):</small><br>
+<label class="fs-5"><?=!empty($data['spo2']) ? $data['spo2'].' %' : 'S/I';?></label>
+</div>
+
+<div class="col-md-6 mb-2">
+<small class="text-muted">Temperatura</small><br>
+<label class="fs-5"><?=!empty($data['temperatura']) ? $data['temperatura'].' °C' : 'S/I';?></label>
+</div>
+</div>
+</div>
 
 <label class="mt-4"><small class="text-primary">Medicamento: </small></label>
 <div class="fs-5"><?=$data['medicamento_receta'];?></div>

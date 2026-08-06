@@ -64,6 +64,10 @@ $sidebarHtml = $sidebar->render();
 
 $data = ['title' => 'Receta (Externos)',
 'id_receta' => $id,
+'id_paciente' => $id,
+'nombre' => $modelExterno->getNombre(),
+'apellido_paterno' => $modelExterno->getApellidoPaterno(),
+'apellido_materno' => $modelExterno->getApellidoMaterno(),
 'nombre_paciente' => $modelExterno->getNombreCompleto(),
 'fecha_nacimiento' => $modelExterno->getFechaNacimiento(),
 'edad' => $modelExterno->getEdad(),
@@ -79,6 +83,43 @@ $data = ['title' => 'Receta (Externos)',
 'sidebar' => $sidebarHtml];
 
 $this->view('/clinica/receta-externo.php', $data);
+}
+
+//---------- EDITAR RECETA EXTERNO (VISTA) ----------/
+public function recetaExternoEditar($id){
+$authMiddleware = new AuthMiddleware('clinica');
+$sidebar = new Sidebar();
+$sidebarController = new SidebarController();
+$modelExterno = new \App\Models\RecetaExternoModel();
+
+$authMiddleware->authPermisos();
+$modelExterno->receta($id);
+
+$sidebarController->configureSidebar('DOCTOR', 'clinica-receta-externo-editar', $sidebar, $id);
+$sidebar->setActivarItem('Receta');
+$sidebarHtml = $sidebar->render();
+
+$data = ['title' => 'Editar Receta (Externos)',
+'id' => $id,
+'id_receta' => $id,
+'nombre' => $modelExterno->getNombre(),
+'apellido_paterno' => $modelExterno->getApellidoPaterno(),
+'apellido_materno' => $modelExterno->getApellidoMaterno(),
+'nombre_paciente' => $modelExterno->getNombreCompleto(),
+'edad' => $modelExterno->getEdad(),
+'sexo' => $modelExterno->getSexo(),
+'fecha_nacimiento' => $modelExterno->getFechaNacimiento(),
+'diagnostico' => $modelExterno->getDiagnostico(),
+'medicamento' => $modelExterno->getMedicamento(),
+'ta' => $modelExterno->getTA(),
+'fc' => $modelExterno->getFC(),
+'spo2' => $modelExterno->getSPO2(),
+'temperatura' => $modelExterno->getTemperatura(),
+'fecha_receta' => $modelExterno->getFecha(),
+'hora_receta' => $modelExterno->getHora(),
+'sidebar' => $sidebarHtml];
+
+$this->view('/clinica/receta-externo-editar.php', $data);
 }
 
 //---------- INSERTAR RECETA EXTERNO ----------/
@@ -97,6 +138,31 @@ return;
 $model = new \App\Models\RecetaExternoModel();
 $data = json_decode(file_get_contents('php://input'), true);
 $resultModel = $model->insert($data);
+
+if ($resultModel['resultado'] == 200) {
+echo HttpMethod::jsonResponse(200, true, $resultModel['mensaje']);
+} else {
+echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
+}
+
+}
+
+//---------- EDITAR RECETA EXTERNO ----------/
+public function pacienteEditRecetaExterno(){
+
+$authMiddleware = new AuthMiddleware('clinica');
+$authMiddleware->authPermisos();
+
+header('Content-Type: application/json');
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+echo HttpMethod::jsonResponse(405, false, "Método no permitido. Usa POST.");
+return;
+}
+
+$model = new \App\Models\RecetaExternoModel();
+$data = json_decode(file_get_contents('php://input'), true);
+$resultModel = $model->update($data);
 
 if ($resultModel['resultado'] == 200) {
 echo HttpMethod::jsonResponse(200, true, $resultModel['mensaje']);
