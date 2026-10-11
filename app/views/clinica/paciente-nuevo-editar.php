@@ -16,6 +16,7 @@ $isEdit = (int)($data['idPaciente'] ?? 0) > 0;
 <link rel="stylesheet" href="<?=RUTA_PUBLIC;?>libs/perfect-scrollbar/perfect-scrollbar.css">
 <link rel="stylesheet" href="<?=RUTA_CSS;?>app.css">
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="<?=RUTA_JS;?>loader.js"></script>
 
 <script>
@@ -105,6 +106,7 @@ function mostrarErroresPaciente(errores, resumen) {
 
     if (primerCampo) primerCampo.focus();
 }
+
 
 function validarPaciente(parametros) {
     const errores = {};
