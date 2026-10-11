@@ -16,8 +16,9 @@ class CofeprisController extends BaseController{
         $sidebarController = new SidebarController();
         $modelCofepris = new CofeprisModel();
 
-        $authMiddleware->authPermisos();
+        $auth = $authMiddleware->authPermisos();
         $modelCofepris->cofepris($idCofepris);
+        $authMiddleware->assertPatientAccess($modelCofepris->getIdPaciente(), $auth);
         
         $paciente = new PacienteModel($modelCofepris->getIdPaciente());
 

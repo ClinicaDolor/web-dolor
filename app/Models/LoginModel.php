@@ -85,7 +85,10 @@ class LoginModel{
         $cookie_time = time() + (7 * 24 * 60 * 60);
         $options = [
             'expires' => $cookie_time,
-            'path' => '/'
+            'path' => '/',
+            'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+            'httponly' => true,
+            'samesite' => 'Lax'
         ];
 
         $payload = [

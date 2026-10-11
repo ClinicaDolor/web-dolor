@@ -14,30 +14,8 @@
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="<?=RUTA_JS;?>loader.js"></script>
-<style>
-.editor{
-font-size: 20px;
-height: 250px;
-}
-.row {
-display: flex;
-flex-wrap: wrap;
-}
-.resizable {
-transition: all 0.3s ease-in-out;
-}
-.swal2-confirm {
-background-color: #501E75 !important;
-color: #fff !important;
-}
-.swal2-cancel {
-background-color: #6c757d !important;
-color: #fff !important;
-}
-</style>
-
 </head>
-<body>
+<body class="app-shell-body app-shell-doctor doctor-clinical-view doctor-external-recipe-edit-page">
 <div class="LoaderPage"></div>
 <div id="app">
 
@@ -48,120 +26,116 @@ color: #fff !important;
 <!----- BUSCADOR DE LA BARRA DE NAVEGACION ---------->
 <?php include_once __DIR__ . '/../components/search-bar-doctor.php';?>
 
-<div class="main-content container-fluid">
+<main class="main-content container-fluid doctor-external-recipe-edit-content" id="main-content">
+<header class="doctor-page-hero doctor-external-recipe-edit-hero">
+    <div class="doctor-page-hero-copy">
+        <p class="dashboard-eyebrow">RECETA EXTERNA</p>
+        <h1>Editar receta</h1>
+        <p>Actualiza los datos registrados y conserva la información clínica existente.</p>
+    </div>
+</header>
 
-<div class="page-title">
-<h3><?=$data['title'];?></h3>
-</div>
+<section class="doctor-external-recipe-edit-section" aria-label="Edición de receta externa">
 
-<section class="mt-3">
-
-<div class="row">
-<div class="col-12">
-
-<div class="card">
-<div class="card-header">
-<h4 class="card-title">Datos del Paciente Externo</h4>
-</div>
-<div class="card-body">
-
-<div class="row">
-<div class="col-md-4 mb-3">
-<label class="text-primary mb-1"><small>Nombre:</small></label>
-<input type="text" class="form-control fs-5" id="extNombre" value="<?=htmlspecialchars($data['nombre'] ?? '')?>" oninput="limpiarBorde(this)">
-</div>
-<div class="col-md-4 mb-3">
-<label class="text-primary mb-1"><small>Apellido Paterno:</small></label>
-<input type="text" class="form-control fs-5" id="extApellidoPaterno" value="<?=htmlspecialchars($data['apellido_paterno'] ?? '')?>" oninput="limpiarBorde(this)">
-</div>
-<div class="col-md-4 mb-3">
-<label class="text-primary mb-1"><small>Apellido Materno:</small></label>
-<input type="text" class="form-control fs-5" id="extApellidoMaterno" value="<?=htmlspecialchars($data['apellido_materno'] ?? '')?>" oninput="limpiarBorde(this)">
+<div class="doctor-external-recipe-edit-card doctor-external-recipe-edit-patient-card">
+<div class="card-header doctor-external-recipe-edit-card-header">
+<div>
+<p class="dashboard-eyebrow">IDENTIFICACIÓN</p>
+<h2 class="doctor-external-recipe-edit-card-title">Datos del paciente externo</h2>
 </div>
 </div>
+<div class="card-body doctor-external-recipe-edit-card-body">
 
 <div class="row">
 <div class="col-md-4 mb-3">
-<label class="text-primary mb-1"><small>Edad:</small></label>
-<input type="number" class="form-control fs-5" id="extEdad" value="<?=htmlspecialchars($data['edad'] ?? '')?>" oninput="limpiarBorde(this)">
+<label class="doctor-external-recipe-edit-label" for="extNombre">Nombre</label>
+<input type="text" class="form-control doctor-external-recipe-edit-control" id="extNombre" value="<?=htmlspecialchars($data['nombre'] ?? '')?>" oninput="limpiarBorde(this)">
 </div>
 <div class="col-md-4 mb-3">
-<label class="text-primary mb-1"><small>Sexo:</small></label>
-<div class="mt-2">
+<label class="doctor-external-recipe-edit-label" for="extApellidoPaterno">Apellido paterno</label>
+<input type="text" class="form-control doctor-external-recipe-edit-control" id="extApellidoPaterno" value="<?=htmlspecialchars($data['apellido_paterno'] ?? '')?>" oninput="limpiarBorde(this)">
+</div>
+<div class="col-md-4 mb-3">
+<label class="doctor-external-recipe-edit-label" for="extApellidoMaterno">Apellido materno</label>
+<input type="text" class="form-control doctor-external-recipe-edit-control" id="extApellidoMaterno" value="<?=htmlspecialchars($data['apellido_materno'] ?? '')?>" oninput="limpiarBorde(this)">
+</div>
+</div>
+
+<div class="row">
+<div class="col-md-4 mb-3">
+<label class="doctor-external-recipe-edit-label" for="extEdad">Edad</label>
+<input type="number" class="form-control doctor-external-recipe-edit-control" id="extEdad" value="<?=htmlspecialchars($data['edad'] ?? '')?>" oninput="limpiarBorde(this)">
+</div>
+<div class="col-md-4 mb-3">
+<span class="doctor-external-recipe-edit-label">Sexo</span>
+<div class="doctor-external-recipe-edit-radio-group">
 <div class="form-check form-check-inline">
 <input class="form-check-input" type="radio" name="extSexo" id="extSexoM" value="M" <?=($data['sexo'] ?? '') == 'M' ? 'checked' : ''?> onclick="limpiarBorde(document.getElementById('extSexoM'));limpiarBorde(document.getElementById('extSexoF'))">
-<label class="form-check-label fs-5" for="extSexoM">Masculino</label>
+<label class="form-check-label doctor-external-recipe-edit-radio-label" for="extSexoM">Masculino</label>
 </div>
 <div class="form-check form-check-inline">
 <input class="form-check-input" type="radio" name="extSexo" id="extSexoF" value="F" <?=($data['sexo'] ?? '') == 'F' ? 'checked' : ''?> onclick="limpiarBorde(document.getElementById('extSexoM'));limpiarBorde(document.getElementById('extSexoF'))">
-<label class="form-check-label fs-5" for="extSexoF">Femenino</label>
+<label class="form-check-label doctor-external-recipe-edit-radio-label" for="extSexoF">Femenino</label>
 </div>
 </div>
 </div>
 <div class="col-md-4 mb-3">
-<label class="text-primary mb-1"><small>Fecha de Nacimiento:</small></label>
-<input type="date" class="form-control fs-5" id="extFechaNacimiento" value="<?=htmlspecialchars($data['fecha_nacimiento'] ?? '')?>" oninput="limpiarBorde(this)">
+<label class="doctor-external-recipe-edit-label" for="extFechaNacimiento">Fecha de nacimiento</label>
+<input type="date" class="form-control doctor-external-recipe-edit-control" id="extFechaNacimiento" value="<?=htmlspecialchars($data['fecha_nacimiento'] ?? '')?>" oninput="limpiarBorde(this)">
 </div>
 </div>
 
 </div>
 </div>
-
+<div class="doctor-external-recipe-edit-card doctor-external-recipe-edit-detail-card">
+<div class="card-header doctor-external-recipe-edit-card-header">
+<div>
+<p class="dashboard-eyebrow">INDICACIONES</p>
+<h2 class="doctor-external-recipe-edit-card-title">Detalle de la receta</h2>
 </div>
 </div>
+<div class="card-body doctor-external-recipe-edit-card-body">
 
-<div class="row">
-<div class="col-12">
-
-<div class="card">
-<div class="card-header text-primary">
-<h4 class="card-title">Detalle de la Receta</h4>
-</div>
-<div class="card-body">
-
-<div class="mb-3">
-<small class="text-primary">Fecha de la receta: </small>
-<label class="fs-5"><?=$data['fecha_receta'];?> <?=$data['hora_receta'];?></label>
+<div class="doctor-external-recipe-edit-meta">
+<span class="doctor-external-recipe-edit-label">Fecha de la receta</span>
+<span class="doctor-external-recipe-edit-value"><?=$data['fecha_receta'];?> <?=$data['hora_receta'];?></span>
 </div>
 
 <div class="mb-3">
-<label class="text-primary mb-1"><small>Diagnostico:</small></label>
-<textarea class="form-control fs-5" id="Diagnostico" rows="2" oninput="limpiarBorde(this)"><?=htmlspecialchars($data['diagnostico'] ?? '')?></textarea>
+<label class="doctor-external-recipe-edit-label" for="Diagnostico">Diagnóstico</label>
+<textarea class="form-control doctor-external-recipe-edit-control" id="Diagnostico" rows="2" oninput="limpiarBorde(this)"><?=htmlspecialchars($data['diagnostico'] ?? '')?></textarea>
 </div>
 
-<div class="row">
+<div class="row doctor-external-recipe-edit-vitals-grid">
 <div class="col-md-6 mb-3">
-<label class="text-primary mb-1"><small>Tensión Arterial (TA):</small></label>
-<input type="text" class="form-control fs-5" id="TA" value="<?=htmlspecialchars($data['ta'] ?? '')?>">
-</div>
-
-<div class="col-md-6 mb-3">
-<label class="text-primary mb-1"><small>Frecuencia Cardíaca (FC):</small></label>
-<input type="number" class="form-control fs-5" id="FC" value="<?=htmlspecialchars($data['fc'] ?? '')?>">
+<label class="doctor-external-recipe-edit-label" for="TA">Tensión arterial (TA)</label>
+<input type="text" class="form-control doctor-external-recipe-edit-control" id="TA" value="<?=htmlspecialchars($data['ta'] ?? '')?>">
 </div>
 
 <div class="col-md-6 mb-3">
-<label class="text-primary mb-1"><small>Saturación de Oxígeno (SpO₂):</small></label>
-<input type="number" class="form-control fs-5" id="SpO2" value="<?=htmlspecialchars($data['spo2'] ?? '')?>">
+<label class="doctor-external-recipe-edit-label" for="FC">Frecuencia cardíaca (FC)</label>
+<input type="number" class="form-control doctor-external-recipe-edit-control" id="FC" value="<?=htmlspecialchars($data['fc'] ?? '')?>">
 </div>
 
 <div class="col-md-6 mb-3">
-<label class="text-primary mb-1"><small>Temperatura:</small></label>
+<label class="doctor-external-recipe-edit-label" for="SpO2">Saturación de oxígeno (SpO₂)</label>
+<input type="number" class="form-control doctor-external-recipe-edit-control" id="SpO2" value="<?=htmlspecialchars($data['spo2'] ?? '')?>">
+</div>
+
+<div class="col-md-6 mb-3">
+<label class="doctor-external-recipe-edit-label" for="Temperatura">Temperatura</label>
 <div class="input-group">
-<input type="number" class="form-control fs-5" id="Temperatura" step="0.1" value="<?=htmlspecialchars($data['temperatura'] ?? '')?>">
-<span class="input-group-text fs-5">°C</span>
+<input type="number" class="form-control doctor-external-recipe-edit-control" id="Temperatura" step="0.1" value="<?=htmlspecialchars($data['temperatura'] ?? '')?>">
+<span class="input-group-text doctor-external-recipe-edit-unit">°C</span>
 </div>
 </div>
 </div>
 
-<label class="text-primary mt-3 mb-1"><small>Medicamento:</small></label>
+<label class="doctor-external-recipe-edit-label doctor-external-recipe-edit-editor-label" for="snow">Medicamento</label>
 <div id="snow" class="editor"></div>
 
-<div class="text-end mt-3">
-<button class="btn btn-success" onclick="GuardarRecetaExterno()">Guardar Cambios</button>
-</div>
-
-</div>
+<div class="doctor-external-recipe-edit-actions">
+<button type="button" class="btn doctor-external-recipe-edit-submit" onclick="GuardarRecetaExterno()">Guardar cambios <i data-feather="check" aria-hidden="true"></i></button>
 </div>
 
 </div>
@@ -169,15 +143,9 @@ color: #fff !important;
 
 </section>
 
-</div>
+</main>
 
-<footer>
-<div class="footer clearfix mb-0 text-muted">
-<div class="float-start">
-<p>2025 &copy; tratamientosdeldolor.org</p>
-</div>
-</div>
-</footer>
+<?php include_once __DIR__ . '/../components/footer-doctor.php';?>
 
 </div>
 </div>

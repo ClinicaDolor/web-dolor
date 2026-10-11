@@ -8,15 +8,23 @@ class BusquedasModel{
         $this->bd = Database::getInstance();
     }
 
-    public function getPacientes($query){
+    public function getPacientes($query, $idClinica = null){
 
         $sql = "SELECT id, CONCAT(nombres, ' ', apellido_paterno, ' ', apellido_materno) AS nombre
         FROM pc_paciente
         WHERE CONCAT_WS(' ', nombres, apellido_paterno, apellido_materno)
-        COLLATE utf8_general_ci LIKE :query
+        COLLATE utf8_general_ci LIKE :query";
+        $params = ['query' => "%{$query}%"];
+
+        if ($idClinica !== null) {
+            $sql .= " AND id_clinica = :id_clinica";
+            $params['id_clinica'] = $idClinica;
+        }
+
+        $sql .= "
         LIMIT 20";
         $stmt = $this->bd->prepare($sql);
-        $stmt->execute(['query' => "%{$query}%"]);
+        $stmt->execute($params);
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
     }

@@ -2,6 +2,9 @@
 use App\Config\Database;
 use App\Models\LaboratorioModel;
 $bd = Database::getInstance();
+$nombrePacienteSeguro = htmlspecialchars((string)($data['nombre_paciente'] ?? ''), ENT_QUOTES, 'UTF-8');
+$nombrePacienteVisible = $nombrePacienteSeguro !== '' ? $nombrePacienteSeguro : 'Paciente';
+$volverExpedienteUrl = htmlspecialchars(SERVIDOR . 'clinica/paciente/' . (int)$data['idPaciente'], ENT_QUOTES, 'UTF-8');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -19,19 +22,6 @@ $bd = Database::getInstance();
     <link rel="stylesheet" href="<?=RUTA_PUBLIC;?>libs/quill/quill.snow.css">
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="<?=RUTA_JS;?>loader.js"></script>
-    <style>
-        .editor{
-            font-size: 20px;
-            height: 250px;
-        }
-        .row {
-            display: flex;
-            flex-wrap: wrap;
-        }
-        .resizable {
-            transition: all 0.3s ease-in-out; /* Suaviza el cambio de tamaño */
-        }
-    </style>
     <script>
     function AgregarLaboratorio(idPaciente) {
     
@@ -100,7 +90,7 @@ $bd = Database::getInstance();
     </script>
 
  </head>
-<body>
+<body class="app-shell-body app-shell-doctor doctor-clinical-view doctor-patient-lab-page">
 <div class="LoaderPage"></div>
     <div id="app">
         
@@ -112,18 +102,28 @@ $bd = Database::getInstance();
             
             <div class="main-content container-fluid">
 
-            <button id="toggleButton" class="btn icon btn-light text-dark float-end" onclick="toggleSize()">
-            <i id="toggleIcon" data-feather="columns"></i>
-            </button>
-            
-            <div class="page-title">
-                <h3><?=$data['title'];?></h3>
-            </div>
+            <header class="doctor-page-hero doctor-lab-hero">
+                <div class="doctor-page-hero-copy">
+                    <p class="dashboard-eyebrow">Control clínico</p>
+                    <h1><?=htmlspecialchars((string)$data['title'], ENT_QUOTES, 'UTF-8');?></h1>
+                    <p>Consulta los resultados de laboratorio y agrega nueva documentación de <?=$nombrePacienteVisible;?>.</p>
+                </div>
+                <div class="doctor-page-hero-actions">
+                    <a class="btn doctor-page-hero-action" href="<?=$volverExpedienteUrl;?>">
+                        <i data-feather="arrow-left" aria-hidden="true"></i>
+                        <span>Volver al expediente</span>
+                    </a>
+                    <button id="toggleButton" type="button" class="btn doctor-lab-toggle" onclick="toggleSize()" aria-label="Cambiar distribución de la pantalla" title="Cambiar distribución de la pantalla">
+                        <i id="toggleIcon" data-feather="columns" aria-hidden="true"></i>
+                        <span>Cambiar distribución</span>
+                    </button>
+                </div>
+            </header>
 
-            <section>
+            <section class="doctor-lab-patient-context">
             <div class="row mt-3">
-                <div class="col-12 col-sm-12 resizable">
-                    <div class="card">
+                <div class="col-12 resizable">
+                    <div class="card doctor-lab-card doctor-lab-patient-card">
                         <div class="card-header">
                             <h4 class="card-title">Información del paciente</h4>
                         </div>
@@ -132,7 +132,7 @@ $bd = Database::getInstance();
                             <div class="row">
                                 <div class="col-12 col-sm-4">
                                 <label class="text-primary"><small>Nombre Paciente:</small></label>
-                                <div class="fs-5"><?=$data['nombre_paciente'];?></div>
+                                <div class="fs-5"><?=$nombrePacienteVisible;?></div>
                                 </div>
                             
                                 <div class="col-12 col-sm-2">
@@ -166,10 +166,10 @@ $bd = Database::getInstance();
 
             <section>
 
-            <div class="row">
+            <div class="row doctor-lab-workspace">
                 <div class="col-12 col-sm-5 resizable">
 
-                <div class="card">
+                <div class="card doctor-lab-card doctor-lab-list-card">
                 <div class="card-header text-light">
                 <h4 class="card-title">Archivos</h4>
                 </div>
@@ -209,12 +209,12 @@ $bd = Database::getInstance();
                 </div>
                 <div class="col-12 col-sm-7 resizable">
                         
-                <div class="card">
+                <div class="card doctor-lab-card doctor-lab-detail-card">
                     <div class="card-header text-light">
                     <h4 class="card-title">Detalle del Laboratorio</h4>
                     </div>
                     <div class="card-body">
-                        <div id="detalleReceta">
+                        <div id="detalleReceta" class="doctor-lab-detail-content">
                             <?php
                             $model = new LaboratorioModel();
                             echo $model->ultimoLaboratorio($data['idPaciente']);
@@ -223,7 +223,7 @@ $bd = Database::getInstance();
                     </div>
                 </div>
 
-                <div class="card">
+                <div class="card doctor-lab-card doctor-lab-create-card">
                 <div class="card-header text-light">
                 <h4 class="card-title">Nueva Archivo</h4>
                 </div>
@@ -238,7 +238,7 @@ $bd = Database::getInstance();
                 <label class="text-primary"><small>Descripción:</small></label>
 
                 <div id="snow" class="editor"></div>
-                <div class="text-end mt-3"><button class="btn btn-success" onclick="AgregarLaboratorio(<?=$data['idPaciente'];?>)">Agregar Laboratorio <i data-feather="chevron-right"></i></button></div>
+                <div class="text-end mt-3 doctor-lab-submit"><button type="button" class="btn btn-success" onclick="AgregarLaboratorio(<?=$data['idPaciente'];?>)">Agregar Laboratorio <i data-feather="chevron-right" aria-hidden="true"></i></button></div>
                 <div id="mensaje"></div>
                 </div>
                 </div>
@@ -252,13 +252,7 @@ $bd = Database::getInstance();
 
         </div>
 
-            <footer>
-                <div class="footer clearfix mb-0 text-muted">
-                    <div class="float-start">
-                        <p>2025 &copy; tratamientosdeldolor.org</p>
-                    </div>
-                </div>
-            </footer>
+            <?php include_once __DIR__ . '/../components/footer-doctor.php';?>
         </div>
     </div>
     <script src="<?=RUTA_JS;?>/feather-icons/feather.min.js"></script>

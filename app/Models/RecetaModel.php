@@ -107,6 +107,34 @@ public function getTemperatura()
 {
 return $this->temperatura;
 }
+
+/**
+ * Obtiene únicamente las recetas internas pertenecientes a una clínica.
+ * La pertenencia se resuelve mediante el paciente propietario; nunca se
+ * confía en un identificador de clínica enviado por la petición.
+ */
+public function getRecetasByClinica($idClinica){
+$idClinica = filter_var($idClinica, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+
+if ($idClinica === false) {
+return [];
+}
+
+$sql = "SELECT
+    r.id,
+    r.id_paciente,
+    r.fecha_hora,
+    CONCAT_WS(' ', p.nombres, p.apellido_paterno, p.apellido_materno) AS paciente
+FROM receta_medica r
+INNER JOIN pc_paciente p ON p.id = r.id_paciente
+WHERE p.id_clinica = :id_clinica
+ORDER BY r.fecha_hora DESC";
+
+$stmt = $this->bd->prepare($sql);
+$stmt->execute([':id_clinica' => $idClinica]);
+
+return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+}
 //----------------------------------------------------------
 //----------------------------------------------------------
 

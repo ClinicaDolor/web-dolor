@@ -93,6 +93,7 @@ $r->addRoute('POST', '/paciente/finalizar-modulo-paciente', ['ModulosController'
 $r->addGroup('/clinica', function (RouteCollector $r) use ($registrarRutasComunes) {
 
 $r->addRoute('GET', '', ['HomeController', 'indexClinica']);
+$r->addRoute('GET', '/indicadores', ['IndicadoresController', 'index']);
 $r->addRoute('GET', '/acceso', ['LoginController', 'accesoClinica']);
 $r->addRoute('POST', '/login', ['LoginController', 'loginClinica']);
 

@@ -28,6 +28,14 @@ $viewRolElements = [
 'DOCTOR' => [
 'clinica' => [
 ['titulo' => 'Pacientes', 'url' => SERVIDOR . 'clinica/pacientes', 'icono' => 'users'],
+['titulo' => 'Indicadores', 'url' => SERVIDOR . 'clinica/indicadores', 'icono' => 'bar-chart-2'],
+['titulo' => 'Cofepris', 'url' => SERVIDOR . 'clinica/cofepris', 'icono' => 'file-text'],
+['titulo' => 'Recetas', 'url' => SERVIDOR . 'clinica/recetas', 'icono' => 'file-text']
+],
+
+'clinica-indicadores' => [
+['titulo' => 'Pacientes', 'url' => SERVIDOR . 'clinica/pacientes', 'icono' => 'users'],
+['titulo' => 'Indicadores', 'url' => SERVIDOR . 'clinica/indicadores', 'icono' => 'bar-chart-2'],
 ['titulo' => 'Cofepris', 'url' => SERVIDOR . 'clinica/cofepris', 'icono' => 'file-text'],
 ['titulo' => 'Recetas', 'url' => SERVIDOR . 'clinica/recetas', 'icono' => 'file-text']
 ],

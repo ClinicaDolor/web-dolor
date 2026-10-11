@@ -20,13 +20,19 @@ class HomeController extends BaseController{
         $sidebarController = new SidebarController();
 
         $result = $authMiddleware->authPermisos();
-        $countPacientes = $model->countPacientes();
+        $dashboardSummary = $model->getDashboardSummary($result['id_clinica']);
         
         $sidebarController->configureSidebar('DOCTOR', 'clinica', $sidebar);
         $sidebar->setActivarItem('Inicio');
         $sidebarHtml = $sidebar->render();
 
-        $data = ['title' => 'Clinica', 'datos' => $result,  'total_pacientes' => $countPacientes, 'sidebar' => $sidebarHtml];
+        $data = [
+            'title' => 'Clinica',
+            'datos' => $result,
+            'total_pacientes' => $dashboardSummary['total_pacientes'],
+            'dashboard_summary' => $dashboardSummary,
+            'sidebar' => $sidebarHtml,
+        ];
         $this->view('/clinica/index.php', $data);
        
     }
@@ -54,7 +60,7 @@ class HomeController extends BaseController{
         $sidebarController = new SidebarController();
 
         $result = $authMiddleware->authPermisos();
-        $countPacientes = $model->countPacientes();
+        $countPacientes = $model->countPacientes($result['id_clinica']);
         
         $sidebarController->configureSidebar('DOCTOR', 'cofepris', $sidebar);
         $sidebar->setActivarItem('Cofepris');

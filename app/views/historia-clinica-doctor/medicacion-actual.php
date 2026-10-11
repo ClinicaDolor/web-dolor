@@ -1,7 +1,11 @@
-<?php 
-use App\Config\Database;
-$bd = Database::getInstance();
-
+<?php
+$escape = static function ($value): string {
+    return htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
+};
+$patientId = (int) ($data['idPaciente'] ?? 0);
+$patientName = $data['nombre'] ?? '';
+$title = $data['title'] ?? 'Medicación Actual';
+$patientUrl = htmlspecialchars(SERVIDOR . 'clinica/paciente/' . $patientId, ENT_QUOTES, 'UTF-8');
 ?>
 
     <!DOCTYPE html>
@@ -9,7 +13,7 @@ $bd = Database::getInstance();
     <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?=$data['title'];?></title>
+    <title><?=$escape($title);?></title>
     <link rel="shortcut icon" href="<?=RUTA_IMAGES ?>/logo-clinica.png">
     <link rel="apple-touch-icon" href="<?=RUTA_IMAGES ?>/logo-clinica.png">
     <link rel="stylesheet" href="<?=RUTA_CSS;?>bootstrap.css">
@@ -38,13 +42,14 @@ $bd = Database::getInstance();
         .then(data => {
             const contenedor = document.getElementById('contePreguntas');
             contenedor.innerHTML = data;
+            prepararEncabezadoMedicacion();
             feather.replace();
 
             const tabla = document.querySelector("#table_medicacion");
             if (tabla) {
                 const dataTable = new simpleDatatables.DataTable(tabla, {
                     searchable: true,
-                    fixedHeight: true,
+                    fixedHeight: false,
                     perPage: savedState.perPage || 10,
                     perPageSelect: [10, 20, 50],
                     columns: [
@@ -86,6 +91,46 @@ $bd = Database::getInstance();
                 });
             }
         });
+    }
+
+    function prepararEncabezadoMedicacion() {
+    const contenedor = document.getElementById('contePreguntas');
+    const encabezado = contenedor ? contenedor.querySelector('.card-header') : null;
+    if (!encabezado) {
+        return;
+    }
+
+    const columnaPregunta = encabezado.querySelector('.col-11');
+    const columnaAccion = encabezado.querySelector('.col-1');
+    const pregunta = columnaPregunta ? columnaPregunta.querySelector('h8') : null;
+    const boton = encabezado.querySelector('#btnAgregarMedicamento');
+
+    encabezado.classList.add('doctor-medication-dynamic-header');
+    if (columnaPregunta) {
+        columnaPregunta.classList.add('doctor-medication-question-col');
+    }
+    if (columnaAccion) {
+        columnaAccion.classList.add('doctor-medication-add-col');
+    }
+    if (pregunta) {
+        pregunta.classList.add('doctor-medication-question');
+        if (!columnaPregunta.querySelector('.doctor-medication-card-title')) {
+            const titulo = document.createElement('h2');
+            titulo.className = 'doctor-medication-card-title';
+            titulo.textContent = 'Medicación actual';
+            columnaPregunta.prepend(titulo);
+        }
+    }
+    if (boton) {
+        boton.setAttribute('type', 'button');
+        boton.setAttribute('aria-label', 'Agregar medicamento');
+        boton.setAttribute('title', 'Agregar medicamento');
+        boton.classList.remove('float-end');
+        boton.classList.add('doctor-medication-add-action');
+        if (!boton.querySelector('.doctor-medication-add-label')) {
+            boton.innerHTML = '<i data-feather="plus" aria-hidden="true"></i><span class="doctor-medication-add-label">Agregar medicamento</span>';
+        }
+    }
     }
     
     //---------- CONTROL SERVER ----------
@@ -135,43 +180,40 @@ $bd = Database::getInstance();
     </script>
     </head>
 
-    <body>
+    <body class="app-shell-body app-shell-doctor doctor-clinical-view doctor-patient-module-page doctor-medication-actual-page">
     <div class="LoaderPage"></div>
     <div id="app">
         
     <!---------- SIDEBAR ---------->
     <?=$data['sidebar'];?>
     
-    <div id="main" data-rol="<?=$data['idRol'];?>" data-paciente="<?=$data['idPaciente'];?>">
-    <nav class="navbar navbar-header navbar-expand navbar-light">
-    <a class="sidebar-toggler"><span class="navbar-toggler-icon"></span></a>
-    <button class="btn navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-    <span class="navbar-toggler-icon"></span>
-    </button>
-                
-    <div class="collapse navbar-collapse" id="navbarSupportedContent">
-    <ul class="navbar-nav d-flex align-items-center navbar-light ms-auto">
-    </ul>
-    </div>
-    </nav>
+    <div id="main" data-rol="<?=$escape($data['idRol'] ?? '');?>" data-paciente="<?=$patientId;?>">
+    <?php include_once __DIR__ . '/../components/search-bar-doctor.php';?>
 
-    <!---------- CONTENIDO DE LA PAGINA ---------->
-    <div class="main-content container-fluid">
-
-    <div class="page-title mb-4">     
-    <h8><?=$data['nombre'];?></h8>
-    <h3><?=$data['title'];?></h3>
+    <main class="main-content container-fluid doctor-medication-content">
+    <header class="doctor-page-hero doctor-medication-hero" aria-labelledby="doctor-medication-title">
+    <div class="doctor-medication-hero-copy">
+    <p class="dashboard-eyebrow">HISTORIA CLÍNICA</p>
+    <h1 id="doctor-medication-title"><?=$escape($title);?></h1>
+    <p>Consulta y registra la medicación actual del paciente.</p>
+    <p class="doctor-medication-patient-context">Paciente autorizado: <strong><?=$escape($patientName);?></strong></p>
     </div>
-    
-    <section class="section">
-    <div class="card">
+    <div class="doctor-medication-hero-actions">
+    <a class="doctor-medication-action" href="<?=$patientUrl;?>">
+    <i data-feather="arrow-left" aria-hidden="true"></i>
+    <span>Volver al expediente</span>
+    </a>
+    </div>
+    </header>
+
+    <section class="doctor-medication-sections" aria-label="Medicación actual">
+    <article class="card doctor-medication-card" aria-label="Registro de medicación actual">
     <div id="contePreguntas"></div>
-    </div>
+    </article>
     </section>
-    </div>
+    </main>
 
-    <!----- FOOTER ---------->
-    <?php include_once __DIR__ . '/../components/footer-mvsd.php';?>
+    <?php include_once __DIR__ . '/../components/footer-doctor.php';?>
 
     </div>
     </div>
@@ -181,6 +223,7 @@ $bd = Database::getInstance();
     <script src="<?=RUTA_JS;?>app.js"></script>    
     <script src="<?=RUTA_PUBLIC;?>libs/simple-datatables/simple-datatables.js"></script>
     <script src="<?=RUTA_JS;?>main.js"></script>
+    <script src="<?=RUTA_JS;?>search-main.js"></script>
 
     </body>
     </html>

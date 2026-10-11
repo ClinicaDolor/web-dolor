@@ -22,13 +22,27 @@ $authMiddleware = new AuthMiddleware('clinica');
 $sidebar = new Sidebar();
 $sidebarController = new SidebarController();
 
-$authMiddleware->authPermisos();
+$auth = $authMiddleware->authPermisos();
+$idClinica = filter_var($auth['id_clinica'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+
+if ($idClinica === false) {
+http_response_code(403);
+exit('No autorizado.');
+}
+
+$recetaModel = new RecetaModel();
+$recetas = $recetaModel->getRecetasByClinica($idClinica);
 
 $sidebarController->configureSidebar('DOCTOR', 'clinica-recetas', $sidebar);
 $sidebar->setActivarItem('Recetas');
 $sidebarHtml = $sidebar->render();
 
-$data = ['title' => 'Recetas', 'sidebar' => $sidebarHtml];
+$data = [
+    'title' => 'Recetas',
+    'sidebar' => $sidebarHtml,
+    'recetas' => $recetas,
+    'recetas_externas_bloqueadas' => true,
+];
 $this->view('/clinica/recetas.php', $data);
 }
 
@@ -177,14 +191,22 @@ public function pacientesIndex(){
 $authMiddleware = new AuthMiddleware('clinica');
 $sidebar = new Sidebar();
 $sidebarController = new SidebarController();
+$model = new ClinicaModel();
 
-$authMiddleware->authPermisos();
+$auth = $authMiddleware->authPermisos();
+$registros = $model->getPacientesByClinica($auth['id_clinica']);
 
 $sidebarController->configureSidebar('DOCTOR', 'clinica', $sidebar);
 $sidebar->setActivarItem('Pacientes');
 $sidebarHtml = $sidebar->render();
 
-$data = ['title' => 'Pacientes', 'sidebar' => $sidebarHtml];
+$data = [
+    'title' => 'Pacientes',
+    'sidebar' => $sidebarHtml,
+    'datos' => $auth,
+    'registros' => $registros,
+    'total_pacientes' => count($registros),
+];
 $this->view('/clinica/pacientes.php', $data);
 }
 
@@ -195,7 +217,8 @@ $paciente = new PacienteModel($idPaciente);
 $sidebar = new Sidebar();
 $sidebarController = new SidebarController();
 
-$authMiddleware->authPermisos();        
+$auth = $authMiddleware->authPermisos();
+$authMiddleware->assertPatientAccess($idPaciente, $auth);
 $nombreCompleto = $paciente->getNombreCompleto();
 
 $sidebarController->configureSidebar('DOCTOR', 'clinica-modulos-paciente', $sidebar, $idPaciente);
@@ -211,13 +234,13 @@ $authMiddleware = new AuthMiddleware('clinica');
 $sidebar = new Sidebar();
 $sidebarController = new SidebarController();
 
-$authMiddleware->authPermisos();
+$auth = $authMiddleware->authPermisos();
 
 $sidebarController->configureSidebar('DOCTOR', 'clinica-paciente-nuevo', $sidebar, $idPaciente);
 $sidebar->setActivarItem('Paciente Nuevo');
 $sidebarHtml = $sidebar->render();
 
-$data = ['title' => 'Paciente Nuevo', 'titulo_boton' => 'Guardar Paciente', 'idPaciente' => $idPaciente, 'sidebar' => $sidebarHtml];
+$data = ['title' => 'Paciente Nuevo', 'titulo_boton' => 'Guardar Paciente', 'idPaciente' => $idPaciente, 'datos' => $auth, 'sidebar' => $sidebarHtml];
 $this->view('/clinica/paciente-nuevo-editar.php', $data);
 }
 
@@ -228,7 +251,8 @@ $sidebar = new Sidebar();
 $paciente = new PacienteModel($idPaciente);
 $sidebarController = new SidebarController();
 
-$authMiddleware->authPermisos();
+$auth = $authMiddleware->authPermisos();
+$authMiddleware->assertPatientAccess($idPaciente, $auth);
 
 $nombres = $paciente->getNombres();
 $apellido_paterno = $paciente->getApellidoPaterno();
@@ -272,6 +296,7 @@ $sidebarHtml = $sidebar->render();
 $data = ['title' => 'Paciente Editar', 
 'titulo_boton' => 'Editar Paciente',
 'idPaciente' => $idPaciente, 
+'datos' => $auth,
 
 'nombres' => $nombres,
 'apellido_paterno' => $apellido_paterno,
@@ -327,7 +352,50 @@ return;
 $model = new ClinicaModel();
 $data = json_decode(file_get_contents('php://input'), true);
 
-if($data['idPaciente'] == 0){
+ if (!is_array($data)) {
+ echo HttpMethod::jsonResponse(400, false, "Entrada JSON inválida.");
+ return;
+ }
+
+ $idPaciente = (int)($data['idPaciente'] ?? 0);
+ if ($idPaciente > 0) {
+ $authMiddleware->assertPatientAccess($idPaciente, $result);
+ }
+
+ $camposObligatorios = [
+     'Nombres' => 'Ingresa los nombres.',
+     'ApellidoPaterno' => 'Ingresa el apellido paterno.',
+     'ApellidoMaterno' => 'Ingresa el apellido materno.',
+     'Edad' => 'Ingresa la edad.',
+     'Sexo' => 'Selecciona el sexo.',
+     'EstadoCivil' => 'Selecciona el estado civil.',
+     'FeNacimiento' => 'Ingresa la fecha de nacimiento.',
+     'CURP' => 'Ingresa la CURP.',
+     'LuOrigen' => 'Ingresa el lugar de origen.',
+     'LuResidencia' => 'Ingresa el lugar de residencia.',
+     'Ocupacion' => 'Ingresa la ocupación.',
+     'NumHijos' => 'Ingresa el número de hijos.',
+     'EdadHijos' => 'Ingresa la edad de sus hijos.',
+     'motivoAtencionClinica' => 'Ingresa el motivo de atención.'
+ ];
+ $erroresValidacion = [];
+ foreach ($camposObligatorios as $campo => $mensaje) {
+     if (!array_key_exists($campo, $data) || !is_scalar($data[$campo]) || trim((string)$data[$campo]) === '') {
+         $erroresValidacion[$campo] = $mensaje;
+     }
+ }
+ if ($erroresValidacion) {
+     http_response_code(422);
+     echo json_encode([
+         'resultado' => false,
+         'mensaje' => 'Completa los campos obligatorios marcados.',
+         'campos' => $erroresValidacion,
+         'token' => ''
+     ], JSON_UNESCAPED_UNICODE);
+     return;
+ }
+
+ if($idPaciente == 0){
 
 $resultModelo = $model->insertPaciente($data,$result);
 
@@ -358,7 +426,8 @@ $paciente = new PacienteModel($idPaciente);
 $sidebar = new Sidebar();
 $sidebarController = new SidebarController();
 
-$authMiddleware->authPermisos();      
+$auth = $authMiddleware->authPermisos();
+$authMiddleware->assertPatientAccess($idPaciente, $auth);
 
 $fechaAlta = $paciente->getFechaAlta();
 $nombreCompleto = $paciente->getNombreCompleto();
@@ -383,6 +452,7 @@ $referencia = uniqid('', true);
  
 $data = ['title' => 'Expediente', 
 'idPaciente' => $idPaciente,
+'datos' => $auth,
 'fecha_alta' => $fechaAlta, 
 'nombre_paciente' => $nombreCompleto, 
 'fecha_nacimiento' => $fechaNacimiento,
@@ -414,7 +484,8 @@ $paciente = new PacienteModel($idPaciente);
 $sidebar = new Sidebar();
 $sidebarController = new SidebarController();
 
-$authMiddleware->authPermisos();
+$auth = $authMiddleware->authPermisos();
+$authMiddleware->assertPatientAccess($idPaciente, $auth);
 
 $fechaAlta = $paciente->getFechaAlta();
 $nombreCompleto = $paciente->getNombreCompleto();
@@ -466,6 +537,12 @@ return;
 
 $model = new ClinicaModel();
 $data = json_decode(file_get_contents('php://input'), true);
+ if (!is_array($data)) {
+ echo HttpMethod::jsonResponse(400, false, "Entrada JSON inválida.");
+ return;
+ }
+ $auth = $authMiddleware->authPermisos();
+ $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
 $resultModel = $model->insertPacientePin($data);
 
 if ($resultModel['resultado'] == 200) {
@@ -483,7 +560,8 @@ $paciente = new PacienteModel($idPaciente);
 $sidebar = new Sidebar();
 $sidebarController = new SidebarController();
 
-$authMiddleware->authPermisos();        
+$auth = $authMiddleware->authPermisos();
+$authMiddleware->assertPatientAccess($idPaciente, $auth);
 $fechaAlta = $paciente->getFechaAlta();
 $nombreCompleto = $paciente->getNombreCompleto();
 $fechaNacimiento = $paciente->getFechaNacimiento();
@@ -537,6 +615,12 @@ return;
 
 $model = new ClinicaModel();
 $data = json_decode(file_get_contents('php://input'), true);
+ if (!is_array($data)) {
+ echo HttpMethod::jsonResponse(400, false, "Entrada JSON inválida.");
+ return;
+ }
+ $auth = $authMiddleware->authPermisos();
+ $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
 $resultModel = $model->insertPacienteReceta($data);
 
 if ($resultModel['resultado'] == 200) {
@@ -560,7 +644,8 @@ $receta = new RecetaModel();
 $idReceta = $receta->idRecetaReferencia($idPaciente,$referencia);
 $receta->receta($idReceta);
 
-$authMiddleware->authPermisos();        
+$auth = $authMiddleware->authPermisos();
+$authMiddleware->assertPatientAccess($idPaciente, $auth);
 $fechaAlta = $paciente->getFechaAlta();
 $nombreCompleto = $paciente->getNombreCompleto();
 $fechaNacimiento = $paciente->getFechaNacimiento();
@@ -639,6 +724,9 @@ echo HttpMethod::jsonResponse(400, false, "Entrada JSON inválida.");
 return;
 }
 
+ $auth = $authMiddleware->authPermisos();
+ $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
+
 $resultModel = ($data['idNota'] == 0)
 ? $model->insertNotaSubsecuente($data)
 : $model->editarNotaSubsecuente($data);
@@ -659,7 +747,8 @@ $paciente = new PacienteModel($idPaciente);
 $sidebar = new Sidebar();
 $sidebarController = new SidebarController();
 
-$authMiddleware->authPermisos();        
+$auth = $authMiddleware->authPermisos();
+$authMiddleware->assertPatientAccess($idPaciente, $auth);
 $fechaAlta = $paciente->getFechaAlta();
 $nombreCompleto = $paciente->getNombreCompleto();
 $fechaNacimiento = $paciente->getFechaNacimiento();
@@ -717,6 +806,9 @@ echo json_encode([
 ]);
 return;
 }
+
+ $auth = $authMiddleware->authPermisos();
+ $authMiddleware->assertPatientAccess($_POST['idPaciente'] ?? 0, $auth);
 
 if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
 echo json_encode([
@@ -780,7 +872,8 @@ $modelCofepris = new CofeprisModel();
 
 $modelCofepris->cofepris($idCofepris);
 
-$authMiddleware->authPermisos();        
+$auth = $authMiddleware->authPermisos();
+$authMiddleware->assertPatientAccess($idPaciente, $auth);
 $fechaAlta = $paciente->getFechaAlta();
 $nombreCompleto = $paciente->getNombreCompleto();
 $fechaNacimiento = $paciente->getFechaNacimiento();
@@ -851,6 +944,9 @@ if (!is_array($data)) {
 echo HttpMethod::jsonResponse(400, false, "Entrada JSON inválida.");
 return;
 }
+
+ $auth = $authMiddleware->authPermisos();
+ $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
 
 if($data['idCofepris'] == 0){
 $resultModel = $model->insertPacienteCofepris($data);

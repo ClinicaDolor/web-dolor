@@ -105,7 +105,7 @@
 }
     </script>
  </head>
-<body>
+<body class="app-shell-body app-shell-doctor doctor-clinical-view doctor-cofepris-config-page">
 <div class="LoaderPage"></div>
     <div id="app">
         
@@ -116,12 +116,16 @@
             <!----- BUSCADOR DE LA BARRA DE NAVEGACION ---------->
             <?php include_once __DIR__ . '/../components/search-bar-doctor.php';?>
             
-            <div class="main-content container-fluid">
-            <div class="page-title">
-                <h3><?=$data['title'];?></h3>
-            </div>
+            <main class="main-content container-fluid doctor-cofepris-config-content" id="main-content">
+            <header class="doctor-page-hero doctor-cofepris-config-hero">
+                <div class="doctor-page-hero-copy">
+                    <p class="dashboard-eyebrow">CONTROL COFEPRIS</p>
+                    <h1>Configuración COFEPRIS</h1>
+                    <p>Administra los folios disponibles y consulta el estado de la configuración clínica.</p>
+                </div>
+            </header>
 
-            <section class="mt-3">
+            <section class="doctor-cofepris-config-section" aria-label="Configuración de folios COFEPRIS">
 
                 <?php 
                 use App\Models\CofeprisModel;
@@ -129,40 +133,47 @@
                 $result = ( $model->cofeprisFoliosActivos() )? 'disabled' : 'enabled';
                 ?>
 
-            <div class="row">
-                <div class="col-12 col-sm-4">
+            <div class="row doctor-cofepris-config-grid">
+                <div class="col-12 col-xl-4">
                     
-                <div class="card">
-                    <div class="card-header text-primary">
-                    <h4 class="card-title">Nueva Cofepris</h4>
+                <div class="card doctor-cofepris-config-card doctor-cofepris-config-entry-card">
+                    <div class="card-header doctor-cofepris-config-card-header">
+                    <div>
+                    <p class="dashboard-eyebrow">NUEVO REGISTRO</p>
+                    <h2 class="doctor-cofepris-config-card-title">Agregar folios</h2>
                     </div>
-                    <div class="card-body">
+                    </div>
+                    <div class="card-body doctor-cofepris-config-card-body">
+                    <p class="doctor-cofepris-config-help">Carga un rango de folios y su archivo de respaldo para habilitarlo en el sistema.</p>
                         
-                    <div class="">
-                    <label class="text-primary mb-1"><smallal>Folio inicio:</smallal></label>
-                    <input type="text" class="form-control" id="Folio" <?=$result;?>>
+                    <div class="doctor-cofepris-config-field">
+                    <label class="doctor-cofepris-config-label" for="Folio">Folio inicial</label>
+                    <input type="text" class="form-control doctor-cofepris-config-control" id="Folio" <?=$result;?> >
                     </div>
 
-                    <div class="mt-2">
-                    <label class="text-primary mb-1"><smallal>Archivo:</smallal></label>
-                    <input type="file" class="form-control" id="Archivo" <?=$result;?>>
+                    <div class="doctor-cofepris-config-field">
+                    <label class="doctor-cofepris-config-label" for="Archivo">Archivo PDF</label>
+                    <input type="file" class="form-control doctor-cofepris-config-control" id="Archivo" <?=$result;?> >
                     </div>
                     
-                    <div class="text-end mt-3"><button class="btn btn-success" onclick="AgregarCofepris()" <?=$result;?> >Agregar Receta <i data-feather="chevron-right"></i></button></div>
-                    <div id="mensaje"></div>
+                    <div class="doctor-cofepris-config-actions"><button type="button" class="btn doctor-cofepris-config-submit" onclick="AgregarCofepris()" <?=$result;?> >Agregar folio <i data-feather="chevron-right" aria-hidden="true"></i></button></div>
+                    <div id="mensaje" class="doctor-cofepris-config-message" role="alert" aria-live="polite"></div>
                     </div>
                 </div>
 
                 </div>
-                <div class="col-12 col-sm-8">
+                <div class="col-12 col-xl-8">
 
-                <div class="card">
-                <div class="card-header">
-                <h4 class="card-title">Cofepris</h4>
+                <div class="card doctor-cofepris-config-card doctor-cofepris-config-list-card">
+                <div class="card-header doctor-cofepris-config-card-header">
+                <div>
+                <p class="dashboard-eyebrow">FOLIOS DISPONIBLES</p>
+                <h2 class="doctor-cofepris-config-card-title">Folios COFEPRIS</h2>
                 </div>
-                <div class="card-body">
+                </div>
+                <div class="card-body doctor-cofepris-config-card-body">
 
-                <div id="conteCofepris"></div>
+                <div id="conteCofepris" class="doctor-cofepris-config-results" aria-live="polite"></div>
 
                 </div>
                 </div>
@@ -172,15 +183,9 @@
                 
             </section>
 
-        </div>
+        </main>
 
-            <footer>
-                <div class="footer clearfix mb-0 text-muted">
-                    <div class="float-start">
-                        <p>2025 &copy; tratamientosdeldolor.org</p>
-                    </div>
-                </div>
-            </footer>
+            <?php include_once __DIR__ . '/../components/footer-doctor.php';?>
 
         </div>
     </div>

@@ -1,3 +1,8 @@
+<?php
+$nombrePacienteSeguro = htmlspecialchars((string)($data['nombre_paciente'] ?? ''), ENT_QUOTES, 'UTF-8');
+$nombrePacienteVisible = $nombrePacienteSeguro !== '' ? $nombrePacienteSeguro : 'Paciente';
+$volverExpedienteUrl = htmlspecialchars(SERVIDOR . 'clinica/paciente/' . (int)($data['idPaciente'] ?? 0), ENT_QUOTES, 'UTF-8');
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -13,15 +18,6 @@
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="<?=RUTA_JS;?>loader.js"></script>
 </head>
-<style>
-.row {
-display: flex;
-flex-wrap: wrap;
-}
-.resizable {
-transition: all 0.3s ease-in-out; /* Suaviza el cambio de tamaño */
-}
-</style>
 <script>
 
 document.addEventListener("DOMContentLoaded", function() {
@@ -67,7 +63,7 @@ select: 0, sort: "desc"
 }
 
 </script>
-<body>
+<body class="app-shell-body app-shell-doctor doctor-clinical-view doctor-note-page">
 <div class="LoaderPage"></div>
 <div id="app">
 <?=$data['sidebar'];?>
@@ -77,20 +73,30 @@ select: 0, sort: "desc"
 <?php include_once __DIR__ . '/../components/search-bar-doctor.php';?>
 <div class="main-content container-fluid">
 
-<button id="toggleButton" class="btn icon btn-light text-dark float-end" onclick="toggleSize()">
-<i id="toggleIcon" data-feather="columns"></i>
-</button>
-
-<div class="page-title">
-<h3><?=$data['title'];?></h3>
+<header class="doctor-page-hero doctor-followup-hero">
+<div class="doctor-page-hero-copy">
+<p class="dashboard-eyebrow">Seguimiento clínico</p>
+<h1><?=htmlspecialchars((string)$data['title'], ENT_QUOTES, 'UTF-8');?></h1>
+<p>Consulta la evolución clínica y la documentación asociada de <?=$nombrePacienteVisible;?>.</p>
 </div>
+<div class="doctor-page-hero-actions">
+<a class="btn doctor-page-hero-action" href="<?=$volverExpedienteUrl;?>">
+<i data-feather="arrow-left" aria-hidden="true"></i>
+<span>Volver al expediente</span>
+</a>
+<button id="toggleButton" type="button" class="btn doctor-followup-toggle" onclick="toggleSize()" aria-label="Cambiar distribución de la pantalla" title="Cambiar distribución de la pantalla">
+<i id="toggleIcon" data-feather="columns" aria-hidden="true"></i>
+<span>Cambiar distribución</span>
+</button>
+</div>
+</header>
 
-<section class="mt-3">
+<section class="doctor-followup-section">
 
 <div class="row">
 <div class="col-12 col-sm-6 resizable">
 
-<div class="card">
+<div class="card doctor-followup-card doctor-followup-patient-card">
 <div class="card-header">
 <h4 class="card-title">Información del Paciente</h4>
 </div>
@@ -99,7 +105,7 @@ select: 0, sort: "desc"
 <div class="row">
 <div class="col-12 col-sm-12">
 <label class="text-primary"><small>Nombre Paciente:</small></label>
-<div class="fs-4"><?=$data['nombre_paciente'];?></div>
+<div class="fs-4"><?=$nombrePacienteVisible;?></div>
 </div>
 </div>
 
@@ -168,13 +174,13 @@ select: 0, sort: "desc"
 </div>
 <div class="col-12 col-sm-6 resizable">
 
-<div class="card">
+<div class="card doctor-followup-card doctor-followup-detail-card">
 <div class="card-header">
 <h4 class="card-title">Detalle de la Nota</h4>
 </div>
 <div class="card-body">
 
-<div id="detalleNota"></div>
+<div id="detalleNota" class="doctor-followup-detail-content"></div>
 
 </div>
 </div>
@@ -188,7 +194,7 @@ select: 0, sort: "desc"
 
 
 <!----- FOOTER ---------->
-<?php include_once __DIR__ . '/../components/footer-mvsd.php';?>
+<?php include_once __DIR__ . '/../components/footer-doctor.php';?>
 </div>
 </div>
 <script src="<?=RUTA_JS;?>/feather-icons/feather.min.js"></script>

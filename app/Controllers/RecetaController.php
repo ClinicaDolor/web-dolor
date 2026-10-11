@@ -15,8 +15,9 @@ class RecetaController extends BaseController{
         $sidebarController = new SidebarController();
         $modelNota = new RecetaModel();
 
-        $authMiddleware->authPermisos();
+        $auth = $authMiddleware->authPermisos();
         $modelNota->receta($idReceta);
+        $authMiddleware->assertPatientAccess($modelNota->getIdPaciente(), $auth);
         
         $paciente = new PacienteModel($modelNota->getIdPaciente());
 

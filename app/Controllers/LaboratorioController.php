@@ -16,8 +16,9 @@ class LaboratorioController extends BaseController{
         $sidebarController = new SidebarController();
         $model = new LaboratorioModel();
 
-        $authMiddleware->authPermisos();
+        $auth = $authMiddleware->authPermisos();
         $model->laboratorio($idLaboratorio);
+        $authMiddleware->assertPatientAccess($model->getIdPaciente(), $auth);
         
         $paciente = new PacienteModel($model->getIdPaciente());
 
@@ -44,6 +45,7 @@ class LaboratorioController extends BaseController{
         $data = ['title' => 'Laboratorio', 
 
         'id_laboratorio' => $idLaboratorio,
+        'id_paciente' => $model->getIdPaciente(),
         'fecha_laboratorio' => $model->getFecha(),
         'hora_laboratorio' => $model->getFecha(),
         'ruta' => $model->getRuta(),

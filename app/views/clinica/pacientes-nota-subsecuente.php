@@ -6,6 +6,9 @@ $bd = Database::getInstance();
 $model = new NotaSubsecuenteModel();
 
 $detalle_subtitulo = ($data['id_nota_subsecuente'] == 0)? 'Agregar' : 'Editar';
+$nombrePacienteSeguro = htmlspecialchars((string)($data['nombre_paciente'] ?? ''), ENT_QUOTES, 'UTF-8');
+$nombrePacienteVisible = $nombrePacienteSeguro !== '' ? $nombrePacienteSeguro : 'Paciente';
+$volverExpedienteUrl = htmlspecialchars(SERVIDOR . 'clinica/paciente/' . (int)$data['idPaciente'], ENT_QUOTES, 'UTF-8');
 
 ?>
 <!DOCTYPE html>
@@ -24,25 +27,6 @@ $detalle_subtitulo = ($data['id_nota_subsecuente'] == 0)? 'Agregar' : 'Editar';
 <link rel="stylesheet" href="<?=RUTA_PUBLIC;?>libs/quill/quill.snow.css">
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="<?=RUTA_JS;?>loader.js"></script>
-<style>
-.editor1{
-font-size: 20px;
-height: 390px;
-}
-
-.editor2{
-font-size: 20px;
-height: 155px;
-}
-
-.row {
-display: flex;
-flex-wrap: wrap;
-}
-.resizable {
-transition: all 0.3s ease-in-out; /* Suaviza el cambio de tamaño */
-}
-</style>
 <script>
 
 document.addEventListener("DOMContentLoaded", function() {
@@ -273,7 +257,7 @@ select: 0, sort: "desc"
 
 </script>
 </head>
-<body>
+<body class="app-shell-body app-shell-doctor doctor-clinical-view doctor-patient-note-page">
 <div class="LoaderPage"></div>
 <div id="app">
 
@@ -288,18 +272,28 @@ data-idreceta="<?=$data['idreceta'];?>">
 
 <div class="main-content container-fluid">
 
-<button id="toggleButton" class="btn icon btn-light text-dark float-end" onclick="toggleSize()">
-<i id="toggleIcon" data-feather="columns"></i>
-</button>
-
-<div class="page-title">
-<h3><?=$data['title'];?></h3>
+<header class="doctor-page-hero doctor-note-hero">
+<div class="doctor-page-hero-copy">
+<p class="dashboard-eyebrow">Nota subsecuente</p>
+<h1><?=htmlspecialchars((string)$data['title'], ENT_QUOTES, 'UTF-8');?></h1>
+<p>Captura signos vitales, evolución, próxima cita y receta asociada.</p>
 </div>
+<div class="doctor-page-hero-actions">
+<a class="btn doctor-page-hero-action" href="<?=$volverExpedienteUrl;?>">
+<i data-feather="arrow-left" aria-hidden="true"></i>
+<span>Volver al expediente</span>
+</a>
+<button id="toggleButton" type="button" class="btn doctor-note-toggle" onclick="toggleSize()" aria-label="Cambiar distribución de la pantalla" title="Cambiar distribución de la pantalla">
+<i id="toggleIcon" data-feather="columns" aria-hidden="true"></i>
+<span>Cambiar distribución</span>
+</button>
+</div>
+</header>
 
-<section>
-<div class="row mt-3">
+<section class="doctor-note-patient-context">
+<div class="row">
 <div class="col-12 col-sm-12">
-<div class="card">
+<div class="card doctor-note-card doctor-note-patient-card">
 <div class="card-header">
 <h4 class="card-title">Información del paciente</h4>
 </div>
@@ -309,7 +303,7 @@ data-idreceta="<?=$data['idreceta'];?>">
 
 <div class="col-12 col-sm-4">
 <label class="text-primary"><small>Nombre Paciente:</small></label>
-<div class="fs-5"><?=$data['nombre_paciente'];?></div>
+<div class="fs-5"><?=$nombrePacienteVisible;?></div>
 </div>
 
 <div class="col-12 col-sm-2">
@@ -341,12 +335,12 @@ data-idreceta="<?=$data['idreceta'];?>">
 </div>
 </section>
 
-<section>
+<section class="doctor-note-history-section">
 
 <div class="row">
 <div class="col-12 col-sm-4 resizable">
 
-<div class="card">
+<div class="card doctor-note-card doctor-note-history-card">
 <div class="card-header">
 <h4 class="card-title">Notas Subsecuentes</h4>
 </div>
@@ -388,7 +382,7 @@ $primer = ($model->primerNota() == $registro['id'])? '<i class="text-info text-e
 </div>
 <div class="col-12 col-sm-8 resizable">
 
-<div class="card">
+<div class="card doctor-note-card doctor-note-detail-card">
 <div class="card-header">
 <h4 class="card-title">Detalle Nota Subsecuente</h4>
 
@@ -408,15 +402,19 @@ echo $model->ultimaNota($data['idPaciente']);
 
 </section>
 
-<section class="mt-3">
+<section class="doctor-note-entry-section">
 
-<hr>
-<small class="text-light">Crear nueva Nota Subsecuente</small>
+<div class="doctor-note-section-heading">
+<div>
+<p class="dashboard-eyebrow">Registro clínico</p>
+<h2>Crear nueva Nota Subsecuente</h2>
+</div>
+</div>
 
-<div class="row mt-3">
+<div class="row">
 <div class="col-12 col-sm-6 order-2 order-sm-1 resizable" data-index="1">
 
-<div class="card">
+<div class="card doctor-note-card doctor-note-editor-card">
 <div class="card-header">
 <h4 class="card-title"><?=$detalle_subtitulo;?> Nota Subsecuente</h4>
 </div>
@@ -517,7 +515,7 @@ echo '<div class="pb-2"><small>Fecha: '.$fecha.', Hora: '.$hora.'</small></div>'
 </div>
 </div>
 
-<div class="card">
+<div class="card doctor-note-card doctor-note-recipe-card">
 <div class="card-header text-primary">
 <h4 class="card-title"><?=$detalle_subtitulo;?> Receta</h4>
 </div>
@@ -536,7 +534,7 @@ echo '<div class="pb-2"><small>Fecha: '.$fecha.', Hora: '.$hora.'</small></div>'
 </div>
 <div class="col-12 col-sm-6 col-sm-2 order-1 resizable" data-index="0">
 
-<div class="card">
+<div class="card doctor-note-card doctor-note-lab-card">
 <div class="card-header">
 <h4 class="card-title">Laboratorio</h4>
 </div>
@@ -564,7 +562,7 @@ echo '<div class="pb-2"><small>Fecha: '.$fecha.', Hora: '.$hora.'</small></div>'
 </div>
 </div>
 
-<div class="card">
+<div class="card doctor-note-card doctor-note-appointment-card">
 <div class="card-header">
 <h4 class="card-title">Proxima cita</h4>
 </div>
@@ -576,7 +574,7 @@ echo '<div class="pb-2"><small>Fecha: '.$fecha.', Hora: '.$hora.'</small></div>'
 </div>
 </div>
 
-<div class="text-end pb-3"><button class="btn btn-success p-3 fs-5" onclick="AgregarNota()"><?=$detalle_subtitulo;?> Nota Subsecuente <i data-feather="chevron-right"></i> </button></div>
+<div class="text-end doctor-note-submit"><button type="button" class="btn btn-success" onclick="AgregarNota()"><?=$detalle_subtitulo;?> Nota Subsecuente <i data-feather="chevron-right" aria-hidden="true"></i> </button></div>
 
 </div>
 </div>
@@ -588,7 +586,7 @@ echo '<div class="pb-2"><small>Fecha: '.$fecha.', Hora: '.$hora.'</small></div>'
 </div>
 
 <!----- FOOTER ---------->
-<?php include_once __DIR__ . '/../components/footer-mvsd.php';?>
+<?php include_once __DIR__ . '/../components/footer-doctor.php';?>
 </div>
 </div>
 <script src="<?=RUTA_JS;?>/feather-icons/feather.min.js"></script>

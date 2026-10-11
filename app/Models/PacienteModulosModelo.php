@@ -166,6 +166,7 @@ class PacienteModulosModelo{
     //-------------------- PORCENTAJES DE LOS MODULOS --------------------
     public function porcentajeModulo1($idPaciente){
     $result = "";
+    $porcentajeCumpliiento = 0;
 
     $stmt = $this->bd->query("SELECT 
     id,
@@ -199,6 +200,7 @@ class PacienteModulosModelo{
 
     public function porcentajeModulo2($idPaciente){
     $result = "";
+    $porcentajeCumpliiento = 0;
 
     $stmt = $this->bd->query("SELECT 
     id_paciente,
@@ -341,6 +343,7 @@ class PacienteModulosModelo{
 
     public function porcentajeModulo4($idPaciente){
     $result = "";
+    $porcentajeCumpliiento = 0;
 
     $stmt = $this->bd->query("SELECT 
     id_paciente,
@@ -401,6 +404,7 @@ class PacienteModulosModelo{
 
     public function porcentajeModulo5Seccion1($idPaciente){
     $result = "";
+    $porcentajeCumpliiento = 0;
     
     $stmt = $this->bd->query("
     SELECT 
@@ -447,6 +451,7 @@ class PacienteModulosModelo{
 
     public function porcentajeModulo5Seccion2($idPaciente){
     $result = "";
+    $porcentajeCumpliiento = 0;
         
     $stmt = $this->bd->query("
     SELECT 
@@ -511,6 +516,7 @@ class PacienteModulosModelo{
     
     public function porcentajeModulo6($idPaciente){
     $result = "";
+    $porcentajeCumpliiento = 0;
 
     $stmt = $this->bd->query("SELECT 
     id_paciente,
@@ -562,6 +568,7 @@ class PacienteModulosModelo{
     
     public function porcentajeModulo7($idPaciente){
     $result = "";
+    $porcentajeCumpliiento = 0;
 
 $stmt = $this->bd->query("
 SELECT 
@@ -636,6 +643,7 @@ WHERE r.id_paciente = '".$idPaciente."'
 
     public function porcentajeModulo8Seccion1($idPaciente){
     $result = "";
+    $porcentaje_cumplimiento = 0;
     
     $stmt = $this->bd->query("
     SELECT 
@@ -690,6 +698,7 @@ WHERE r.id_paciente = '".$idPaciente."'
 
     public function porcentajeModulo8Seccion2($idPaciente){
     $result = "";
+    $porcentaje_cumplimiento = 0;
     
     $stmt = $this->bd->query("
     SELECT 
@@ -745,6 +754,7 @@ WHERE r.id_paciente = '".$idPaciente."'
 
     public function porcentajeModulo9($idPaciente){
     $result = "";
+    $porcentajeCumpliiento = 0;
 
     $stmt = $this->bd->query("SELECT 
     id_paciente,

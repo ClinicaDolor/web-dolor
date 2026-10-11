@@ -1,1 +1,36 @@
-(()=>{for(var e=document.querySelectorAll(".sidebar-item.has-sub"),t=function(){var t=e[r];e[r].querySelector(".sidebar-link").addEventListener("click",(function(e){e.preventDefault();var r=t.querySelector(".submenu");r.classList.contains("active")?r.classList.remove("active"):r.classList.add("active")}))},r=0;r<e.length;r++)t();var a=document.querySelectorAll(".sidebar-toggler");for(r=0;r<a.length;r++){a[r].addEventListener("click",(function(){var e=document.getElementById("sidebar");e.classList.contains("active")?e.classList.remove("active"):e.classList.add("active")}))}if("function"==typeof PerfectScrollbar){var c=document.querySelector(".sidebar-wrapper");new PerfectScrollbar(c)}window.onload=function(){var e=window.innerWidth;e<768&&(console.log("widthnya ",e),document.getElementById("sidebar").classList.remove("active"))},feather.replace()})();
+(function () {
+    document.querySelectorAll('.sidebar-item.has-sub').forEach(function (item) {
+        var link = item.querySelector('.sidebar-link');
+        var submenu = item.querySelector('.submenu');
+
+        if (!link || !submenu) return;
+
+        link.addEventListener('click', function (event) {
+            event.preventDefault();
+            submenu.classList.toggle('active');
+        });
+    });
+
+    document.querySelectorAll('.sidebar-toggler').forEach(function (toggler) {
+        toggler.addEventListener('click', function () {
+            var sidebar = document.getElementById('sidebar');
+            if (sidebar) sidebar.classList.toggle('active');
+        });
+    });
+
+    if (typeof window.PerfectScrollbar === 'function') {
+        var sidebarWrapper = document.querySelector('.sidebar-wrapper');
+        if (sidebarWrapper) new window.PerfectScrollbar(sidebarWrapper);
+    }
+
+    window.addEventListener('load', function () {
+        if (window.innerWidth >= 768) return;
+
+        var sidebar = document.getElementById('sidebar');
+        if (sidebar) sidebar.classList.remove('active');
+    }, { once: true });
+
+    if (window.feather && typeof window.feather.replace === 'function') {
+        window.feather.replace();
+    }
+}());

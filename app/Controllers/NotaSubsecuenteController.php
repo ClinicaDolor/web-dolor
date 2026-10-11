@@ -16,8 +16,9 @@ class NotaSubsecuenteController extends BaseController{
         $modelNota = new NotaSubsecuenteModel();
         $sidebarController = new SidebarController();
 
-        $authMiddleware->authPermisos();
+        $auth = $authMiddleware->authPermisos();
         $modelNota->NotaSubsecuente($idNota);
+        $authMiddleware->assertPatientAccess($modelNota->getIdPaciente(), $auth);
         
         $paciente = new PacienteModel($modelNota->getIdPaciente());
 
@@ -43,6 +44,7 @@ class NotaSubsecuenteController extends BaseController{
 
         $data = ['title' => 'Nota Subsecuente', 
         'idNota' => $idNota,
+        'idPaciente' => $modelNota->getIdPaciente(),
 
         'fecha_hora_nota' => $modelNota->getFechaHora(),
         'contenido_nota' => $modelNota->getContenido(),
