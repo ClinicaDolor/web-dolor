@@ -1,0 +1,16 @@
+{
+  "patientsByYear": [
+    {"label": "2021", "value": 1},
+    {"label": "2022", "value": 2},
+    {"label": "2023", "value": 12},
+    {"label": "2024", "value": 60},
+    {"label": "2025", "value": 129},
+    {"label": "Sin fecha válida", "value": 3, "is_invalid_date": true}
+  ],
+  "activitySeries": [
+    {"label": "2021", "notes": 1, "laboratorios": 0, "recetas": 2, "cofepris": 0},
+    {"label": "2022", "notes": 12, "laboratorios": 2, "recetas": 60, "cofepris": 1},
+    {"label": "2023", "notes": 129, "laboratorios": 12, "recetas": 4, "cofepris": 3},
+    {"label": "Sin fecha válida", "notes": 2, "laboratorios": 1, "recetas": 0, "cofepris": 1, "is_invalid_date": true}
+  ]
+}
