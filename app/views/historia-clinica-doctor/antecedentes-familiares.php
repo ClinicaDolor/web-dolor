@@ -9,6 +9,14 @@ foreach ($enfermedades_fijas as $enf) {
 echo $model->antecedentesFamiliares($data['idPaciente'], $enf);
 }
  
+$escape = static function ($value): string {
+    return htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
+};
+$data['datos'] = is_array($data['datos'] ?? null) ? $data['datos'] : [];
+$patientId = (int) ($data['idPaciente'] ?? 0);
+$patientName = $data['nombre'] ?? '';
+$title = $data['title'] ?? 'Antecedentes familiares';
+$patientUrl = htmlspecialchars(SERVIDOR . 'clinica/paciente/' . $patientId, ENT_QUOTES, 'UTF-8');
 ?>
 
     <!DOCTYPE html>
@@ -16,7 +24,7 @@ echo $model->antecedentesFamiliares($data['idPaciente'], $enf);
     <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?=$data['title'];?></title>
+    <title><?=$escape($title);?></title>
     <link rel="shortcut icon" href="<?=RUTA_IMAGES ?>/logo-clinica.png">
     <link rel="apple-touch-icon" href="<?=RUTA_IMAGES ?>/logo-clinica.png">
     <link rel="stylesheet" href="<?=RUTA_CSS;?>bootstrap.css">
@@ -167,84 +175,60 @@ echo $model->antecedentesFamiliares($data['idPaciente'], $enf);
     </script>
     </head>
 
-    <body>
+    <body class="app-shell-body app-shell-doctor doctor-clinical-view doctor-patient-module-page doctor-antecedentes-familiares-page">
     <div class="LoaderPage"></div>
     <div id="app">
-        
-    <!---------- SIDEBAR ---------->
     <?=$data['sidebar'];?>
-    
-    <div id="main" data-rol="<?=$data['idRol'];?>" data-paciente="<?=$data['idPaciente'];?>">
-    <nav class="navbar navbar-header navbar-expand navbar-light">
-    <a class="sidebar-toggler"><span class="navbar-toggler-icon"></span></a>
-    <button class="btn navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-    <span class="navbar-toggler-icon"></span>
-    </button>
-                
-    <div class="collapse navbar-collapse" id="navbarSupportedContent">
-    <ul class="navbar-nav d-flex align-items-center navbar-light ms-auto">
-    </ul>
+
+    <div id="main" data-rol="<?=$escape($data['idRol'] ?? '');?>" data-paciente="<?=$patientId;?>">
+    <?php include_once __DIR__ . '/../components/search-bar-doctor.php';?>
+
+    <main class="main-content container-fluid doctor-family-content">
+    <header class="doctor-page-hero doctor-family-hero" aria-labelledby="doctor-family-title">
+    <div class="doctor-family-hero-copy">
+    <p class="dashboard-eyebrow">HISTORIA CLÍNICA</p>
+    <h1 id="doctor-family-title">Antecedentes familiares</h1>
+    <p>Consulta y registra los antecedentes familiares del paciente.</p>
+    <p class="doctor-family-patient-context">Paciente autorizado: <strong><?=$escape($patientName);?></strong></p>
     </div>
-    </nav>
-
-    <!---------- CONTENIDO DE LA PAGINA ---------->
-    <div class="main-content container-fluid">
-
-    <div class="page-title mb-4">     
-    <h8><?=$data['nombre'];?></h8>
-    <h3>Antecedentes familiares</h3>
+    <div class="doctor-family-hero-actions">
+    <a class="doctor-family-action" href="<?=$patientUrl;?>">
+    <i data-feather="arrow-left" aria-hidden="true"></i>
+    <span>Volver al expediente</span>
+    </a>
     </div>
-    
-    <section class="section">
-    
-    <div class="row">
+    </header>
 
-    <div class="col-12">
-    <div class="card">
-
+    <section class="doctor-family-sections" aria-label="Antecedentes familiares">
+    <article class="card doctor-family-card doctor-family-questions-card">
     <div id="contePreguntas"></div>
+    </article>
 
-
+    <article class="card doctor-family-card doctor-family-comments-card" aria-labelledby="doctor-family-comments-title">
+    <header class="card-header doctor-family-card-header">
+    <div id="seccion2" data-autoplay="false" class="doctor-family-comment-heading sectionQuestion">
+    <p class="dashboard-eyebrow">SEGUIMIENTO CLÍNICO</p>
+    <h2 id="doctor-family-comments-title">Comentarios adicionales</h2>
+    <p>Si tiene alguna otra información o comentarios que desee compartir, por favor, indíquelo.</p>
     </div>
-    </div> 
-
-    <!---------- CONTENIDO DE C0MENTARIOS COMENTARIOS ---------->
-    <div class="col-12">
-    <div class="card">
-    <div class="card-header pb-0">
-    <div class="row">
-
-    <div id="seccion2" data-autoplay="false" class="col-12 col-md-11 d-flex align-items-center sectionQuestion mb-3">      
-    <h8 class="text-primary fw-bold texto">
-    <b>Si tiene alguna otra información o comentarios que desee compartir, por favor, indíquelo:</b>
-    </h8>
-    </div>
-
-    </div>
-    </div>
-
-    
-    <div class="card-body">
+    </header>
+    <div class="card-body doctor-family-card-body">
     <div id="conteComentario"></div>
     </div>
-    
-    </div>
-    </div>
-
-    </div>
+    </article>
     </section>
+    </main>
 
-    </div>
-    <!----- FOOTER ---------->
-    <?php include_once __DIR__ . '/../components/footer-mvsd.php';?>
+    <?php include_once __DIR__ . '/../components/footer-doctor.php';?>
     </div>
     </div>
 
     <script src="<?=RUTA_JS;?>/feather-icons/feather.min.js"></script>
     <script src="<?=RUTA_PUBLIC;?>libs/perfect-scrollbar/perfect-scrollbar.min.js"></script>
-    <script src="<?=RUTA_JS;?>app.js"></script>    
+    <script src="<?=RUTA_JS;?>app.js"></script>
     <script src="<?=RUTA_PUBLIC;?>libs/simple-datatables/simple-datatables.js"></script>
     <script src="<?=RUTA_JS;?>main.js"></script>
+    <script src="<?=RUTA_JS;?>search-main.js"></script>
 
     </body>
     </html>

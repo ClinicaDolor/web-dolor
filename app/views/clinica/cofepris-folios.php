@@ -89,7 +89,7 @@
 
     </script>
  </head>
-<body>
+<body class="app-shell-body app-shell-doctor doctor-clinical-view doctor-cofepris-folios-page">
 <div class="LoaderPage"></div>
     <div id="app">
         
@@ -100,14 +100,30 @@
             <!----- BUSCADOR DE LA BARRA DE NAVEGACION ---------->
             <?php include_once __DIR__ . '/../components/search-bar-doctor.php';?>
             
-            <div class="main-content container-fluid">
-            <div class="page-title">
-                <h3><?=$data['title'];?></h3>
-            </div>
+            <main class="main-content container-fluid doctor-cofepris-folios-content">
+            <header class="doctor-page-hero doctor-cofepris-folios-hero">
+                <div class="doctor-page-hero-copy">
+                    <p class="dashboard-eyebrow">CONTROL COFEPRIS</p>
+                    <h1><?=htmlspecialchars((string) $data['title'], ENT_QUOTES, 'UTF-8');?></h1>
+                    <p>Consulta el estado de los folios y gestiona el surtido de los registros disponibles.</p>
+                </div>
+                <div class="doctor-page-hero-actions doctor-cofepris-folios-hero-actions">
+                    <a href="<?=SERVIDOR?>clinica/cofepris" class="btn doctor-page-hero-action">
+                        <i data-feather="arrow-left" aria-hidden="true"></i>
+                        <span>Volver a configuración</span>
+                    </a>
+                </div>
+            </header>
 
-            <section class="mt-3">
-            <div class="card">
-            <div class="card-body">
+            <section class="doctor-cofepris-folios-section" aria-labelledby="doctor-cofepris-folios-title">
+            <div class="doctor-cofepris-folios-card card">
+            <div class="card-header doctor-cofepris-folios-card-header">
+                <div>
+                    <p class="dashboard-eyebrow">FOLIOS DISPONIBLES</p>
+                    <h2 id="doctor-cofepris-folios-title" class="card-title">Registro de folios</h2>
+                </div>
+            </div>
+            <div class="card-body doctor-cofepris-folios-card-body">
                 
 
                 <?php
@@ -125,7 +141,7 @@
                 $folio_inicial = $registros['folio_inicial'];
                 $folio_final = $registros['folio_final'];
 
-                echo ' <table class="table table-striped table-hover table-sm pb-0 mb-0" id="cofepris">
+                echo '<div class="doctor-cofepris-folios-table-wrap"><table class="table table-striped table-hover table-sm doctor-cofepris-folios-table" id="cofepris">
                 <thead>
                 <tr>
                     <th class="text-center">Folio</th>
@@ -180,22 +196,16 @@
 
                 echo '
                 </tbody>
-                </table>';
+                </table></div>';
                 ?>      
 
                 </div>   
                 </div>
             </section>
 
-        </div>
+            </main>
 
-            <footer>
-                <div class="footer clearfix mb-0 text-muted">
-                    <div class="float-start">
-                        <p>2025 &copy; tratamientosdeldolor.org</p>
-                    </div>
-                </div>
-            </footer>
+            <?php include_once __DIR__ . '/../components/footer-doctor.php';?>
 
         </div>
     </div>

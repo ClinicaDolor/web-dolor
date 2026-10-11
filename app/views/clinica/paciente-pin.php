@@ -1,10 +1,14 @@
 <?php 
 use App\Config\Database;
 $bd = Database::getInstance();
+$nombrePaciente = trim((string)($data['nombre_paciente'] ?? ''));
+$nombrePacienteSeguro = $nombrePaciente !== ''
+    ? htmlspecialchars($nombrePaciente, ENT_QUOTES, 'UTF-8')
+    : 'Paciente autorizado';
 ?>
 
     <!DOCTYPE html>
-    <html lang="en">
+    <html lang="es-MX">
     <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -46,7 +50,7 @@ $bd = Database::getInstance();
     </script>
     </head>
 
-    <body>
+    <body class="app-shell-body app-shell-doctor doctor-clinical-view doctor-patient-pin-page">
     <div class="LoaderPage"></div>
     <div id="app">
         
@@ -56,107 +60,113 @@ $bd = Database::getInstance();
     <!----- BUSCADOR DE LA BARRA DE NAVEGACION ---------->
     <?php include_once __DIR__ . '/../components/search-bar-doctor.php';?>
             
-    <div class="main-content container-fluid">
-    <div class="page-title">
-    <h3><?=$data['title'];?></h3>
+    <main class="main-content container-fluid" id="main-content">
+    <header class="doctor-page-hero doctor-pin-hero" aria-labelledby="patient-pin-title">
+    <div>
+    <p class="dashboard-eyebrow">ACCESO DEL PACIENTE</p>
+    <h1 id="patient-pin-title">PIN de acceso</h1>
+    <p>Administra el acceso seguro al portal del paciente.</p>
     </div>
+    <a href="<?=SERVIDOR?>clinica/paciente/<?=$data['idPaciente'];?>" class="btn btn-light doctor-page-hero-action">
+        <i data-feather="arrow-left" aria-hidden="true"></i>
+        <span>Volver al expediente</span>
+    </a>
+    </header>
 
-    <div class="row mt-3">
+    <div class="row doctor-pin-grid">
     <div class="col-12">
 
-    <div class="card">
+    <section class="card doctor-pin-card doctor-pin-patient-card" aria-labelledby="patient-pin-info-title">
         
-    <div class="card-header text-light pb-1">
-    <h5 class="card-title">Información del paciente</h5>
+    <div class="card-header doctor-pin-card-header">
+    <div>
+    <p class="dashboard-eyebrow">PACIENTE</p>
+    <h2 class="card-title" id="patient-pin-info-title">Información del paciente</h2>
     </div>
-    <div class="card-body">
-
-    <div class="row">
-    <div class="col-12 mb-3">
-    <div class="text-secondary">Nombre Paciente:</div>
-    <h4><?=$data['nombre_paciente'];?></h4>
     </div>
+    <div class="card-body doctor-pin-card-body">
 
-    <div class="col-12 col-sm-4 mb-3">
-    <div class="text-secondary">Fecha Alta:</div>
-    <h5 class=""><?=(new DateTime($data['fecha_alta']))->format('d/m/Y');[0];?></h5>
+    <div class="row doctor-pin-identity-grid">
+    <div class="doctor-pin-field col-12 mb-3">
+    <div class="doctor-pin-field-label">Nombre del paciente</div>
+    <h3 class="doctor-pin-field-value"><?=$nombrePacienteSeguro;?></h3>
     </div>
 
-    <div class="col-12 col-sm-4 mb-3">
-    <div class="text-secondary">Fecha Nacimiento:</div>
-    <h5 class=""><?=date("d/m/Y", strtotime($data['fecha_nacimiento']));?></h5>
+    <div class="doctor-pin-field col-12 col-sm-4 mb-3">
+    <div class="doctor-pin-field-label">Fecha de alta</div>
+    <h5 class="doctor-pin-field-value"><?=(new DateTime($data['fecha_alta']))->format('d/m/Y');[0];?></h5>
     </div>
 
-    <div class="col-12 col-sm-4 mb-3">
-    <div class="text-secondary">Edad:</div>
-    <h5 class=""><?=$data['edad'];?> años</h5>
+    <div class="doctor-pin-field col-12 col-sm-4 mb-3">
+    <div class="doctor-pin-field-label">Fecha de nacimiento</div>
+    <h5 class="doctor-pin-field-value"><?=date("d/m/Y", strtotime($data['fecha_nacimiento']));?></h5>
     </div>
 
-    <div class="col-12 col-sm-4 mb-3">
-    <div class="text-secondary">Sexo:</div>
-    <h5 class=""><?=($data['sexo'] == 'M')? 'Masculino': 'Femenino';?></h5>
+    <div class="doctor-pin-field col-12 col-sm-4 mb-3">
+    <div class="doctor-pin-field-label">Edad</div>
+    <h5 class="doctor-pin-field-value"><?=$data['edad'];?> años</h5>
     </div>
 
-    <div class="col-12 col-sm-4 mb-3">
-    <div class="text-secondary">Estado Civil:</div>
-    <h5 class=""><?=$data['estado_civil'];?></h5>
+    <div class="doctor-pin-field col-12 col-sm-4 mb-3">
+    <div class="doctor-pin-field-label">Sexo</div>
+    <h5 class="doctor-pin-field-value"><?=($data['sexo'] == 'M')? 'Masculino': 'Femenino';?></h5>
     </div>
 
-    <div class="col-12 col-sm-4 mb-3">
-    <div class="text-secondary">CURP:</div>
-    <h5 class=""><?=$data['curp'];?></h5>
+    <div class="doctor-pin-field col-12 col-sm-4 mb-3">
+    <div class="doctor-pin-field-label">Estado civil</div>
+    <h5 class="doctor-pin-field-value"><?=$data['estado_civil'];?></h5>
     </div>
 
-    </div>
-
-    <h5 class="text-success mt-2">Contacto del paciente</h5>
-
-    <div class="row ">
-
-    <div class="col-12 col-sm-4">
-    <div class="text-secondary">Email:</div>
-    <h5 class=""><?=$data['email'];?></h5>
-    </div>
-
-    <div class="col-12 col-sm-4">
-    <div class="text-secondary">Telefono:</div>
-    <h5 class=""><?=$data['telefono'];?></h5>
-    </div>
-
-    <div class="col-12 col-sm-4">
-    <div class="text-secondary">Celular:</div>
-    <h5 class=""><?=$data['celular'];?></h5>
+    <div class="doctor-pin-field col-12 col-sm-4 mb-3">
+    <div class="doctor-pin-field-label">CURP</div>
+    <h5 class="doctor-pin-field-value"><?=$data['curp'];?></h5>
     </div>
 
     </div>
 
+    <h3 class="doctor-pin-subsection-title">Contacto del paciente</h3>
+
+    <div class="row doctor-pin-contact-grid">
+
+    <div class="doctor-pin-field col-12 col-sm-4">
+    <div class="doctor-pin-field-label">Email</div>
+    <h5 class="doctor-pin-field-value"><?=$data['email'];?></h5>
     </div>
+
+    <div class="doctor-pin-field col-12 col-sm-4">
+    <div class="doctor-pin-field-label">Teléfono</div>
+    <h5 class="doctor-pin-field-value"><?=$data['telefono'];?></h5>
     </div>
+
+    <div class="doctor-pin-field col-12 col-sm-4">
+    <div class="doctor-pin-field-label">Celular</div>
+    <h5 class="doctor-pin-field-value"><?=$data['celular'];?></h5>
+    </div>
+
+    </div>
+
+    </div>
+    </section>
     </div>
                 
     <div class="col-12">
-    <div class="card">
+    <section class="card doctor-pin-card doctor-pin-access-card" aria-labelledby="patient-pin-access-title">
 
-    <div class="card-header text-light">    
-    <div class="row">
-    <div class="col-10">     
-    <h4 class="card-title">Pin de acceso para pacientes</h4> 
+    <div class="card-header doctor-pin-card-header">
+    <div class="doctor-pin-card-heading">
+    <p class="dashboard-eyebrow">CREDENCIAL DE ACCESO</p>
+    <h2 class="card-title" id="patient-pin-access-title">PIN de acceso para pacientes</h2>
     </div>
-
-    <div class="col-2">     
-    <div class="text-end"><button class="btn icon btn-success" onclick="NuevoPin(<?=$data['idPaciente'];?>)"><i data-feather="plus" width="20"></i> PIN </button></div>
+    <button type="button" class="btn btn-success doctor-pin-action" onclick="NuevoPin(<?=$data['idPaciente'];?>)" aria-controls="mensaje">
+        <i data-feather="plus" aria-hidden="true"></i>
+        <span>Generar PIN</span>
+    </button>
     </div>
-
-    <div class="col-12">
-    <div id="mensaje" class="text-center text-danger"></div>
-    </div>
-
-    </div>
-    </div>
+    <div id="mensaje" class="doctor-pin-message" role="alert" aria-live="polite" aria-atomic="true"></div>
                         
     
     
-    <div class="card-body">
+    <div class="card-body doctor-pin-card-body">
 
                         <?php
                         $hoy = new DateTime();
@@ -168,13 +178,13 @@ $bd = Database::getInstance();
                         }
                         ?>
 
-                        <table class="table table-striped" id="table1">
+                        <table class="table table-striped doctor-pin-table" id="table1">
                             <thead>
                                 <tr>
-                                    <th class="text-center">PIN</th>
-                                    <th class="text-center">Fecha creación</th>
-                                    <th class="text-center">Fecha expiración</th>
-                                    <th class="text-center">Estatus</th>
+                                    <th class="text-center" scope="col">PIN</th>
+                                    <th class="text-center" scope="col">Fecha creación</th>
+                                    <th class="text-center" scope="col">Fecha expiración</th>
+                                    <th class="text-center" scope="col">Estatus</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -202,14 +212,15 @@ $bd = Database::getInstance();
                         </table>
                             
                         </div>
-                    </div>
                 </div>
+            </section>
             </div>
 
         </div>
+        </main>
 
     <!----- FOOTER ---------->
-    <?php include_once __DIR__ . '/../components/footer-mvsd.php';?>
+    <?php include_once __DIR__ . '/../components/footer-doctor.php';?>
 
     </div>
     </div>
@@ -225,7 +236,7 @@ $bd = Database::getInstance();
         let table1 = document.querySelector('#table1');
         let dataTable = new simpleDatatables.DataTable(table1,{
 	searchable: true,
-    fixedHeight: true,
+    fixedHeight: false,
 	columns: [
 	{
 		select: 1, sort: "desc"

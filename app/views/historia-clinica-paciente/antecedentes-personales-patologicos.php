@@ -57,12 +57,13 @@ $modulos = $model->obtenerModulosM5();
     document.addEventListener("DOMContentLoaded", function() {
     const seccionActual = localStorage.getItem("seccionActual") || "Oxigenacion";
     localStorage.setItem("seccionActual", seccionActual);
-    let temaActual = temas.find(t => t.nombre === seccionActual);
+    let temaActual = temas.find(t => t.nombre === seccionActual) || temas[0];
 
 
     if (!seccionActual || seccionActual === "enfermedades") {
     seccionEnfermedades();
-    } else {
+    } else if (temaActual) {
+    localStorage.setItem("seccionActual", temaActual.nombre);
     contenidoPreguntas(temaActual.id);
     }
     
@@ -386,7 +387,7 @@ $modulos = $model->obtenerModulosM5();
     </script>
     </head>
 
-    <body>
+<body class="app-shell-body app-shell-patient patient-clinical-form">
     <div class="LoaderPage"></div>
     <div id="app">
         
@@ -483,7 +484,7 @@ $modulos = $model->obtenerModulosM5();
     </div>
     </section>
     <!----- FOOTER ---------->
-    <?php include_once __DIR__ . '/../components/footer-mvsd.php';?>
+<?php include_once __DIR__ . '/../components/footer-doctor.php';?>
     </div>
 
     </div>

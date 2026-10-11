@@ -2,6 +2,9 @@
 use App\Config\Database;
 use App\Models\RecetaModel;
 $bd = Database::getInstance();
+$nombrePacienteSeguro = htmlspecialchars((string)($data['nombre_paciente'] ?? ''), ENT_QUOTES, 'UTF-8');
+$nombrePacienteVisible = $nombrePacienteSeguro !== '' ? $nombrePacienteSeguro : 'Paciente';
+$volverExpedienteUrl = htmlspecialchars(SERVIDOR . 'clinica/paciente/' . (int)$data['idPaciente'], ENT_QUOTES, 'UTF-8');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -11,7 +14,7 @@ $bd = Database::getInstance();
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="shortcut icon" href="<?=RUTA_IMAGES ?>/logo-clinica.png">
 <link rel="apple-touch-icon" href="<?=RUTA_IMAGES ?>/logo-clinica.png">
-<title><?=$data['title'];?></title>
+<title><?=htmlspecialchars((string)$data['title'], ENT_QUOTES, 'UTF-8');?></title>
 <link rel="stylesheet" href="<?=RUTA_CSS;?>bootstrap.css">
 <link rel="stylesheet" href="<?=RUTA_PUBLIC;?>libs/perfect-scrollbar/perfect-scrollbar.css">
 <link rel="stylesheet" href="<?=RUTA_PUBLIC;?>libs/simple-datatables/style.css">
@@ -19,19 +22,6 @@ $bd = Database::getInstance();
 <link rel="stylesheet" href="<?=RUTA_PUBLIC;?>libs/quill/quill.snow.css">
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="<?=RUTA_JS;?>loader.js"></script>
-<style>
-.editor{
-font-size: 20px;
-height: 250px;
-}
-.row {
-display: flex;
-flex-wrap: wrap;
-}
-.resizable {
-transition: all 0.3s ease-in-out; /* Suaviza el cambio de tamaño */
-}
-</style>
 <script>
 function AgregarReceta(idPaciente){
 
@@ -151,7 +141,7 @@ select: 1, sort: "desc"
 </script>
 
 </head>
-<body>
+<body class="app-shell-body app-shell-doctor doctor-clinical-view doctor-patient-recipes-page">
 <div class="LoaderPage"></div>
 <div id="app">
 
@@ -164,18 +154,28 @@ select: 1, sort: "desc"
 
 <div class="main-content container-fluid">
 
-<button id="toggleButton" class="btn icon btn-light text-dark float-end" onclick="toggleSize()">
-<i id="toggleIcon" data-feather="columns"></i>
-</button>
-
-<div class="page-title">
-<h3><?=$data['title'];?></h3>
+<header class="doctor-page-hero doctor-recipe-hero">
+<div class="doctor-page-hero-copy">
+<p class="dashboard-eyebrow">Seguimiento farmacológico</p>
+<h1>Recetas</h1>
+<p>Consulta y registra recetas médicas para <?=$nombrePacienteVisible;?>.</p>
 </div>
+<div class="doctor-page-hero-actions">
+<a class="btn doctor-page-hero-action" href="<?=$volverExpedienteUrl;?>">
+<i data-feather="arrow-left" aria-hidden="true"></i>
+<span>Volver al expediente</span>
+</a>
+<button id="toggleButton" type="button" class="btn doctor-recipe-toggle" onclick="toggleSize()" aria-label="Cambiar distribución de la pantalla" title="Cambiar distribución de la pantalla">
+<i id="toggleIcon" data-feather="columns" aria-hidden="true"></i>
+<span>Cambiar distribución</span>
+</button>
+</div>
+</header>
 
 <section>
 <div class="row mt-3">
 <div class="col-12 col-sm-12 resizable">
-<div class="card">
+<div class="card doctor-recipe-card doctor-recipe-patient-card">
 
 <div class="card-header text-light">
 <h4 class="card-title">Información del paciente</h4>
@@ -186,7 +186,7 @@ select: 1, sort: "desc"
 <div class="row">
 <div class="col-12 col-sm-4">
 <label class="text-primary"><small>Nombre Paciente:</small></label>
-<div class="fs-5"><?=$data['nombre_paciente'];?></div>
+<div class="fs-5"><?=$nombrePacienteVisible;?></div>
 </div>
 
 <div class="col-12 col-sm-2">
@@ -220,16 +220,16 @@ select: 1, sort: "desc"
 
 <section>
 
-<div class="row">
+<div class="row doctor-recipe-workspace">
 <div class="col-12 col-sm-5 resizable">
 
-<div class="card">
+<div class="card doctor-recipe-card doctor-recipe-list-card">
 <div class="card-header">
 <h4 class="card-title">Recetas</h4>
 </div>
 <div class="card-body">
 
-<div id="conteRecetas">
+<div id="conteRecetas" class="doctor-recipe-table-content">
 <?php
 try {
 $stmt = $bd->query("SELECT * FROM receta_medica WHERE id_paciente = '".$data['idPaciente']."' ORDER BY fecha_hora DESC");
@@ -263,12 +263,12 @@ die("Error en la consulta: " . $e->getMessage());
 </div>
 <div class="col-12 col-sm-7 resizable">
 
-<div class="card">
+<div class="card doctor-recipe-card doctor-recipe-detail-card">
 <div class="card-header">
 <h4 class="card-title">Detalle de la Receta</h4>
 </div>
 <div class="card-body">
-<div id="detalleReceta">
+<div id="detalleReceta" class="doctor-recipe-detail-content">
 <?php
 $model = new RecetaModel();
 echo $model->ultimaReceta($data['idPaciente']);
@@ -277,7 +277,7 @@ echo $model->ultimaReceta($data['idPaciente']);
 </div>
 </div>
 
-<div class="card">
+<div class="card doctor-recipe-card doctor-recipe-create-card">
 <div class="card-header text-primary">
 <h4 class="card-title">Nueva Receta</h4>
 </div>
@@ -316,7 +316,7 @@ echo $model->ultimaReceta($data['idPaciente']);
 
 <label class="text-primary mt-3 mb-1"><smallal>Medicamento:</smallal></label>
 <div id="snow" class="editor"></div>
-<div class="text-end mt-3"><button class="btn btn-success" onclick="AgregarReceta(<?=$data['idPaciente'];?>)">Agregar Receta <i data-feather="chevron-right"></i></button></div>
+<div class="text-end mt-3 doctor-recipe-submit"><button type="button" class="btn btn-success" onclick="AgregarReceta(<?=$data['idPaciente'];?>)">Agregar Receta <i data-feather="chevron-right" aria-hidden="true"></i></button></div>
 <div id="mensaje"></div>
 </div>
 </div>
@@ -328,13 +328,7 @@ echo $model->ultimaReceta($data['idPaciente']);
 
 </div>
 
-<footer>
-<div class="footer clearfix mb-0 text-muted">
-<div class="float-start">
-<p>2025 &copy; tratamientosdeldolor.org</p>
-</div>
-</div>
-</footer>
+<?php include_once __DIR__ . '/../components/footer-doctor.php';?>
 </div>
 </div>
 <script src="<?=RUTA_JS;?>/feather-icons/feather.min.js"></script>

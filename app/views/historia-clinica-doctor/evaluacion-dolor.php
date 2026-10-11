@@ -8,14 +8,23 @@ echo $model->imagenFrenteModulo9($data['idPaciente'], $data['sexo']);
 echo $model->imagenEspaldaModulo9($data['idPaciente'], $data['sexo']); 
 echo $model->cuestionarioModulo9($data['idPaciente']);
 
+$escape = static function ($value): string {
+    return htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
+};
+$patientId = (int) ($data['idPaciente'] ?? 0);
+$patientName = trim((string) ($data['nombre'] ?? ''));
+$patientSex = $data['sexo'] ?? '';
+$title = $data['title'] ?? 'Evaluación del dolor';
+$patientUrl = $escape(SERVIDOR . 'clinica/paciente/' . $patientId);
+
 ?>
  
     <!DOCTYPE html>
-    <html lang="en">
+    <html lang="es-MX">
     <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?=$data['title'];?></title>
+    <title><?=$escape($title);?></title>
     <link rel="shortcut icon" href="<?=RUTA_IMAGES ?>/logo-clinica.png">
     <link rel="apple-touch-icon" href="<?=RUTA_IMAGES ?>/logo-clinica.png">
     <link rel="stylesheet" href="<?=RUTA_CSS;?>bootstrap.css">
@@ -52,7 +61,7 @@ echo $model->cuestionarioModulo9($data['idPaciente']);
     const colorPicker = document.getElementById('colorFrente');
 
     const img = new Image();
-    img.src = '<?=RUTA_IMAGES?>evaluacion-dolor/frente/Frente_<?=$data['sexo']?>_<?=$data['idPaciente']?>.png?' + Math.random();
+    img.src = '<?=RUTA_IMAGES?>evaluacion-dolor/frente/Frente_<?=$patientSex;?>_<?=$patientId;?>.png?' + Math.random();
     img.onload = () => {
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     };
@@ -140,7 +149,7 @@ echo $model->cuestionarioModulo9($data['idPaciente']);
     
     }else{
 
-    imagen = '<?=RUTA_IMAGES?>evaluacion-dolor/frente/Frente_<?=$data['sexo']?>_<?=$data['idPaciente']?>.png';
+    imagen = '<?=RUTA_IMAGES?>evaluacion-dolor/frente/Frente_<?=$patientSex;?>_<?=$patientId;?>.png';
     img.src = imagen + '?' + Math.random(); // Usar "?" antes del random para no alterar la ruta original
     img.onload = () => {
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
@@ -170,7 +179,7 @@ echo $model->cuestionarioModulo9($data['idPaciente']);
     const colorPicker = document.getElementById('colorEspalda');
 
     const img = new Image();
-    img.src = '<?=RUTA_IMAGES?>evaluacion-dolor/espalda/Espalda_<?=$data['sexo']?>_<?=$data['idPaciente']?>.png?' + Math.random();
+    img.src = '<?=RUTA_IMAGES?>evaluacion-dolor/espalda/Espalda_<?=$patientSex;?>_<?=$patientId;?>.png?' + Math.random();
     img.onload = () => {
     ctxEspalda.drawImage(img, 0, 0, canvasEspalda .width, canvasEspalda.height);
     };
@@ -259,7 +268,7 @@ echo $model->cuestionarioModulo9($data['idPaciente']);
     
     }else{
 
-    imagen = '<?=RUTA_IMAGES?>evaluacion-dolor/espalda/Espalda_<?=$data['sexo']?>_<?=$data['idPaciente']?>.png';
+    imagen = '<?=RUTA_IMAGES?>evaluacion-dolor/espalda/Espalda_<?=$patientSex;?>_<?=$patientId;?>.png';
     img.src = imagen + '?' + Math.random(); // Usar "?" antes del random para no alterar la ruta original
     img.onload = () => {
     ctxEspalda.drawImage(img, 0, 0, canvasEspalda.width, canvasEspalda.height);
@@ -324,65 +333,60 @@ echo $model->cuestionarioModulo9($data['idPaciente']);
     </script>
     </head>
 
-    <body>
+    <body class="app-shell-body app-shell-doctor doctor-clinical-view doctor-patient-module-page doctor-pain-evaluation-page">
     <div class="LoaderPage"></div>
     <div id="app">
-           
-    <!---------- SIDEBAR ---------->
-    <?=$data['sidebar'];?>
-          
-    <div id="main" data-rol="<?=$data['idRol'];?>" data-paciente="<?=$data['idPaciente'];?>" data-sexo="<?=$data['sexo'];?>">
-    <nav class="navbar navbar-header navbar-expand navbar-light">
-    <a class="sidebar-toggler"><span class="navbar-toggler-icon"></span></a>
-    <button class="btn navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-    <span class="navbar-toggler-icon"></span>
-    </button>
-                
-    <div class="collapse navbar-collapse" id="navbarSupportedContent">
-    <ul class="navbar-nav d-flex align-items-center navbar-light ms-auto">
-    </ul>
-    </div>
-    </nav>
+        <?=$data['sidebar'];?>
 
-    <!---------- CONTENIDO DE LA PAGINA ---------->
-    <div class="main-content container-fluid">
+        <div id="main" data-rol="<?=$escape($data['idRol'] ?? '');?>" data-paciente="<?=$patientId;?>" data-sexo="<?=$escape($patientSex);?>">
+            <?php include_once __DIR__ . '/../components/search-bar-doctor.php'; ?>
 
-    <div class="page-title mb-4">     
-    <h8>
-        
-    <?=$data['nombre'];?></h8>
-    <h3><?=$data['title'];?></h3>
-    </div>
-    
-    <section class="section">
-    <div class="card">
-    <div class="card-header">
-    <h8 class="text-primary fw-bold texto">
-    <b >A continuación, debera de indicar las zonas donde siente malestar utilizando los siguientes colores:</b>
-    Rojo: Área con Dolor, Amarillo</span>: Área Dormida y con Dolor, Verde: Área con Molestia al tacto y roce de la ropa, 
-    Azul: Área sin Sensibilidad y sin Dolor, Morado : Área con Punzadas y Calambres.
-    <br>
-    Evite marcar la zona con una "X". En su lugar, cúbrala por completo utilizando el color que corresponda.
-    </h8>
-    </div>
-    <div class="card-body pb-1">
-    <div class="row">
-    <div id="conteFrente" class="col-xl-6 col-lg-6 col-md-12 col-sm-12"></div>
-    <div id="conteEspalda" class="col-xl-6 col-lg-6 col-md-12 col-sm-12"></div>
-    </div>
-    </div>
-    </div>
+            <main class="main-content container-fluid doctor-pain-evaluation-content">
+                <header class="doctor-page-hero doctor-pain-evaluation-hero" aria-labelledby="doctor-pain-evaluation-title">
+                    <div class="doctor-pain-evaluation-hero-copy">
+                        <p class="dashboard-eyebrow">HISTORIA CLÍNICA</p>
+                        <h1 id="doctor-pain-evaluation-title"><?=$escape($title);?></h1>
+                        <p>Registra y revisa la evaluación visual y descriptiva del dolor del paciente.</p>
+                        <?php if ($patientName !== ''): ?>
+                            <p class="doctor-pain-evaluation-patient-context">Paciente autorizado: <strong><?=$escape($patientName);?></strong></p>
+                        <?php endif; ?>
+                    </div>
+                    <div class="doctor-pain-evaluation-hero-actions">
+                        <a class="doctor-pain-evaluation-action" href="<?=$patientUrl;?>">
+                            <i data-feather="arrow-left" aria-hidden="true"></i>
+                            <span>Volver al expediente</span>
+                        </a>
+                    </div>
+                </header>
 
-    <div class="card">
-    <div id="contePreguntas"></div>
-    </div>
+                <section class="doctor-pain-evaluation-sections" aria-label="Evaluación del dolor">
+                    <article class="card doctor-pain-evaluation-card doctor-pain-maps-card">
+                        <header class="doctor-pain-evaluation-section-heading">
+                            <p class="dashboard-eyebrow">MAPA DEL DOLOR</p>
+                            <h2>Evaluación visual</h2>
+                            <p>
+                                A continuación, deberá indicar las zonas donde siente malestar utilizando los siguientes colores:
+                                Rojo: Área con Dolor, Amarillo: Área Dormida y con Dolor, Verde: Área con Molestia al tacto y roce de la ropa,
+                                Azul: Área sin Sensibilidad y sin Dolor, Morado: Área con Punzadas y Calambres.
+                                Evite marcar la zona con una “X”. En su lugar, cúbrala por completo utilizando el color que corresponda.
+                            </p>
+                        </header>
+                        <div class="card-body doctor-pain-evaluation-card-body">
+                            <div class="row doctor-pain-maps-row">
+                                <div id="conteFrente" class="col-xl-6 col-lg-6 col-md-12 col-sm-12 doctor-pain-map-panel"></div>
+                                <div id="conteEspalda" class="col-xl-6 col-lg-6 col-md-12 col-sm-12 doctor-pain-map-panel"></div>
+                            </div>
+                        </div>
+                    </article>
 
-    </section>
- 
-    </div>
-    <!----- FOOTER ---------->
-    <?php include_once __DIR__ . '/../components/footer-mvsd.php';?>
-    </div>
+                    <article class="card doctor-pain-evaluation-card doctor-pain-questions-card" aria-label="Preguntas de evaluación del dolor">
+                        <div id="contePreguntas"></div>
+                    </article>
+                </section>
+            </main>
+
+            <?php include_once __DIR__ . '/../components/footer-doctor.php';?>
+        </div>
     </div>
 
     <script src="<?=RUTA_JS;?>voice-utilities.js"></script>
@@ -391,6 +395,7 @@ echo $model->cuestionarioModulo9($data['idPaciente']);
     <script src="<?=RUTA_JS;?>app.js"></script>    
     <script src="<?=RUTA_PUBLIC;?>libs/simple-datatables/simple-datatables.js"></script>
     <script src="<?=RUTA_JS;?>main.js"></script>
+    <script src="<?=RUTA_JS;?>search-main.js"></script>
     
     </body>
     </html>

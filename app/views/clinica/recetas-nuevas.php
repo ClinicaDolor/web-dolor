@@ -14,27 +14,6 @@
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="<?=RUTA_JS;?>loader.js"></script>
-<style>
-.editor{
-font-size: 20px;
-height: 250px;
-}
-.row {
-display: flex;
-flex-wrap: wrap;
-}
-.resizable {
-transition: all 0.3s ease-in-out;
-}
-.swal2-confirm {
-background-color: #501E75 !important;
-color: #fff !important;
-}
-.swal2-cancel {
-background-color: #6c757d !important;
-color: #fff !important;
-}
-</style>
 <script>
 
 let pacienteSeleccionado = null;
@@ -393,7 +372,7 @@ function calcularEdad() {
 </script>
 
 </head>
-<body>
+<body class="app-shell-body app-shell-doctor doctor-clinical-view doctor-new-recipe-page">
 <div class="LoaderPage"></div>
 <div id="app">
 
@@ -404,19 +383,22 @@ function calcularEdad() {
 <!----- BUSCADOR DE LA BARRA DE NAVEGACION ---------->
 <?php include_once __DIR__ . '/../components/search-bar-doctor.php';?>
 
-<div class="main-content container-fluid">
-
-<!--
-<button id="toggleButton" class="btn icon btn-light text-dark float-end" onclick="toggleSize()">
-<i id="toggleIcon" data-feather="columns"></i>
-</button>
--->
-
-<div class="page-title">
-<h3><?=$data['title'];?></h3>
-</div>
+<main class="main-content container-fluid doctor-new-recipe-content" id="main-content">
+<header class="doctor-page-hero doctor-new-recipe-hero">
+    <div class="doctor-page-hero-copy">
+        <p class="dashboard-eyebrow">RECETAS MÉDICAS</p>
+        <h1>Nueva receta</h1>
+        <p>Registra la indicación médica para un paciente existente o externo.</p>
+    </div>
+    <div class="doctor-page-hero-actions">
+        <a href="<?=SERVIDOR?>clinica/recetas" class="btn doctor-page-hero-action">
+            <i data-feather="arrow-left" aria-hidden="true"></i>
+            <span>Volver a recetas</span>
+        </a>
+    </div>
+</header>
  
-<section>
+<section class="doctor-new-recipe-section" aria-label="Registro de receta">
 <div class="row mt-3">
 
 
@@ -424,23 +406,28 @@ function calcularEdad() {
 <div class="col-12 resizable">
 
 <!----- SELECTOR TIPO PACIENTE ----->
-<div class="card">
-<div class="card-header text-end">
-<div class="btn-group" role="group">
-<button type="button" class="btn btn-outline-success active" id="tipoRegistrado" onclick="seleccionarTipo('registrado')">Paciente</button>
-<button type="button" class="btn btn-outline-success" id="tipoExterno" onclick="seleccionarTipo('externo')">Paciente Externo</button>
+<div class="card doctor-new-recipe-card doctor-new-recipe-selector-card">
+<div class="card-header doctor-new-recipe-card-header">
+<div>
+<p class="dashboard-eyebrow">DESTINATARIO</p>
+<h2 class="doctor-new-recipe-card-title">Paciente de la receta</h2>
+</div>
+<div class="btn-group doctor-new-recipe-type-switch" role="group" aria-label="Tipo de paciente">
+<button type="button" class="btn doctor-new-recipe-type-button active" id="tipoRegistrado" onclick="seleccionarTipo('registrado')">Paciente</button>
+<button type="button" class="btn doctor-new-recipe-type-button" id="tipoExterno" onclick="seleccionarTipo('externo')">Paciente Externo</button>
 </div>
 </div>
 
-<div class="card-body">
+<div class="card-body doctor-new-recipe-card-body">
 <div class="row">
 
 <!---------- PACIENTES EXISTENTES ---------->
 <div class="col-12" id="seccionRegistrado">
-<h4 class="card-title">Nombre del Paciente</h4>
+<h3 class="doctor-new-recipe-subtitle">Nombre del paciente</h3>
 
 <div class="mb-3">
-<input type="text" class="form-control fs-5" id="buscarPaciente" placeholder="Busca el nombre del paciente..." onkeyup="buscarPaciente(this.value)" oninput="limpiarBorde(this)" autocomplete="off">
+<label class="doctor-new-recipe-label" for="buscarPaciente">Buscar paciente registrado</label>
+<input type="text" class="form-control doctor-new-recipe-control" id="buscarPaciente" placeholder="Busca el nombre del paciente..." onkeyup="buscarPaciente(this.value)" oninput="limpiarBorde(this)" autocomplete="off">
 <div id="sugerenciasPaciente" class="list-group mt-1"></div>
 <div class="mt-3" id="infoPaciente"></div>
 </div>
@@ -449,30 +436,30 @@ function calcularEdad() {
 
 <!---------- PACIENTES EXTERNOS ---------->
 <div class="col-12" id="seccionExterno" style="display:none;">
-<h4 class="card-title">Datos del Paciente Externo</h4>
+<h3 class="doctor-new-recipe-subtitle">Datos del paciente externo</h3>
 
 <div class="row">
 <div class="col-md-4 mb-3">
-<label class="text-primary mb-1"><small>Nombre:</small></label>
-<input type="text" class="form-control fs-5" id="extNombre" oninput="limpiarBorde(this)">
+<label class="doctor-new-recipe-label" for="extNombre">Nombre</label>
+<input type="text" class="form-control doctor-new-recipe-control" id="extNombre" oninput="limpiarBorde(this)">
 </div>
 <div class="col-md-4 mb-3">
-<label class="text-primary mb-1"><small>Apellido Paterno:</small></label>
-<input type="text" class="form-control fs-5" id="extApellidoPaterno" oninput="limpiarBorde(this)">
+<label class="doctor-new-recipe-label" for="extApellidoPaterno">Apellido paterno</label>
+<input type="text" class="form-control doctor-new-recipe-control" id="extApellidoPaterno" oninput="limpiarBorde(this)">
 </div>
 <div class="col-md-4 mb-3">
-<label class="text-primary mb-1"><small>Apellido Materno:</small></label>
-<input type="text" class="form-control fs-5" id="extApellidoMaterno" oninput="limpiarBorde(this)">
+<label class="doctor-new-recipe-label" for="extApellidoMaterno">Apellido materno</label>
+<input type="text" class="form-control doctor-new-recipe-control" id="extApellidoMaterno" oninput="limpiarBorde(this)">
 </div>
 </div>
 
 <div class="row">
 <div class="col-md-4 mb-3">
-<label class="text-primary mb-1"><small>Edad:</small></label>
-<input type="number" class="form-control fs-5" id="extEdad" oninput="limpiarBorde(this)">
+<label class="doctor-new-recipe-label" for="extEdad">Edad</label>
+<input type="number" class="form-control doctor-new-recipe-control" id="extEdad" oninput="limpiarBorde(this)">
 </div>
 <div class="col-md-4 mb-3">
-<label class="text-primary mb-1"><small>Sexo:</small></label>
+<label class="doctor-new-recipe-label">Sexo</label>
 <div class="mt-2">
 <div class="form-check form-check-inline">
 <input class="form-check-input" type="radio" name="extSexo" id="extSexoM" value="M" onclick="limpiarBorde(document.getElementById('extSexoM'));limpiarBorde(document.getElementById('extSexoF'))">
@@ -485,8 +472,8 @@ function calcularEdad() {
 </div>
 </div>
 <div class="col-md-4 mb-3">
-<label class="text-primary mb-1"><small>Fecha de Nacimiento:</small></label>
-<input type="date" class="form-control fs-5" id="extFechaNacimiento" oninput="calcularEdad(); limpiarBorde(this)">
+<label class="doctor-new-recipe-label" for="extFechaNacimiento">Fecha de nacimiento</label>
+<input type="date" class="form-control doctor-new-recipe-control" id="extFechaNacimiento" oninput="calcularEdad(); limpiarBorde(this)">
 </div>
 </div>
 
@@ -501,48 +488,51 @@ function calcularEdad() {
 
 
 <!----- FORMULARIO RECETA ----->
-<div class="card">
-<div class="card-header text-primary">
-<h4 class="card-title">Nueva Receta</h4>
+<div class="card doctor-new-recipe-card doctor-new-recipe-form-card">
+<div class="card-header doctor-new-recipe-card-header">
+<div>
+<p class="dashboard-eyebrow">INFORMACIÓN CLÍNICA</p>
+<h2 class="doctor-new-recipe-card-title">Nueva receta</h2>
 </div>
-<div class="card-body">
+</div>
+<div class="card-body doctor-new-recipe-card-body">
 
 <div class="mb-3">
-<label class="text-primary mb-1"><small>Diagnostico:</small></label>
-<textarea class="form-control fs-5" id="Diagnostico" rows="2"></textarea>
+<label class="doctor-new-recipe-label" for="Diagnostico">Diagnóstico</label>
+<textarea class="form-control doctor-new-recipe-control" id="Diagnostico" rows="2"></textarea>
 </div>
 
 <div class="row">
 <div class="col-md-6 mb-3">
-<label class="text-primary mb-1"><small>Tensión Arterial (TA):</small></label>
-<input type="text" class="form-control fs-5" id="TA">
+<label class="doctor-new-recipe-label" for="TA">Tensión arterial (TA)</label>
+<input type="text" class="form-control doctor-new-recipe-control" id="TA">
 </div>
 
 <div class="col-md-6 mb-3">
-<label class="text-primary mb-1"><small>Frecuencia Cardíaca (FC):</small></label>
-<input type="number" class="form-control fs-5" id="FC">
+<label class="doctor-new-recipe-label" for="FC">Frecuencia cardíaca (FC)</label>
+<input type="number" class="form-control doctor-new-recipe-control" id="FC">
 </div>
 
 <div class="col-md-6 mb-3">
-<label class="text-primary mb-1"><small>Saturación de Oxígeno (SpO₂):</small></label>
-<input type="number" class="form-control fs-5" id="SpO2">
+<label class="doctor-new-recipe-label" for="SpO2">Saturación de oxígeno (SpO₂)</label>
+<input type="number" class="form-control doctor-new-recipe-control" id="SpO2">
 </div>
 
 <div class="col-md-6 mb-3">
-<label class="text-primary mb-1"><small>Temperatura:</small></label>
+<label class="doctor-new-recipe-label" for="Temperatura">Temperatura</label>
 <div class="input-group">
-<input type="number" class="form-control fs-5" id="Temperatura" step="0.1">
-<span class="input-group-text fs-5">°C</span>
+<input type="number" class="form-control doctor-new-recipe-control" id="Temperatura" step="0.1">
+<span class="input-group-text doctor-new-recipe-unit">°C</span>
 </div>
 </div>
 </div>
 
-<label class="text-primary mt-3 mb-1"><small>Medicamento:</small></label>
+<label class="doctor-new-recipe-label doctor-new-recipe-editor-label" for="snow">Medicamento</label>
 <div id="snow" class="editor"></div>
 
-<div class="text-end mt-3">
-<button class="btn btn-success" id="btnAgregarRegistrado" onclick="agregarRecetaRegistrado()">Agregar Receta <i data-feather="chevron-right"></i></button>
-<button class="btn btn-success" id="btnAgregarExterno" onclick="agregarRecetaExterno()" style="display:none;">Agregar Receta <i data-feather="chevron-right"></i></button>
+<div class="text-end mt-3 doctor-new-recipe-actions">
+<button type="button" class="btn doctor-new-recipe-submit" id="btnAgregarRegistrado" onclick="agregarRecetaRegistrado()">Agregar receta <i data-feather="chevron-right" aria-hidden="true"></i></button>
+<button type="button" class="btn doctor-new-recipe-submit" id="btnAgregarExterno" onclick="agregarRecetaExterno()" style="display:none;">Agregar receta <i data-feather="chevron-right" aria-hidden="true"></i></button>
 </div>
 
 </div>
@@ -552,15 +542,9 @@ function calcularEdad() {
 </div>
 </section>
 
-</div>
+</main>
 
-<footer>
-<div class="footer clearfix mb-0 text-muted">
-<div class="float-start">
-<p>2025 &copy; tratamientosdeldolor.org</p>
-</div>
-</div>
-</footer>
+<?php include_once __DIR__ . '/../components/footer-doctor.php';?>
 </div>
 </div>
 <script src="<?=RUTA_JS;?>/feather-icons/feather.min.js"></script>

@@ -1,255 +1,257 @@
-<?php 
-use App\Config\Database;
-use App\Models\PacienteModulosModelo;
-$bd = Database::getInstance();
+<?php
+$escape = static function ($value): string {
+    return htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
+};
 
+$data['datos'] = is_array($data['datos'] ?? null) ? $data['datos'] : [];
+$patientId = (int) ($data['idPaciente'] ?? 0);
+$patientName = $data['nombre'] ?? '';
+$title = $data['title'] ?? 'Ficha de identificación';
+$patientUrl = htmlspecialchars(SERVIDOR . 'clinica/paciente/' . $patientId, ENT_QUOTES, 'UTF-8');
+$editUrl = htmlspecialchars(SERVIDOR . 'clinica/paciente/editar/' . $patientId, ENT_QUOTES, 'UTF-8');
+$sex = isset($data['sexo']) && $data['sexo'] !== ''
+    ? ($data['sexo'] === 'M' ? 'Masculino' : 'Femenino')
+    : null;
+$caregiver = isset($data['cuidador'])
+    ? ($data['cuidador'] ? 'Sí' : 'No')
+    : null;
+$formatValue = static function ($value) use ($escape): string {
+    if ($value === null || $value === '') {
+        return '<span class="doctor-ficha-empty-value">No registrado</span>';
+    }
+
+    return $escape($value);
+};
 ?>
- 
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
+<!DOCTYPE html>
+<html lang="es">
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?=$data['title'];?></title>
-    <link rel="shortcut icon" href="<?=RUTA_IMAGES ?>/logo-clinica.png">
-    <link rel="apple-touch-icon" href="<?=RUTA_IMAGES ?>/logo-clinica.png">
+    <link rel="shortcut icon" href="<?=RUTA_IMAGES?>/logo-clinica.png">
+    <link rel="apple-touch-icon" href="<?=RUTA_IMAGES?>/logo-clinica.png">
+    <title><?=$escape($title);?></title>
     <link rel="stylesheet" href="<?=RUTA_CSS;?>bootstrap.css">
     <link rel="stylesheet" href="<?=RUTA_PUBLIC;?>libs/perfect-scrollbar/perfect-scrollbar.css">
     <link rel="stylesheet" href="<?=RUTA_PUBLIC;?>libs/simple-datatables/style.css">
     <link rel="stylesheet" href="<?=RUTA_CSS;?>app.css">
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="<?=RUTA_JS;?>loader.js"></script>
+</head>
 
-    <script>
- 
-    </script>
-    
-    </head>
-
-    <body>
+<body class="app-shell-body app-shell-doctor doctor-clinical-view doctor-patient-module-page doctor-ficha-identificacion-page">
     <div class="LoaderPage"></div>
     <div id="app">
-           
-    <!---------- SIDEBAR ---------->
-    <?=$data['sidebar'];?>
-          
-    <div id="main" data-rol="<?=$data['idRol'];?>" data-paciente="<?=$data['idPaciente'];?>">
-    <nav class="navbar navbar-header navbar-expand navbar-light">
-    <a class="sidebar-toggler"><span class="navbar-toggler-icon"></span></a>
-    <button class="btn navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-    <span class="navbar-toggler-icon"></span>
-    </button>
-                
-    <div class="collapse navbar-collapse" id="navbarSupportedContent">
-    <ul class="navbar-nav d-flex align-items-center navbar-light ms-auto">
-    </ul>
-    </div>
-    </nav>
+        <?=$data['sidebar'];?>
 
-    <!---------- CONTENIDO DE LA PAGINA ---------->
-    <div class="main-content container-fluid">
+        <div id="main" data-rol="<?=$escape($data['idRol'] ?? '');?>" data-paciente="<?=$patientId;?>">
+            <?php include_once __DIR__ . '/../components/search-bar-doctor.php';?>
 
-    <div class="page-title mb-4">     
-    <h8>
-        
-    <?=$data['nombre'];?></h8>
-    <h3><?=$data['title'];?></h3>
-    </div>
-    
-    <section class="section">
-    <div class="card">
-    <div class="card-body">
-    <div class="row">
+            <main class="main-content container-fluid doctor-ficha-content">
+                <header class="doctor-page-hero doctor-ficha-hero" aria-labelledby="doctor-ficha-title">
+                    <div class="doctor-page-hero-copy">
+                        <p class="dashboard-eyebrow">HISTORIA CLÍNICA</p>
+                        <h1 id="doctor-ficha-title">Ficha de identificación</h1>
+                        <p>Consulta y revisa la información de identificación del paciente.</p>
+                        <p class="doctor-ficha-patient-context">Paciente autorizado: <strong><?=$escape($patientName);?></strong></p>
+                    </div>
+                    <div class="doctor-page-hero-actions doctor-ficha-hero-actions">
+                        <a class="btn doctor-ficha-action doctor-ficha-action-secondary" href="<?=$patientUrl;?>">
+                            <i data-feather="arrow-left" aria-hidden="true"></i>
+                            <span>Volver al expediente</span>
+                        </a>
+                        <a class="btn doctor-ficha-action doctor-ficha-action-primary" href="<?=$editUrl;?>">
+                            <i data-feather="edit-2" aria-hidden="true"></i>
+                            <span>Editar paciente</span>
+                        </a>
+                    </div>
+                </header>
 
-    <div class="col-12 mb-3 text-end">
-    <a href="<?=SERVIDOR?>clinica/paciente/editar/<?=$data['idPaciente']?>">
-    <button class="btn btn-success"> Editar <i data-feather="edit-2"></i></button>
-    </a>
-    </div>
- 
-    <div class="col-12 col-sm-6 mb-3">
-    <h8 class="text-primary fw-bold texto">Nombre completo:</h8>
-    <p><?=$data['nombre'] ?? ''?></p>
-    </div>
+                <section class="doctor-ficha-sections" aria-label="Información de identificación">
+                    <article class="card doctor-ficha-card">
+                        <header class="card-header doctor-ficha-card-header">
+                            <div>
+                                <p class="dashboard-eyebrow">DATOS PERSONALES</p>
+                                <h2 class="card-title">Información de identificación</h2>
+                            </div>
+                        </header>
+                        <div class="card-body doctor-ficha-card-body">
+                            <dl class="doctor-ficha-grid">
+                                <div class="doctor-ficha-field doctor-ficha-field-span-6">
+                                    <dt>Nombre completo</dt>
+                                    <dd><?=$formatValue($data['nombre'] ?? null);?></dd>
+                                </div>
+                                <div class="doctor-ficha-field doctor-ficha-field-span-3">
+                                    <dt>Edad</dt>
+                                    <dd><?=$formatValue($data['edad'] ?? null);?></dd>
+                                </div>
+                                <div class="doctor-ficha-field doctor-ficha-field-span-3">
+                                    <dt>Sexo</dt>
+                                    <dd><?=$formatValue($sex);?></dd>
+                                </div>
+                                <div class="doctor-ficha-field doctor-ficha-field-span-4">
+                                    <dt>Estado civil</dt>
+                                    <dd><?=$formatValue($data['estado_civil'] ?? null);?></dd>
+                                </div>
+                                <div class="doctor-ficha-field doctor-ficha-field-span-4">
+                                    <dt>Fecha de nacimiento</dt>
+                                    <dd><?=$formatValue($data['fecha_nacimiento'] ?? null);?></dd>
+                                </div>
+                                <div class="doctor-ficha-field doctor-ficha-field-span-4">
+                                    <dt>CURP</dt>
+                                    <dd><?=$formatValue($data['curp'] ?? null);?></dd>
+                                </div>
+                                <div class="doctor-ficha-field doctor-ficha-field-span-4">
+                                    <dt>Lugar de origen</dt>
+                                    <dd><?=$formatValue($data['lugar_origen'] ?? null);?></dd>
+                                </div>
+                                <div class="doctor-ficha-field doctor-ficha-field-span-4">
+                                    <dt>Lugar de residencia</dt>
+                                    <dd><?=$formatValue($data['lugar_residencia'] ?? null);?></dd>
+                                </div>
+                                <div class="doctor-ficha-field doctor-ficha-field-span-4">
+                                    <dt>Ocupación</dt>
+                                    <dd><?=$formatValue($data['ocupacion'] ?? null);?></dd>
+                                </div>
+                                <div class="doctor-ficha-field doctor-ficha-field-span-4">
+                                    <dt>Número de hijos</dt>
+                                    <dd><?=$formatValue($data['num_hijos'] ?? null);?></dd>
+                                </div>
+                                <div class="doctor-ficha-field doctor-ficha-field-span-4">
+                                    <dt>Edad de sus hijos</dt>
+                                    <dd><?=$formatValue($data['edad_hijos'] ?? null);?></dd>
+                                </div>
+                            </dl>
+                        </div>
+                    </article>
 
-    <div class="col-12 col-sm-3 mb-3">
-    <h8 class="text-primary fw-bold texto">Edad:</h8>
-    <p><?=$data['edad'] ?? ''?></p>
-    </div>
+                    <article class="card doctor-ficha-card">
+                        <header class="card-header doctor-ficha-card-header">
+                            <div>
+                                <p class="dashboard-eyebrow">CONTEXTO DE ATENCIÓN</p>
+                                <h2 class="card-title">Referencia y motivo</h2>
+                            </div>
+                        </header>
+                        <div class="card-body doctor-ficha-card-body">
+                            <dl class="doctor-ficha-grid">
+                                <div class="doctor-ficha-field doctor-ficha-field-span-6">
+                                    <dt>Persona que lo recomendó</dt>
+                                    <dd><?=$formatValue($data['quien_recomienda'] ?? null);?></dd>
+                                </div>
+                                <div class="doctor-ficha-field doctor-ficha-field-span-6">
+                                    <dt>Redes sociales</dt>
+                                    <dd><?=$formatValue($data['redes_sociales'] ?? null);?></dd>
+                                </div>
+                                <div class="doctor-ficha-field doctor-ficha-field-span-12">
+                                    <dt>Motivo por el que solicita atención en la Clínica del Dolor y Cuidados Paliativos</dt>
+                                    <dd class="doctor-ficha-value-long"><?=$formatValue($data['motivo_atencion'] ?? null);?></dd>
+                                </div>
+                            </dl>
+                        </div>
+                    </article>
 
-    <div class="col-12 col-sm-3 mb-3">
-    <h8 class="text-primary fw-bold texto">Sexo:</h8>
-    <p><?php if(isset($data['sexo'])){ echo ($data['sexo'] == 'M')? 'Masculino': 'Femenino';}else{echo '';} ?></p>
-    </div>
+                    <article class="card doctor-ficha-card">
+                        <header class="card-header doctor-ficha-card-header">
+                            <div>
+                                <p class="dashboard-eyebrow">DOMICILIO</p>
+                                <h2 class="card-title">Dirección actual</h2>
+                            </div>
+                        </header>
+                        <div class="card-body doctor-ficha-card-body">
+                            <dl class="doctor-ficha-grid">
+                                <div class="doctor-ficha-field doctor-ficha-field-span-8">
+                                    <dt>Calle</dt>
+                                    <dd><?=$formatValue($data['calle'] ?? null);?></dd>
+                                </div>
+                                <div class="doctor-ficha-field doctor-ficha-field-span-2">
+                                    <dt>Número interior</dt>
+                                    <dd><?=$formatValue($data['num_interior'] ?? null);?></dd>
+                                </div>
+                                <div class="doctor-ficha-field doctor-ficha-field-span-2">
+                                    <dt>Número exterior</dt>
+                                    <dd><?=$formatValue($data['num_exterior'] ?? null);?></dd>
+                                </div>
+                                <div class="doctor-ficha-field doctor-ficha-field-span-5">
+                                    <dt>Colonia</dt>
+                                    <dd><?=$formatValue($data['colonia'] ?? null);?></dd>
+                                </div>
+                                <div class="doctor-ficha-field doctor-ficha-field-span-5">
+                                    <dt>Delegación</dt>
+                                    <dd><?=$formatValue($data['delegacion'] ?? null);?></dd>
+                                </div>
+                                <div class="doctor-ficha-field doctor-ficha-field-span-2">
+                                    <dt>Código postal</dt>
+                                    <dd><?=$formatValue($data['cp'] ?? null);?></dd>
+                                </div>
+                                <div class="doctor-ficha-field doctor-ficha-field-span-6">
+                                    <dt>Municipio</dt>
+                                    <dd><?=$formatValue($data['municipio'] ?? null);?></dd>
+                                </div>
+                                <div class="doctor-ficha-field doctor-ficha-field-span-6">
+                                    <dt>Distancia a la Clínica del Dolor</dt>
+                                    <dd><?=$formatValue($data['distancia'] ?? null);?> <span class="doctor-ficha-unit">(minutos / horas)</span></dd>
+                                </div>
+                            </dl>
+                        </div>
+                    </article>
 
-    <div class="col-12 col-sm-4 mb-3">
-    <h8 class="text-primary fw-bold texto">Estado civil:</h8>
-    <p><?php if(isset($data['estado_civil'])){ echo $data['estado_civil'];}else{echo '';} ?></p>
-    </div>
+                    <article class="card doctor-ficha-card">
+                        <header class="card-header doctor-ficha-card-header">
+                            <div>
+                                <p class="dashboard-eyebrow">CONTACTO</p>
+                                <h2 class="card-title">Contacto y responsable</h2>
+                            </div>
+                        </header>
+                        <div class="card-body doctor-ficha-card-body">
+                            <dl class="doctor-ficha-grid">
+                                <div class="doctor-ficha-field doctor-ficha-field-span-4">
+                                    <dt>Correo electrónico</dt>
+                                    <dd><?=$formatValue($data['email'] ?? null);?></dd>
+                                </div>
+                                <div class="doctor-ficha-field doctor-ficha-field-span-4">
+                                    <dt>Teléfono de casa</dt>
+                                    <dd><?=$formatValue($data['telefono'] ?? null);?></dd>
+                                </div>
+                                <div class="doctor-ficha-field doctor-ficha-field-span-4">
+                                    <dt>Celular</dt>
+                                    <dd><?=$formatValue($data['celular'] ?? null);?></dd>
+                                </div>
+                                <div class="doctor-ficha-field doctor-ficha-field-span-3">
+                                    <dt>¿Tiene cuidador(a)?</dt>
+                                    <dd><?=$formatValue($caregiver);?></dd>
+                                </div>
+                                <div class="doctor-ficha-field doctor-ficha-field-span-5">
+                                    <dt>Nombre del cuidador</dt>
+                                    <dd><?=$formatValue($data['cuidador'] ?? null);?></dd>
+                                </div>
+                                <div class="doctor-ficha-field doctor-ficha-field-span-4">
+                                    <dt>Teléfono del cuidador</dt>
+                                    <dd><?=$formatValue($data['cuidador_telefono'] ?? null);?></dd>
+                                </div>
+                                <div class="doctor-ficha-field doctor-ficha-field-span-6">
+                                    <dt>Nombre del familiar responsable</dt>
+                                    <dd><?=$formatValue($data['res_nombre'] ?? null);?></dd>
+                                </div>
+                                <div class="doctor-ficha-field doctor-ficha-field-span-6">
+                                    <dt>Teléfono del familiar responsable</dt>
+                                    <dd><?=$formatValue($data['res_telefono'] ?? null);?></dd>
+                                </div>
+                            </dl>
+                        </div>
+                    </article>
+                </section>
+            </main>
+        </div>
 
-    <div class="col-12 col-sm-4 mb-3">
-    <h8 class="text-primary fw-bold texto">Fecha de nacimiento:</h8>
-    <p><?=$data['fecha_nacimiento'] ?? ''?></p>
-    </div>
-
-    <div class="col-12 col-sm-4 mb-3">
-    <h8 class="text-primary fw-bold texto">CURP:</h8>
-    <p><?=$data['curp'] ?? ''?></p>
-    </div>
-
-    <div class="col-12 col-sm-4 mb-3">
-    <h8 class="text-primary fw-bold texto">Lugar de Origen:</h8>
-    <p><?=$data['lugar_origen'] ?? ''?></p>
-    </div>
-    
-    <div class="col-12 col-sm-4 mb-3">
-    <h8 class="text-primary fw-bold texto">Lugar de Residencia:</h8>
-    <p><?=$data['lugar_residencia'] ?? ''?></p>
-    </div>
-    
-    <div class="col-12 col-sm-4 mb-3">
-    <h8 class="text-primary fw-bold texto">Ocupación:</h8>
-    <p><?=$data['ocupacion'] ?? ''?></p>
-    </div>
-
-    <div class="col-12 col-sm-4 mb-3">
-    <h8 class="text-primary fw-bold texto">Número de hijos:</h8>
-    <p><?=$data['num_hijos'] ?? ''?></p>
-    </div>
-
-    <div class="col-12 col-sm-4 mb-3">
-    <h8 class="text-primary fw-bold texto">Edad de sus hijos:</h8>
-    <p><?=$data['edad_hijos'] ?? ''?></p>
-    </div>
-
-    <div class="col-12 mb-3">
-    <hr>
-    <p class="text-success fw-bold texto">¿Quien lo recomienda? O porque medio se entero de la Clinica del Dolor y Cuidados Paliativos?:</p>
-    </div>
-
-    <div class="col-12 col-sm-4 mb-3">
-    <h8 class="text-primary fw-bold texto">Persona que lo recomendo:</h8>
-    <p><?=$data['quien_recomienda'] ?? ''?></p>
-    </div>
-
-    <div class="col-12 col-sm-4 mb-3">
-    <h8 class="text-primary fw-bold texto">Redes sociales:</h8>
-    <p><?php if(isset($data['redes_sociales'])){ echo $data['redes_sociales'];}else{echo '';} ?></p>
-    </div>
-
-    <div class="col-12 mb-3">
-    <hr>
-    <h8 class="text-primary fw-bold texto">Motivo por el que solicita atención en la Clinica de Dolor y Cuidados Paliativos:</h8>
-    <p><?=$data['motivo_atencion'] ?? ''?></p>
-    </div>
-
-    <div class="col-12 mb-3">
-    <hr>
-    <p class="text-success fw-bold texto">Dirección actual</p>
-    </div>
-
-    <div class="col-12 col-sm-8 mb-3">
-    <h8 class="text-primary fw-bold texto">Calle:</h8>
-    <p><?=$data['calle'] ?? ''?></p>
-    </div>
-
-    <div class="col-12 col-sm-2 mb-3">
-    <h8 class="text-primary fw-bold texto">Numero Interior:</h8>
-    <p><?=$data['num_interior'] ?? ''?></p>
-    </div>
-
-    <div class="col-12 col-sm-2 mb-3">
-    <h8 class="text-primary fw-bold texto">Numero Exterior:</h8>
-    <p><?=$data['num_exterior'] ?? ''?></p>
-    </div>
-
-    <div class="col-12 col-sm-5 mb-3">
-    <h8 class="text-primary fw-bold texto">Colonia:</h8>
-    <p><?=$data['colonia'] ?? ''?></p>
-    </div>
-
-    <div class="col-12 col-sm-5 mb-3">
-    <h8 class="text-primary fw-bold texto">Delegación:</h8>
-    <p><?=$data['delegacion'] ?? ''?></p>
-    </div>
-
-    <div class="col-12 col-sm-2 mb-3">
-    <h8 class="text-primary fw-bold texto">Código postal:</h8>
-    <p><?=$data['cp'] ?? ''?></p>
-    </div>
-
-    <div class="col-12 col-sm-6 mb-3">
-    <h8 class="text-primary fw-bold texto">Municipio:</h8>
-    <p><?=$data['municipio'] ?? ''?></p>
-    </div>
-
-    <div class="col-12 col-sm-6 mb-3">
-    <h8 class="text-primary fw-bold texto">Distancia de casa a Clínica del Dolor Hospital Ángeles Lomas:</h8>
-    <p><?=$data['distancia'] ?? ''?> (Minutos / Horas)</p>
-    </div>
-
-    <div class="col-12 mb-3">
-    <hr>
-    <p class="text-success fw-bold texto">Contacto</p>
-    </div>
-
-    <div class="col-12 col-sm-4 mb-3">
-    <h8 class="text-primary fw-bold texto">Correo electrónico:</h8>
-    <p><?=$data['email'] ?? ''?></p>
-    </div>
-
-    <div class="col-12 col-sm-4 mb-3">
-    <h8 class="text-primary fw-bold texto">Teléfono de casa:</h8>
-    <p><?=$data['telefono'] ?? ''?></p>
-    </div>
-
-    <div class="col-12 col-sm-4 mb-3">
-    <h8 class="text-primary fw-bold texto">Celular:</h8>
-    <p><?=$data['celular'] ?? ''?></p>
-    </div>
-
-    <div class="col-12 col-sm-3 mb-3">
-    <h8 class="text-primary fw-bold texto">¿Tiene cuidador(a)?:</h8>
-    <p><?php if(isset($data['cuidador'])){ echo ($data['cuidador'])? 'Si': 'No';}else{echo '';} ?></p>
-    </div>
-
-    <div class="col-12 col-sm-5 mb-3">
-    <h8 class="text-primary fw-bold texto">Nombre:</h8>
-    <p><?=$data['cuidador'] ?? ''?></p>
-    </div>
-
-    <div class="col-12 col-sm-4 mb-3">
-    <h8 class="text-primary fw-bold texto">Teléfono:</h8>
-    <p><?=$data['cuidador_telefono'] ?? ''?></p>
-    </div>
-
-    <div class="col-12 col-sm-4 mb-3">
-    <h8 class="text-primary fw-bold texto">Nombre del familiar responsable:</h8>
-    <p><?=$data['res_nombre'] ?? ''?></p>
-    </div>
-
-    <div class="col-12 col-sm-4 mb-3">
-    <h8 class="text-primary fw-bold texto">Teléfono:</h8>
-    <p><?=$data['res_telefono'] ?? ''?></p>
-    </div>
-    </div>
-
-    </div>
-    </div>
-    </section>
- 
-    </div>
-    <!----- FOOTER ---------->
-    <?php include_once __DIR__ . '/../components/footer-mvsd.php';?>
-    </div>
+        <?php include_once __DIR__ . '/../components/footer-doctor.php';?>
     </div>
 
     <script src="<?=RUTA_JS;?>voice-utilities.js"></script>
     <script src="<?=RUTA_JS;?>/feather-icons/feather.min.js"></script>
     <script src="<?=RUTA_PUBLIC;?>libs/perfect-scrollbar/perfect-scrollbar.min.js"></script>
-    <script src="<?=RUTA_JS;?>app.js"></script>    
+    <script src="<?=RUTA_JS;?>app.js"></script>
     <script src="<?=RUTA_PUBLIC;?>libs/simple-datatables/simple-datatables.js"></script>
     <script src="<?=RUTA_JS;?>main.js"></script>
-    
-    </body>
-    </html>
+    <script src="<?=RUTA_JS;?>search-main.js"></script>
+</body>
+</html>

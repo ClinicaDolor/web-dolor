@@ -348,7 +348,7 @@ echo $model->procedimientosModulo8($data['idPaciente'], $preg);
     </script>
     </head>
 
-    <body>
+<body class="app-shell-body app-shell-patient patient-clinical-form">
     <div class="LoaderPage"></div>
     <div id="app">
         
@@ -396,7 +396,7 @@ echo $model->procedimientosModulo8($data['idPaciente'], $preg);
 
     </div>
     <!----- FOOTER ---------->
-    <?php include_once __DIR__ . '/../components/footer-mvsd.php';?>
+<?php include_once __DIR__ . '/../components/footer-doctor.php';?>
     </div>
     </div>
 

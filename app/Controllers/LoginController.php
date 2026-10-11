@@ -30,22 +30,38 @@ class LoginController extends BaseController{
         }
 
         $data = json_decode(file_get_contents('php://input'), true);
+        $data = is_array($data) ? $data : [];
+        $usuario = isset($data['usuario']) && is_scalar($data['usuario']) ? trim((string)$data['usuario']) : '';
+        $password = isset($data['password']) && is_scalar($data['password']) ? (string)$data['password'] : '';
 
-        if (!isset($data['usuario']) || !isset($data['password'])) {
-            echo HttpMethod::jsonResponse(400,false,"Falta agregar usuario o contraseña.");
+        if ($usuario === '' && trim($password) === '') {
+            echo HttpMethod::jsonResponse(400, false, 'Ingresa tu usuario y contraseña.');
             return;
         }
 
-        $usuario = $data['usuario'];
-        $password = $data['password'];
+        if ($usuario === '') {
+            echo HttpMethod::jsonResponse(400, false, 'Ingresa tu usuario.');
+            return;
+        }
 
-        $model = new LoginModel();
-        $result = $model->validaDoctor($usuario, $password);
+        if (trim($password) === '') {
+            echo HttpMethod::jsonResponse(400, false, 'Ingresa tu contraseña.');
+            return;
+        }
+
+        try {
+            $model = new LoginModel();
+            $result = $model->validaDoctor($usuario, $password);
+        } catch (\Throwable $exception) {
+            error_log('Fallo controlado de autenticación médica.');
+            echo HttpMethod::jsonResponse(401, false, 'Usuario o contraseña incorrectos.', '');
+            return;
+        }
 
         if ($result['resultado'] == 200) {
-            echo HttpMethod::jsonResponse(200,true,"Acceso Autorizado", $result['token']);
+            echo HttpMethod::jsonResponse(200, true, 'Acceso Autorizado', $result['token']);
         } else {
-            echo HttpMethod::jsonResponse(401, false, 'Usuario o Contraseña incorrectos.','');
+            echo HttpMethod::jsonResponse(401, false, 'Usuario o contraseña incorrectos.', '');
         }
 
     }
@@ -72,21 +88,27 @@ class LoginController extends BaseController{
         }
 
         $data = json_decode(file_get_contents('php://input'), true);
+        $data = is_array($data) ? $data : [];
+        $pin = isset($data['pin']) && is_scalar($data['pin']) ? trim((string)$data['pin']) : '';
 
-        if (!isset($data['pin'])) {
-            echo HttpMethod::jsonResponse(400,false,"Falta agregar el PIN.");
+        if ($pin === '') {
+            echo HttpMethod::jsonResponse(400, false, 'Ingresa tu PIN de acceso.');
             return;
         }
 
-        $pin = $data['pin'];
-
-        $model = new LoginModel();
-        $result = $model->validaPaciente($pin);
+        try {
+            $model = new LoginModel();
+            $result = $model->validaPaciente($pin);
+        } catch (\Throwable $exception) {
+            error_log('Fallo controlado de autenticación de paciente.');
+            echo HttpMethod::jsonResponse(401, false, 'PIN incorrecto o no vigente.', '');
+            return;
+        }
 
         if ($result['resultado'] == 200) {
-            echo HttpMethod::jsonResponse(200,true,"Acceso Autorizado", $result['token']);
+            echo HttpMethod::jsonResponse(200, true, 'Acceso Autorizado', $result['token']);
         } else {
-            echo HttpMethod::jsonResponse(401, false, 'PIN incorrectos.','');
+            echo HttpMethod::jsonResponse(401, false, 'PIN incorrecto o no vigente.', '');
         }
 
     }

@@ -2,6 +2,7 @@
 namespace App\Core;
 
 use FastRoute\Dispatcher;
+use App\Middleware\AuthMiddleware;
 use function FastRoute\simpleDispatcher;
 
 class Router {
@@ -34,8 +35,24 @@ class Router {
                 [$controller, $method] = $routeInfo[1];
                 $vars = $routeInfo[2];
 
+                $this->enforceSensitiveRoute($uri);
                 $this->callController($controller, $method, $vars);
                 break;
+        }
+    }
+
+    private function enforceSensitiveRoute($uri) {
+        if ($uri === '/buscar/web') {
+            return;
+        }
+
+        if ($uri === '/buscar' || str_starts_with($uri, '/buscar/')) {
+            (new AuthMiddleware(''))->authAny();
+            return;
+        }
+
+        if (str_starts_with($uri, '/descargar/') || str_starts_with($uri, '/pdf/')) {
+            (new AuthMiddleware('clinica'))->authPermisos();
         }
     }
 

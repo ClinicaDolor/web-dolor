@@ -1,8 +1,5 @@
 <?php 
-use App\Config\Database;
-use App\Models\RecetaExternoModel;
-use App\Models\PacienteModel;
-$bd = Database::getInstance();
+$titulo = htmlspecialchars((string)($data['title'] ?? 'Recetas'), ENT_QUOTES, 'UTF-8');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -12,25 +9,16 @@ $bd = Database::getInstance();
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="shortcut icon" href="<?=RUTA_IMAGES ?>/logo-clinica.png">
 <link rel="apple-touch-icon" href="<?=RUTA_IMAGES ?>/logo-clinica.png">
-<title><?=$data['title'];?></title>
+<title><?=$titulo;?></title>
 <link rel="stylesheet" href="<?=RUTA_CSS;?>bootstrap.css">
 <link rel="stylesheet" href="<?=RUTA_PUBLIC;?>libs/perfect-scrollbar/perfect-scrollbar.css">
 <link rel="stylesheet" href="<?=RUTA_PUBLIC;?>libs/simple-datatables/style.css">
 <link rel="stylesheet" href="<?=RUTA_CSS;?>app.css">
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="<?=RUTA_JS;?>loader.js"></script>
-<style>
-.row {
-display: flex;
-flex-wrap: wrap;
-}
-.resizable {
-transition: all 0.3s ease-in-out;
-}
-</style>
 
 </head>
-<body>
+<body class="app-shell-body app-shell-doctor doctor-clinical-view doctor-recipes-page">
 <div class="LoaderPage"></div>
 <div id="app">
 
@@ -43,56 +31,39 @@ transition: all 0.3s ease-in-out;
 
 <div class="main-content container-fluid">
 
-<div class="d-flex align-items-center justify-content-between mb-3">
-<!-- 1. Título al inicio (Izquierda) -->
-<div class="page-title">
-<h3 class="m-0"><?=$data['title'];?></h3>
+<header class="doctor-page-hero doctor-recipes-hero">
+<div class="doctor-page-hero-copy">
+<p class="dashboard-eyebrow">DIRECTORIO DE RECETAS</p>
+<h1>Recetas</h1>
+<p>Consulta y organiza las recetas médicas internas y externas disponibles para la clínica.</p>
 </div>
-
-<!-- 2. Botones al final (Derecha) -->
-<div class="d-flex align-items-center gap-2">
-<!-- Primero: Nueva Receta -->
-<a href="/clinica/recetas/nueva" class="btn btn-sm btn-primary">
-<i data-feather="plus"></i> Nueva Receta
+<div class="doctor-page-hero-actions">
+<a href="/clinica/recetas/nueva" class="btn doctor-page-hero-action">
+<i data-feather="plus" aria-hidden="true"></i>
+<span>Nueva receta</span>
 </a>
-
-<!-- Segundo: Toggle -->
-<button id="toggleButton" class="btn icon btn-light text-dark" onclick="toggleSize()">
-<i id="toggleIcon" data-feather="columns"></i>
+<button id="toggleButton" type="button" class="btn doctor-recipes-toggle" onclick="toggleSize()" aria-label="Cambiar distribución de la pantalla" title="Cambiar distribución de la pantalla">
+<i id="toggleIcon" data-feather="columns" aria-hidden="true"></i>
+<span>Cambiar distribución</span>
 </button>
 </div>
-</div>
+</header>
 
 <section>
-<div class="row mt-3">
+<div class="row mt-3 doctor-recipes-workspace">
  
 <!---------- PACIENTES REGISTRADOS ---------->
 <div class="col-12 col-sm-6 resizable" data-index="0">
 
-<div class="card">
+<div class="card doctor-recipes-card doctor-recipes-registered-card">
 <div class="card-header">
 <h4 class="card-title">Pacientes</h4>
 </div>
 <div class="card-body">
 
-<div id="contePacientesRegistrados">
+<div id="contePacientesRegistrados" class="doctor-recipes-table-content">
 <?php
-$recetas = [];
-try {
-$stmt = $bd->query("SELECT * FROM receta_medica ORDER BY fecha_hora DESC");
-$rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-foreach ($rows as $row) {
-$pm = new PacienteModel($row['id_paciente']);
-$recetas[] = [
-'id' => $row['id'],
-'fecha_hora' => $row['fecha_hora'],
-'paciente' => $pm->getNombreCompleto(),
-'id_paciente' => $row['id_paciente']
-];
-}
-} catch (\Exception $e) {
-$recetas = [];
-}
+$recetas = is_array($data['recetas'] ?? null) ? $data['recetas'] : [];
 ?>
 
 <table class="table table-striped table-hover table-sm pb-0 mb-0" id="tableRecetasRegistrados">
@@ -107,9 +78,9 @@ $recetas = [];
 <?php foreach ($recetas as $r):
 $fecha = (new \DateTime($r['fecha_hora']))->format('d/m/Y h:i a');
 ?>
-<tr onclick="window.location.href='/clinica/receta/<?=$r['id']?>'" style="cursor:pointer">
+<tr onclick="window.location.href='/clinica/receta/<?= (int)$r['id'];?>'" onkeydown="if(event.key === 'Enter' || event.key === ' '){event.preventDefault(); this.click();}" style="cursor:pointer" tabindex="0" role="link" aria-label="Abrir receta de <?=htmlspecialchars((string)$r['paciente'], ENT_QUOTES, 'UTF-8');?>">
 <td class="text-center"><?=$r['id']?></td>
-<td><?=$r['paciente']?></td>
+<td><?=htmlspecialchars((string)$r['paciente'], ENT_QUOTES, 'UTF-8');?></td>
 <td><?=$fecha?></td>
 </tr>
 <?php endforeach; ?>
@@ -125,17 +96,17 @@ $fecha = (new \DateTime($r['fecha_hora']))->format('d/m/Y h:i a');
 <!---------- PACIENTES EXTERNOS ---------->
 <div class="col-12 col-sm-6 resizable" data-index="1">
 
-<div class="card">
+<div class="card doctor-recipes-card doctor-recipes-external-card">
 <div class="card-header">
 <h4 class="card-title">Pacientes Externos</h4>
 </div>
 <div class="card-body">
 
-<div id="conteRecetasExternos">
-<?php
-$model = new RecetaExternoModel();
-echo $model->mostrarTablaRecetas();
-?>
+<div id="conteRecetasExternos" class="doctor-recipes-table-content">
+<div class="alert alert-warning mb-0" role="status">
+<strong>Recetas externas no disponibles temporalmente.</strong>
+<p class="mb-0 mt-1">El catálogo permanecerá deshabilitado hasta contar con una relación de propiedad clínica verificable.</p>
+</div>
 </div>
 
 </div>
@@ -148,13 +119,7 @@ echo $model->mostrarTablaRecetas();
 
 </div>
 
-<footer>
-<div class="footer clearfix mb-0 text-muted">
-<div class="float-start">
-<p>2025 &copy; tratamientosdeldolor.org</p>
-</div>
-</div>
-</footer>
+<?php include_once __DIR__ . '/../components/footer-doctor.php';?>
 
 </div>
 </div>
@@ -166,19 +131,6 @@ echo $model->mostrarTablaRecetas();
 <script src="<?=RUTA_JS?>search-main.js"></script>
 
 <script>
-
-let tableExternos = document.querySelector('#tableRecetasExternos');
-if (tableExternos) {
-new simpleDatatables.DataTable(tableExternos, {
-searchable: true,
-fixedHeight: true,
-perPageSelect: [10, 25, 50, 100],
-columns: [
-{ select: 2, sort: "desc" }
-]
-});
-}
-
 let tableRegistrados = document.querySelector('#tableRecetasRegistrados');
 if (tableRegistrados) {
 new simpleDatatables.DataTable(tableRegistrados, {

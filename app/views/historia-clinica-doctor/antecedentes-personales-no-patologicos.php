@@ -9,6 +9,14 @@ foreach ($preguntas_fijas as $preg) {
 echo $model->antecedentesNoPatologicos($data['idPaciente'], $preg);
 }
 
+$escape = static function ($value): string {
+    return htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
+};
+$data['datos'] = is_array($data['datos'] ?? null) ? $data['datos'] : [];
+$patientId = (int) ($data['idPaciente'] ?? 0);
+$patientName = $data['nombre'] ?? '';
+$title = $data['title'] ?? 'Antecedentes Personales No Patológicos';
+$patientUrl = htmlspecialchars(SERVIDOR . 'clinica/paciente/' . $patientId, ENT_QUOTES, 'UTF-8');
 ?> 
 
     <!DOCTYPE html>
@@ -18,7 +26,7 @@ echo $model->antecedentesNoPatologicos($data['idPaciente'], $preg);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="shortcut icon" href="<?=RUTA_IMAGES ?>/logo-clinica.png">
     <link rel="apple-touch-icon" href="<?=RUTA_IMAGES ?>/logo-clinica.png">
-    <title><?=$data['title'];?></title>
+    <title><?=$escape($title);?></title>
     <link rel="stylesheet" href="<?=RUTA_CSS;?>bootstrap.css">
     <link rel="stylesheet" href="<?=RUTA_PUBLIC;?>libs/perfect-scrollbar/perfect-scrollbar.css">
     <link rel="stylesheet" href="<?=RUTA_CSS;?>app.css">
@@ -108,97 +116,73 @@ echo $model->antecedentesNoPatologicos($data['idPaciente'], $preg);
     </script>
     </head>
 
-    <body>
+    <body class="app-shell-body app-shell-doctor doctor-clinical-view doctor-patient-module-page doctor-antecedentes-no-patologicos-page">
     <div class="LoaderPage"></div>
     <div id="app">
-        
-    <!---------- SIDEBAR ---------->
     <?=$data['sidebar'];?>
-    
-    <div id="main" data-rol="<?=$data['idRol'];?>" data-paciente="<?=$data['idPaciente'];?>">
-    <nav class="navbar navbar-header navbar-expand navbar-light">
-    <a class="sidebar-toggler"><span class="navbar-toggler-icon"></span></a>
-    <button class="btn navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-    <span class="navbar-toggler-icon"></span>
-    </button>
-                
-    <div class="collapse navbar-collapse" id="navbarSupportedContent">
-    <ul class="navbar-nav d-flex align-items-center navbar-light ms-auto">
-    </ul>
-    </div>
-    </nav>
+    <div id="main" data-rol="<?=$escape($data['idRol'] ?? '');?>" data-paciente="<?=$patientId;?>">
+    <?php include_once __DIR__ . '/../components/search-bar-doctor.php';?>
 
-    <!---------- CONTENIDO DE LA PAGINA ---------->
-    <div class="main-content container-fluid">
+    <main class="main-content container-fluid doctor-nonpathological-content">
+    <header class="doctor-page-hero doctor-nonpathological-hero" aria-labelledby="doctor-nonpathological-title">
+    <div class="doctor-nonpathological-hero-copy">
+    <p class="dashboard-eyebrow">HISTORIA CLÍNICA</p>
+    <h1 id="doctor-nonpathological-title">Antecedentes Personales No Patológicos</h1>
+    <p>Consulta y revisa las conductas y hábitos registrados del paciente.</p>
+    <p class="doctor-nonpathological-patient-context">Paciente autorizado: <strong><?=$escape($patientName);?></strong></p>
+    </div>
+    <div class="doctor-nonpathological-hero-actions">
+    <a class="doctor-nonpathological-action" href="<?=$patientUrl;?>">
+    <i data-feather="arrow-left" aria-hidden="true"></i>
+    <span>Volver al expediente</span>
+    </a>
+    </div>
+    </header>
 
-    <div class="page-title mb-4">     
-    <h8><?=$data['nombre'];?></h8>
-    <h3>Antecedentes Personales No Patológicos</h3>
+    <section class="doctor-nonpathological-sections" aria-label="Antecedentes Personales No Patológicos">
+    <article class="card doctor-nonpathological-card doctor-nonpathological-questions-card">
+    <header class="card-header doctor-nonpathological-card-header">
+    <p class="dashboard-eyebrow">CUESTIONARIO CLÍNICO</p>
+    <h2>Conductas y hábitos</h2>
+    <p>A continuación, responda las preguntas indicando si presenta alguna de estas conductas o hábitos.</p>
+    </header>
+    <div class="card-body doctor-nonpathological-card-body">
+    <div class="doctor-nonpathological-question-list">
+    <div class="doctor-nonpathological-question-slot" id="contePreguntas_1"></div>
+    <div class="doctor-nonpathological-question-slot" id="contePreguntas_2"></div>
+    <div class="doctor-nonpathological-question-slot" id="contePreguntas_3"></div>
+    <div class="doctor-nonpathological-question-slot" id="contePreguntas_4"></div>
+    <div class="doctor-nonpathological-question-slot" id="contePreguntas_5"></div>
+    <div class="doctor-nonpathological-question-slot" id="contePreguntas_6"></div>
+    <div class="doctor-nonpathological-question-slot" id="contePreguntas_7"></div>
     </div>
-     
-    <section class="section">
+    </div>
+    </article>
 
-    <div class="row">
-
-    <div class="col-12">
-    <div class="card">
-    <div class="card-header pb-0">
-    <h8><b>A continuacion, responda las siguientes preguntas indicando si presenta alguna de estas conductas o hábitos:</b></h8>
+    <article class="card doctor-nonpathological-card doctor-nonpathological-comments-card" aria-labelledby="doctor-nonpathological-comments-title">
+    <header class="card-header doctor-nonpathological-card-header">
+    <div id="seccion2" data-autoplay="false" class="doctor-nonpathological-comment-heading sectionQuestion">
+    <p class="dashboard-eyebrow">SEGUIMIENTO CLÍNICO</p>
+    <h2 id="doctor-nonpathological-comments-title">Comentarios adicionales</h2>
+    <p>Si tiene alguna otra información o comentario que desee compartir, por favor, indíquelo.</p>
     </div>
-
-    <div class="card-body pb-0">
-    <div class="row mt-3">
-    <div  class="col-12" id="contePreguntas_1"></div>
-    <div  class="col-12" id="contePreguntas_2"></div>
-    <div  class="col-12" id="contePreguntas_3"></div>
-    <div  class="col-12" id="contePreguntas_4"></div>
-    <div  class="col-12" id="contePreguntas_5"></div>
-    <div  class="col-12" id="contePreguntas_6"></div>
-    <div  class="col-12" id="contePreguntas_7"></div>
-    </div>
-    </div>
-    </div>
-    </div>
-
-    <!---------- CONTENIDO DE C0MENTARIOS COMENTARIOS ---------->
-    <div class="col-12">
-    <div class="card">
-    <div class="card-header pb-0">
-    <div class="row">
-
-    <div id="seccion2" data-autoplay="false" class="col-12 col-md-11 d-flex align-items-center sectionQuestion mb-3">      
-    <h8 class="text-primary fw-bold texto">
-    <b>Si tiene alguna otra información o comentarios que desee compartir, por favor, indíquelo:</b>
-    </h8>
-    </div>
-
-    </div>
-    </div>
-
-    
-    <div class="card-body">
+    </header>
+    <div class="card-body doctor-nonpathological-card-body">
     <div id="conteComentario"></div>
     </div>
-    
-    </div>
-    </div>
-
-    </div>
+    </article>
     </section>
+    </main>
 
-    </div>
-
-    <!----- FOOTER ---------->
-    <?php include_once __DIR__ . '/../components/footer-mvsd.php';?>
-    
+    <?php include_once __DIR__ . '/../components/footer-doctor.php';?>
     </div>
     </div>
 
-    
     <script src="<?=RUTA_JS;?>/feather-icons/feather.min.js"></script>
     <script src="<?=RUTA_PUBLIC;?>libs/perfect-scrollbar/perfect-scrollbar.min.js"></script>
-    <script src="<?=RUTA_JS;?>app.js"></script>    
+    <script src="<?=RUTA_JS;?>app.js"></script>
     <script src="<?=RUTA_JS;?>main.js"></script>
+    <script src="<?=RUTA_JS;?>search-main.js"></script>
 
     </body>
     </html>

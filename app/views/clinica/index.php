@@ -2,7 +2,7 @@
 use App\Controllers\ClinicaController;
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es-MX">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -39,7 +39,7 @@ tableStates.forEach(key => localStorage.removeItem(key));
 </script>
 </head>
 
-<body>
+<body class="app-shell-body app-shell-doctor dashboard-doctor">
 <div class="LoaderPage"></div>
 <div id="app">
 <?=$data['sidebar'];?>
@@ -48,64 +48,128 @@ tableStates.forEach(key => localStorage.removeItem(key));
 <!----- BUSCADOR DE LA BARRA DE NAVEGACION ---------->
 <?php include_once __DIR__ . '/../components/search-bar-doctor.php';?>
 
-<div class="main-content container-fluid">
+<div class="main-content container-fluid doctor-dashboard-content">
 
-<div class="page-title">
-<h3>Tratamientos del dolor y cuidados paliativos</h3>
+<header class="doctor-dashboard-hero">
+<div>
+<p class="dashboard-eyebrow">PORTAL MÉDICO</p>
+<h3>Panel clínico</h3>
+<p class="doctor-dashboard-hero-copy">Consulta pacientes y continúa la atención clínica desde un espacio claro y enfocado.</p>
+</div>
+<span class="portal-badge"><i data-feather="shield" aria-hidden="true"></i> Entorno clínico</span>
+</header>
+
+<section class="doctor-dashboard-summary" aria-labelledby="doctor-summary-title">
+<?php
+$dashboardSummary = $data['dashboard_summary'] ?? [];
+$averageHistory = $dashboardSummary['promedio_historia_clinica'] ?? null;
+$averageHistoryText = $averageHistory === null
+    ? '—'
+    : rtrim(rtrim(number_format((float)$averageHistory, 1, '.', ''), '0'), '.');
+$averageHistoryValue = $averageHistory === null
+    ? null
+    : max(0, min(100, (float)$averageHistory));
+$metricValue = static function ($value): string {
+    return htmlspecialchars((string)((int)$value), ENT_QUOTES, 'UTF-8');
+};
+?>
+<div class="doctor-dashboard-summary-panel">
+<div class="doctor-dashboard-summary-panel-header">
+<div>
+<p class="dashboard-eyebrow">RESUMEN</p>
+<h4 id="doctor-summary-title">Resumen de la clínica</h4>
+<p class="doctor-dashboard-summary-description">Indicadores generales · clínica actual</p>
+</div>
 </div>
 
-<section class="section mt-4">
-<div class="row">
+<div class="doctor-dashboard-summary-grid">
+<article class="doctor-summary-metric">
+<span class="doctor-summary-metric-icon" aria-hidden="true"><i data-feather="users"></i></span>
+<span class="doctor-summary-metric-label">Pacientes</span>
+<strong><?= $metricValue($dashboardSummary['total_pacientes'] ?? 0); ?></strong>
+<span class="doctor-summary-metric-helper">Registrados</span>
+</article>
 
-<div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 mb-4">
-<a href="<?=SERVIDOR?>clinica/pacientes">
-<div class="card border-0 rounded-4 position-relative card-mvsd">               
-<div class="card-body text-center">                   
-<h5 class="text-primary mb-3 mt-2">Lista de Pacientes</h5>
-<div class="col-12 mb-3">
-<img src="<?=RUTA_IMAGES ?>/iconos/paciente.png" class="img-fluid" style="max-height: 90px;">
+<article class="doctor-summary-metric doctor-summary-metric-progress">
+<span class="doctor-summary-metric-icon" aria-hidden="true"><i data-feather="activity"></i></span>
+<span class="doctor-summary-metric-label">Avance promedio HC</span>
+<strong><?=htmlspecialchars($averageHistoryText, ENT_QUOTES, 'UTF-8');?><?php if ($averageHistoryValue !== null): ?>%<?php endif; ?></strong>
+<?php if ($averageHistoryValue !== null): ?>
+<div class="doctor-summary-meter" role="progressbar" aria-label="Avance promedio de Historia Clínica" aria-valuenow="<?=htmlspecialchars((string)$averageHistoryValue, ENT_QUOTES, 'UTF-8');?>" aria-valuemin="0" aria-valuemax="100">
+<span style="width: <?=htmlspecialchars((string)$averageHistoryValue, ENT_QUOTES, 'UTF-8');?>%;"></span>
 </div>
-<div class="col-12">
-<h6 class="text-secondary">No. total de pacientes:</h6>
-<h2 class="text-success"><?=$data['total_pacientes'];?></h2>
+<?php else: ?>
+<span class="doctor-summary-metric-helper">Sin pacientes para calcular</span>
+<?php endif; ?>
+</article>
+
+<article class="doctor-summary-metric">
+<span class="doctor-summary-metric-icon" aria-hidden="true"><i data-feather="clipboard"></i></span>
+<span class="doctor-summary-metric-label">Notas subsecuentes</span>
+<strong><?= $metricValue($dashboardSummary['total_notas'] ?? 0); ?></strong>
+<span class="doctor-summary-metric-helper">Registros</span>
+</article>
+
+<article class="doctor-summary-metric">
+<span class="doctor-summary-metric-icon" aria-hidden="true"><i data-feather="file-text"></i></span>
+<span class="doctor-summary-metric-label">Laboratorios</span>
+<strong><?= $metricValue($dashboardSummary['total_laboratorios'] ?? 0); ?></strong>
+<span class="doctor-summary-metric-helper">Registros</span>
+</article>
+
+<article class="doctor-summary-metric">
+<span class="doctor-summary-metric-icon" aria-hidden="true"><i data-feather="edit-3"></i></span>
+<span class="doctor-summary-metric-label">Recetas</span>
+<strong><?= $metricValue($dashboardSummary['total_recetas'] ?? 0); ?></strong>
+<span class="doctor-summary-metric-helper">Internas autorizadas</span>
+</article>
+
+<article class="doctor-summary-metric">
+<span class="doctor-summary-metric-icon" aria-hidden="true"><i data-feather="archive"></i></span>
+<span class="doctor-summary-metric-label">Registros COFEPRIS</span>
+<strong><?= $metricValue($dashboardSummary['total_cofepris'] ?? 0); ?></strong>
+<span class="doctor-summary-metric-helper">Ligados a pacientes</span>
+</article>
 </div>
 </div>
+</section>
+
+<section class="doctor-dashboard-actions" aria-labelledby="doctor-actions-title">
+<div class="doctor-section-heading">
+<div>
+<p class="dashboard-eyebrow">ACCESOS RÁPIDOS</p>
+<h4 id="doctor-actions-title">Continúa tu trabajo</h4>
 </div>
+<span class="doctor-section-caption">Rutas disponibles</span>
+</div>
+
+<div class="doctor-action-grid">
+<a class="doctor-action-card" href="<?=SERVIDOR?>clinica/pacientes">
+<span class="doctor-action-icon" aria-hidden="true"><i data-feather="users"></i></span>
+<span class="doctor-action-copy"><strong>Directorio de pacientes</strong><small>Consulta y gestiona los expedientes registrados.</small></span>
+<i class="doctor-action-arrow" data-feather="arrow-right" aria-hidden="true"></i>
+</a>
+<a class="doctor-action-card" href="<?=SERVIDOR?>clinica/paciente/nuevo">
+<span class="doctor-action-icon" aria-hidden="true"><i data-feather="user-plus"></i></span>
+<span class="doctor-action-copy"><strong>Nuevo paciente</strong><small>Inicia el registro de una persona en la clínica.</small></span>
+<i class="doctor-action-arrow" data-feather="arrow-right" aria-hidden="true"></i>
+</a>
+<a class="doctor-action-card" href="<?=SERVIDOR?>clinica/recetas/nueva">
+<span class="doctor-action-icon" aria-hidden="true"><i data-feather="file-plus"></i></span>
+<span class="doctor-action-copy"><strong>Nueva receta</strong><small>Accede al flujo existente para emitir una receta.</small></span>
+<i class="doctor-action-arrow" data-feather="arrow-right" aria-hidden="true"></i>
+</a>
+<a class="doctor-action-card" href="<?=SERVIDOR?>clinica/indicadores">
+<span class="doctor-action-icon" aria-hidden="true"><i data-feather="bar-chart-2"></i></span>
+<span class="doctor-action-copy"><strong>Ver indicadores completos</strong><small>Explora evolución, cobertura y actividad agregada.</small></span>
+<i class="doctor-action-arrow" data-feather="arrow-right" aria-hidden="true"></i>
 </a>
 </div>
-
-<div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 mb-4">
-<a href="<?=SERVIDOR?>clinica/paciente/nuevo">
-<div class="card border-0 rounded-4 position-relative card-mvsd-disabled">
-<div class="card-body text-center">
-<h5 class="text-primary mb-3 mt-2">Agregar Nuevo Paciente</h5>
-<div class="col-12 mb-3">
-<img src="<?=RUTA_IMAGES ?>/iconos/agregar-icon.png" class="img-fluid" style="max-height: 90px;">
-</div>
-</div>
-</div>
-</a>
-</div>
-
-<div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 mb-4">
-<a href="<?=SERVIDOR?>clinica/recetas/nueva">
-<div class="card border-0 rounded-4 position-relative card-mvsd-disabled">
-<div class="card-body text-center">
-<h5 class="text-primary mb-3 mt-2">Agregar Nueva Receta</h5>
-<div class="col-12 mb-3">
-<img src="<?=RUTA_IMAGES ?>/iconos/agregar-icon.png" class="img-fluid" style="max-height: 90px;">
-</div>
-</div>
-</div>
-</a>
-</div>
-</div>
-
 </section>
 </div>
 
 <!----- FOOTER ---------->
-<?php include_once __DIR__ . '/../components/footer-mvsd.php';?>
+<?php include_once __DIR__ . '/../components/footer-doctor.php';?>
 
 </div>
 </div>

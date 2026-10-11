@@ -13,6 +13,120 @@ class PdfController{
 
 public function pdfReceta($idReceta){
 
+    $model = new RecetaModel();
+    $model->receta($idReceta);
+
+    $paciente = new PacienteModel($model->getIdPaciente());      
+    $edad = CalculadoraEdad::calcularEdad($paciente->getFechaNacimiento());
+    $textoFormateado = $this->htmlToMultiCell($model->getMedicamento());
+
+    $pdf = new \TCPDF(PDF_PAGE_ORIENTATION, PDF_UNIT, 'LETTER', true, 'UTF-8', false);
+    $pdf->SetCreator('Clinica');
+    $pdf->SetTitle('Receta');
+    $pdf->setPrintHeader(false);
+    $pdf->setPrintFooter(false);
+    $pdf->SetMargins(5, 0, 5);
+    $pdf->SetAutoPageBreak(false, 0); 
+    $pdf->AddPage();
+
+    $conFormato = isset($_POST['con_formato']) ? (int)$_POST['con_formato'] : 1;
+
+    // 1. Configuración de coordenadas detallada por formato
+    if ($conFormato) {
+        $img = '../public/assets/images/receta2.jpg';
+        $c = [
+            'nomX'  => 39,  'nomY'  => 26,
+            'diagX' => 43,  'diagY' => 36,
+            'fecCX' => 5,   'fecCY' => 40,  // Fecha Consulta
+            'nacX'  => 183, 'nacY'  => 38,  // Fecha Nacimiento (texto completo)
+            'edadX' => 165, 'edadY' => 35,
+            'sexX'  => 170, 'sexY'  => 40,
+            'taX'   => 190, 'taY'   => 64, 
+            'fcX'   => 190, 'fcY'   => 69.5, 
+            'spoX'  => 193, 'spoY'  => 74.8, 
+            'tempX' => 193, 'tempY' => 81
+        ];
+    } else {
+        // AJUSTA ESTOS VALORES PARA LA receta3.jpg
+        $img = '../public/assets/images/receta3.jpg';
+        $c = [
+            'nomX'  => 40,  'nomY'  => 26,
+            'diagX' => 40,  'diagY' => 36,
+            'fecCX' => 5,   'fecCY' => 40,
+            'nacDX' => 203, 'nacMX' => 195, 'nacAX' => 190, 'nacY' => 35, // Coordenadas para día, mes, año separados
+            'edadX' => 160, 'edadY' => 33, // <--- CAMBIA ESTOS PARA MOVER LA EDAD
+            'sexX'  => 165, 'sexY'  => 40,
+            'taX'   => 180, 'taY'   => 62.8, 
+            'fcX'   => 191, 'fcY'   => 68, 
+            'spoX'  => 191, 'spoY'  => 73.8, 
+            'tempX' => 191, 'tempY' => 79.1
+        ];
+    }
+
+    // Función helper
+    $put = function($pdf, $x, $y, $txt, $fontSize = 9, $w = 0, $h = 0) {
+        if ($txt === '' || $txt === null) return;
+        $pdf->SetFont('courier', '', $fontSize);
+        $pdf->SetXY($x, $y);
+        $pdf->Cell($w, $h, $txt, 0, 0, 'L');
+    };
+
+    // Fondo
+    $pdf->Image($img, 0, 0, 215.9, 139.7);
+
+    // Nombre
+    $put($pdf, $c['nomX'], $c['nomY'], $paciente->getNombreCompleto(), 11);
+
+    // Fecha Nacimiento
+    $fechaRaw = $paciente->getFechaNacimiento();
+    if ($fechaRaw) {
+        $time = strtotime(str_replace('/', '-', $fechaRaw));
+        if ($conFormato) {
+            $put($pdf, $c['nacX'], $c['nacY'], $fechaRaw, 9);
+        } else {
+            // Formato receta3 con cuadritos: Año / Mes / Día
+            $put($pdf, $c['nacAX'], $c['nacY'], date('Y', $time), 9);
+            $put($pdf, $c['nacMX'], $c['nacY'], date('m', $time), 9);
+            $put($pdf, $c['nacDX'], $c['nacY'], date('d', $time), 9);
+        }
+    }
+
+    // Edad (Ahora usa las variables del array $c)
+    $put($pdf, $c['edadX'], $c['edadY'], $edad . ' años', 9);
+
+    // Sexo
+    $posY_sexo = ($paciente->getSexo() == 'M') ? $c['sexY'] : $c['sexY'] + 4.1;
+    $put($pdf, $c['sexX'], $posY_sexo, 'X', 9);
+
+    // Fecha Consulta
+    $put($pdf, $c['fecCX'], $c['fecCY'], 'Fecha: ' . $model->getFecha(), 11);
+
+    // Diagnóstico dinámico
+    $diagnostico = trim($model->getDiagnostico());
+    $anchoMax = 180 - $c['diagX'];
+    $tamano = 12;
+    $pdf->SetFont('courier', '', $tamano);
+    while ($pdf->GetStringWidth($diagnostico) > $anchoMax && $tamano > 6) {
+        $tamano -= 0.5;
+        $pdf->SetFont('courier', '', $tamano);
+    }
+    $pdf->SetXY($c['diagX'], $c['diagY']);
+    $pdf->Cell($anchoMax, 5, $diagnostico, 0, 0, 'L');
+
+    // Medicamentos
+    $pdf->SetFont('courier', '', 9.8);
+    $pdf->SetXY(5, 45);
+    $pdf->MultiCell(160, 1, $textoFormateado);
+
+    // Signos Vitales
+    $put($pdf, $c['taX'], $c['taY'], $model->getTA() ? $model->getTA() . ' mmHg' : '', 8.5);
+    $put($pdf, $c['fcX'], $c['fcY'], $model->getFC() ? $model->getFC() . ' lpm' : '', 8.5);
+    $put($pdf, $c['spoX'], $c['spoY'], $model->getSPO2() ? $model->getSPO2() . ' %' : '', 8.5);
+    $put($pdf, $c['tempX'], $c['tempY'], $model->getTemperatura() ?? '', 8.5);
+
+    $pdf->Output('Receta ' . $paciente->getNombreCompleto() . '.pdf', 'I');
+=======
+
 $model = new RecetaModel();
 $model->receta($idReceta);
 

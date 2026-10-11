@@ -2,6 +2,15 @@
 use App\Config\Database;
 $bd = Database::getInstance();
 
+$escape = static function ($value): string {
+    return htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
+};
+$data['datos'] = is_array($data['datos'] ?? null) ? $data['datos'] : [];
+$patientId = (int) ($data['idPaciente'] ?? 0);
+$patientName = $data['nombre'] ?? '';
+$title = $data['title'] ?? 'Antecedentes Personales Quirúrgicos';
+$patientUrl = htmlspecialchars(SERVIDOR . 'clinica/paciente/' . $patientId, ENT_QUOTES, 'UTF-8');
+
 ?> 
 
     <!DOCTYPE html>
@@ -9,7 +18,7 @@ $bd = Database::getInstance();
     <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?=$data['title'];?></title>
+    <title><?=$escape($title);?></title>
     <link rel="shortcut icon" href="<?=RUTA_IMAGES ?>/logo-clinica.png">
     <link rel="apple-touch-icon" href="<?=RUTA_IMAGES ?>/logo-clinica.png">
     <link rel="stylesheet" href="<?=RUTA_CSS;?>bootstrap.css">
@@ -38,13 +47,14 @@ $bd = Database::getInstance();
         .then(data => {
             const contenedor = document.getElementById('contePreguntas');
             contenedor.innerHTML = data;
+            prepararEncabezadoCirugias();
             feather.replace();
 
             const tabla = document.querySelector("#table_cirugia");
             if (tabla) {
                 const dataTable = new simpleDatatables.DataTable(tabla, {
                     searchable: true,
-                    fixedHeight: true,
+                    fixedHeight: false,
                     perPage: savedState.perPage || 10,
                     perPageSelect: [10, 20, 50],
                     columns: [
@@ -87,6 +97,46 @@ $bd = Database::getInstance();
             }
         });
 }
+
+    function prepararEncabezadoCirugias() {
+    const contenedor = document.getElementById('contePreguntas');
+    const encabezado = contenedor ? contenedor.querySelector('.card-header') : null;
+    if (!encabezado) {
+        return;
+    }
+
+    const columnaPregunta = encabezado.querySelector('.col-11');
+    const columnaAccion = encabezado.querySelector('.col-1');
+    const pregunta = columnaPregunta ? columnaPregunta.querySelector('h8') : null;
+    const boton = encabezado.querySelector('#btnAgregarCirugia');
+
+    encabezado.classList.add('doctor-surgery-dynamic-header');
+    if (columnaPregunta) {
+        columnaPregunta.classList.add('doctor-surgery-question-col');
+    }
+    if (columnaAccion) {
+        columnaAccion.classList.add('doctor-surgery-add-col');
+    }
+    if (pregunta) {
+        pregunta.classList.add('doctor-surgery-question');
+        if (!columnaPregunta.querySelector('.doctor-surgery-card-title')) {
+            const titulo = document.createElement('h2');
+            titulo.className = 'doctor-surgery-card-title';
+            titulo.textContent = 'Antecedentes quirúrgicos';
+            columnaPregunta.prepend(titulo);
+        }
+    }
+    if (boton) {
+        boton.setAttribute('type', 'button');
+        boton.setAttribute('aria-label', 'Agregar cirugía');
+        boton.setAttribute('title', 'Agregar cirugía');
+        boton.classList.remove('float-end');
+        boton.classList.add('doctor-surgery-add-action');
+        if (!boton.querySelector('.doctor-surgery-add-label')) {
+            boton.innerHTML = '<i data-feather="plus" aria-hidden="true"></i><span class="doctor-surgery-add-label">Agregar cirugía</span>';
+        }
+    }
+    }
   
     //---------- CONTROL SERVER ----------
     function gestionarAntecedentesQuirurgicos(url, parametros, callback, idUpdate = 0) {
@@ -134,52 +184,46 @@ $bd = Database::getInstance();
     </script>
     </head>
 
-    <body>
+    <body class="app-shell-body app-shell-doctor doctor-clinical-view doctor-patient-module-page doctor-antecedentes-quirurgicos-page">
     <div class="LoaderPage"></div>
     <div id="app">
-        
-    <!---------- SIDEBAR ---------->
     <?=$data['sidebar'];?>
-    
-    <div id="main" data-rol="<?=$data['idRol'];?>" data-paciente="<?=$data['idPaciente'];?>">
-    <nav class="navbar navbar-header navbar-expand navbar-light">
-    <a class="sidebar-toggler"><span class="navbar-toggler-icon"></span></a>
-    <button class="btn navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-    <span class="navbar-toggler-icon"></span>
-    </button>
-                
-    <div class="collapse navbar-collapse" id="navbarSupportedContent">
-    <ul class="navbar-nav d-flex align-items-center navbar-light ms-auto">
-    </ul>
-    </div>
-    </nav>
+    <div id="main" data-rol="<?=$escape($data['idRol'] ?? '');?>" data-paciente="<?=$patientId;?>">
+    <?php include_once __DIR__ . '/../components/search-bar-doctor.php';?>
 
-    <!---------- CONTENIDO DE LA PAGINA ---------->
-    <div class="main-content container-fluid">
-
-    <div class="page-title mb-4">     
-    <h8><?=$data['nombre'];?></h8>
-    <h3><?=$data['title'];?></h3>
+    <main class="main-content container-fluid doctor-surgery-content">
+    <header class="doctor-page-hero doctor-surgery-hero" aria-labelledby="doctor-surgery-title">
+    <div class="doctor-surgery-hero-copy">
+    <p class="dashboard-eyebrow">HISTORIA CLÍNICA</p>
+    <h1 id="doctor-surgery-title"><?=$escape($title);?></h1>
+    <p>Consulta y registra los antecedentes quirúrgicos del paciente.</p>
+    <p class="doctor-surgery-patient-context">Paciente autorizado: <strong><?=$escape($patientName);?></strong></p>
     </div>
-    
-    <section class="section">
-    <div class="card">
+    <div class="doctor-surgery-hero-actions">
+    <a class="doctor-surgery-action" href="<?=$patientUrl;?>">
+    <i data-feather="arrow-left" aria-hidden="true"></i>
+    <span>Volver al expediente</span>
+    </a>
+    </div>
+    </header>
+
+    <section class="doctor-surgery-sections" aria-label="Antecedentes Personales Quirúrgicos">
+    <article class="card doctor-surgery-card" aria-label="Registro de cirugías">
     <div id="contePreguntas"></div>
-    </div>
+    </article>
     </section>
-    </div>
+    </main>
 
-    <!----- FOOTER ---------->
-    <?php include_once __DIR__ . '/../components/footer-mvsd.php';?>
-
+    <?php include_once __DIR__ . '/../components/footer-doctor.php';?>
     </div>
     </div>
 
     <script src="<?=RUTA_JS;?>/feather-icons/feather.min.js"></script>
     <script src="<?=RUTA_PUBLIC;?>libs/perfect-scrollbar/perfect-scrollbar.min.js"></script>
-    <script src="<?=RUTA_JS;?>app.js"></script>    
+    <script src="<?=RUTA_JS;?>app.js"></script>
     <script src="<?=RUTA_PUBLIC;?>libs/simple-datatables/simple-datatables.js"></script>
     <script src="<?=RUTA_JS;?>main.js"></script>
+    <script src="<?=RUTA_JS;?>search-main.js"></script>
 
     </body>
     </html>

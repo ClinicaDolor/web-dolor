@@ -60,10 +60,11 @@ class ModulosController extends BaseController {
     //---------- VISTA DEL DOCTOR ----------
     public function moduloVistaDoctor($modulo, $idPaciente): void {
          
-    $authMiddleware = new AuthMiddleware('clinica');
+    $authGuard = new AuthMiddleware('clinica');
     $sidebar = new Sidebar();
     $sidebarController = new SidebarController();
-    $authMiddleware = $authMiddleware->authPermisos();
+    $authMiddleware = $authGuard->authPermisos();
+    $authGuard->assertPatientAccess($idPaciente, $authMiddleware);
     $rolUsuario = $authMiddleware['rol'];
     
     $paciente = new PacienteModel($idPaciente);
@@ -130,10 +131,11 @@ class ModulosController extends BaseController {
 
     //---------- VISTA DEL PACIENTE ----------
     public function moduloVistaPaciente($modulo, $idPaciente): void {
-    $authMiddleware = new AuthMiddleware('historia-clinica');
+    $authGuard = new AuthMiddleware('historia-clinica');
     $sidebar = new Sidebar();
     $sidebarController = new SidebarController();
-    $authMiddleware = $authMiddleware->authPermisos();
+    $authMiddleware = $authGuard->authPermisos();
+    $authGuard->assertPatientAccess($idPaciente, $authMiddleware);
     $rolUsuario = $authMiddleware['rol'];
 
     $paciente = new PacienteModel($idPaciente);
@@ -200,10 +202,11 @@ class ModulosController extends BaseController {
 
     public function moduloVistaResumen($modulo, $idPaciente){
 
-    $authMiddleware = new AuthMiddleware('clinica');
+    $authGuard = new AuthMiddleware('clinica');
     $sidebar = new Sidebar();
     $sidebarController = new SidebarController();
-    $authMiddleware = $authMiddleware->authPermisos();
+    $authMiddleware = $authGuard->authPermisos();
+    $authGuard->assertPatientAccess($idPaciente, $authMiddleware);
     $rolUsuario = $authMiddleware['rol'];
         
     $paciente = new PacienteModel($idPaciente);
@@ -278,7 +281,8 @@ class ModulosController extends BaseController {
     $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
     
     $authMiddleware = new AuthMiddleware($view);
-    $authMiddleware->authPermisos();
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -303,7 +307,8 @@ class ModulosController extends BaseController {
     $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
             
     $authMiddleware = new AuthMiddleware($view);
-    $authMiddleware->authPermisos();
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
         
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -328,7 +333,8 @@ class ModulosController extends BaseController {
     $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
         
     $authMiddleware = new AuthMiddleware($view);
-    $authMiddleware->authPermisos();
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
     
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -354,7 +360,8 @@ class ModulosController extends BaseController {
     $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
             
     $authMiddleware = new AuthMiddleware($view);
-    $authMiddleware->authPermisos();
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
         
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -380,7 +387,8 @@ class ModulosController extends BaseController {
     $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
                             
     $authMiddleware = new AuthMiddleware($view);
-    $authMiddleware->authPermisos();
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
     
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -405,7 +413,8 @@ class ModulosController extends BaseController {
     $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
                         
     $authMiddleware = new AuthMiddleware($view);
-    $authMiddleware->authPermisos();
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
             
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -430,7 +439,8 @@ class ModulosController extends BaseController {
     $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
                     
     $authMiddleware = new AuthMiddleware($view);
-    $authMiddleware->authPermisos();
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
         
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -456,7 +466,8 @@ class ModulosController extends BaseController {
     $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
             
     $authMiddleware = new AuthMiddleware($view);
-    $authMiddleware->authPermisos();
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
         
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -481,7 +492,8 @@ class ModulosController extends BaseController {
     $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
             
     $authMiddleware = new AuthMiddleware($view);
-    $authMiddleware->authPermisos();
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
         
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -508,7 +520,8 @@ class ModulosController extends BaseController {
     $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
                     
     $authMiddleware = new AuthMiddleware($view);
-    $authMiddleware->authPermisos();
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
         
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -534,7 +547,8 @@ class ModulosController extends BaseController {
     $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
                             
     $authMiddleware = new AuthMiddleware($view);
-    $authMiddleware->authPermisos();
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
                 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -559,7 +573,8 @@ class ModulosController extends BaseController {
     $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
                     
     $authMiddleware = new AuthMiddleware($view);
-    $authMiddleware->authPermisos();
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
         
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -586,7 +601,8 @@ class ModulosController extends BaseController {
     $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
                                 
     $authMiddleware = new AuthMiddleware($view);
-    $authMiddleware->authPermisos();
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
                     
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -613,7 +629,8 @@ class ModulosController extends BaseController {
     $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
                     
     $authMiddleware = new AuthMiddleware($view);
-    $authMiddleware->authPermisos();
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
         
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -639,7 +656,8 @@ class ModulosController extends BaseController {
     $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
                             
     $authMiddleware = new AuthMiddleware($view);
-    $authMiddleware->authPermisos();
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
                 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -664,7 +682,8 @@ class ModulosController extends BaseController {
     $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
                         
     $authMiddleware = new AuthMiddleware($view);
-    $authMiddleware->authPermisos();
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
             
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -691,7 +710,8 @@ class ModulosController extends BaseController {
     $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
                                 
     $authMiddleware = new AuthMiddleware($view);
-    $authMiddleware->authPermisos();
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
                     
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -717,7 +737,8 @@ class ModulosController extends BaseController {
     $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
                                     
     $authMiddleware = new AuthMiddleware($view);
-    $authMiddleware->authPermisos();
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
                         
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -742,7 +763,8 @@ class ModulosController extends BaseController {
     $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
                                         
     $authMiddleware = new AuthMiddleware($view);
-    $authMiddleware->authPermisos();
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
                             
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -767,7 +789,8 @@ class ModulosController extends BaseController {
         $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
                                         
         $authMiddleware = new AuthMiddleware($view);
-        $authMiddleware->authPermisos();
+        $auth = $authMiddleware->authPermisos();
+        $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
         header('Content-Type: application/json');
                             
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -792,7 +815,8 @@ class ModulosController extends BaseController {
         $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
                                             
         $authMiddleware = new AuthMiddleware($view);
-        $authMiddleware->authPermisos();
+        $auth = $authMiddleware->authPermisos();
+        $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
         header('Content-Type: application/json');
                                 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -819,7 +843,8 @@ class ModulosController extends BaseController {
     $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
                                             
     $authMiddleware = new AuthMiddleware($view);
-    $authMiddleware->authPermisos();
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
                                 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -846,7 +871,8 @@ class ModulosController extends BaseController {
     $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
                                     
     $authMiddleware = new AuthMiddleware($view);
-    $authMiddleware->authPermisos();
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
                         
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -872,7 +898,8 @@ class ModulosController extends BaseController {
     $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
                 
     $authMiddleware = new AuthMiddleware($view);
-    $authMiddleware->authPermisos();
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
         
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -898,7 +925,8 @@ class ModulosController extends BaseController {
     $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
                 
     $authMiddleware = new AuthMiddleware($view);
-    $authMiddleware->authPermisos();
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
             
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -921,7 +949,7 @@ class ModulosController extends BaseController {
     //---------- FINALIZAR MODULO ----------
     public function pacienteFinalizarModulo(){
     $authMiddleware = new AuthMiddleware('historia-clinica');
-    $authMiddleware->authPermisos();
+    $auth = $authMiddleware->authPermisos();
     header('Content-Type: application/json');
                 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -931,6 +959,7 @@ class ModulosController extends BaseController {
                 
     $model = new PacienteModulosModelo();
     $data = json_decode(file_get_contents('php://input'), true);
+    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     $resultModel = $model->finalizarModulos($data);
                 
     if ($resultModel['resultado'] == 200) {

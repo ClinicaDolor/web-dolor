@@ -1,0 +1,53 @@
+{
+  "innerWidth": 375,
+  "innerHeight": 667,
+  "clientWidth": 360,
+  "scrollWidth": 360,
+  "scrollHeight": 3780,
+  "horizontalOverflow": false,
+  "patientRows": 0,
+  "bodyScrollWidth": 360,
+  "mainRect": {
+    "left": 0,
+    "width": 360,
+    "right": 360
+  },
+  "tableWrapRect": null,
+  "tableRect": null,
+  "dataTableWrapperRect": null,
+  "dataTableContainerRect": null,
+  "tableParent": null,
+  "formFieldCount": 32,
+  "formSectionCount": 4,
+  "formSubmitLabel": "Guardar Paciente",
+  "visibleActions": [
+    {
+      "text": "Inicio",
+      "href": "http://127.0.0.1:8102/clinica"
+    },
+    {
+      "text": "Pacientes",
+      "href": "http://127.0.0.1:8102/clinica/pacientes"
+    },
+    {
+      "text": "Paciente Nuevo",
+      "href": "http://127.0.0.1:8102/clinica/paciente/nuevo"
+    },
+    {
+      "text": "Perfil",
+      "href": "http://127.0.0.1:8102/clinica/perfil"
+    },
+    {
+      "text": "Cerrar Sesión",
+      "href": "http://127.0.0.1:8102/cerrar-sesion"
+    },
+    {
+      "text": "Volver a pacientes",
+      "href": "http://127.0.0.1:8102/clinica/pacientes"
+    },
+    {
+      "text": "Cancelar",
+      "href": "http://127.0.0.1:8102/clinica/pacientes"
+    }
+  ]
+}

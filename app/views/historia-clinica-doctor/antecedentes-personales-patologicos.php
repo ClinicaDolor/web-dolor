@@ -13,15 +13,23 @@ $preguntas_enfermedad = $model->obtenerPreguntasModulosV2();
 foreach ($preguntas_enfermedad as $preg_enfermedad ) {
 echo $model->antecedentesPatologicosV2($data['idPaciente'], $preg_enfermedad);
 }
+
+$escape = static function ($value): string {
+    return htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
+};
+$patientId = (int) ($data['idPaciente'] ?? 0);
+$patientName = $data['nombre'] ?? '';
+$title = $data['title'] ?? 'Antecedentes Personales Patológicos';
+$patientUrl = htmlspecialchars(SERVIDOR . 'clinica/paciente/' . $patientId, ENT_QUOTES, 'UTF-8');
     
 ?>
 
 <!DOCTYPE html>
-    <html lang="en">
+    <html lang="es">
     <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?=$data['title'];?></title>
+    <title><?=$escape($title);?></title>
     <link rel="shortcut icon" href="<?=RUTA_IMAGES ?>/logo-clinica.png">
     <link rel="apple-touch-icon" href="<?=RUTA_IMAGES ?>/logo-clinica.png">
     <link rel="stylesheet" href="<?=RUTA_CSS;?>bootstrap.css">
@@ -162,73 +170,60 @@ echo $model->antecedentesPatologicosV2($data['idPaciente'], $preg_enfermedad);
     </script>
     </head>
 
-    <body>
+    <body class="app-shell-body app-shell-doctor doctor-clinical-view doctor-patient-module-page doctor-antecedentes-patologicos-page">
     <div class="LoaderPage"></div>
     <div id="app">
-        
-    <!---------- SIDEBAR ---------->
     <?=$data['sidebar'];?>
-    
-    <div id="main" data-rol="<?=$data['idRol'];?>" data-paciente="<?=$data['idPaciente'];?>">
-    <nav class="navbar navbar-header navbar-expand navbar-light">
-    <a class="sidebar-toggler"><span class="navbar-toggler-icon"></span></a>
-    <button class="btn navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-    <span class="navbar-toggler-icon"></span>
-    </button>
-                
-    <div class="collapse navbar-collapse" id="navbarSupportedContent">
-    <ul class="navbar-nav d-flex align-items-center navbar-light ms-auto">
-    </ul>
+    <div id="main" data-rol="<?=$escape($data['idRol'] ?? '');?>" data-paciente="<?=$patientId;?>">
+    <?php include_once __DIR__ . '/../components/search-bar-doctor.php';?>
+
+    <main class="main-content container-fluid doctor-pathological-content">
+    <header class="doctor-page-hero doctor-pathological-hero" aria-labelledby="doctor-pathological-title">
+    <div class="doctor-pathological-hero-copy">
+    <p class="dashboard-eyebrow">HISTORIA CLÍNICA</p>
+    <h1 id="doctor-pathological-title"><?=$escape($title);?></h1>
+    <p>Consulta y registra los antecedentes personales patológicos del paciente.</p>
+    <p class="doctor-pathological-patient-context">Paciente autorizado: <strong><?=$escape($patientName);?></strong></p>
     </div>
-    </nav>
-
-    <!---------- CONTENIDO DE LA PAGINA ---------->
-    <div class="main-content container-fluid">
-
-    <div class="page-title mb-4">     
-    <h8><?=$data['nombre'];?></h8>
-    <h3><?=$data['title'];?></h3>
+    <div class="doctor-pathological-hero-actions">
+    <a class="doctor-pathological-action" href="<?=$patientUrl;?>">
+    <i data-feather="arrow-left" aria-hidden="true"></i>
+    <span>Volver al expediente</span>
+    </a>
     </div>
-    
-    <section class="section">
-    <div class="row">
+    </header>
 
-    <div class="col-12">
-    <div class="card">
-    <div class="card-header">
-    <h8 class="text-primary fw-bold texto"><b>A continuacion, responda las siguientes preguntas indicando si presenta alguna de estas conductas o hábitos:</b></h8>
+    <section class="doctor-pathological-sections" aria-label="Antecedentes Personales Patológicos">
+    <article class="card doctor-pathological-card" aria-label="Preguntas de antecedentes patológicos">
+    <div class="doctor-pathological-section-heading">
+    <p class="dashboard-eyebrow">ANTECEDENTES PERSONALES</p>
+    <h2>Enfermedades y antecedentes</h2>
+    <p>A continuación, responde las preguntas indicando si presenta alguna de estas conductas, hábitos o enfermedades.</p>
     </div>
-
-    <div class="card-body pb-0">
+    <div class="doctor-pathological-card-body">
     <div id="contePreguntas_1"></div>
     <div id="contePreguntas_2"></div>
     <div id="contePreguntas_3"></div>
     <div id="contePreguntas_4"></div>
     </div>
-    </div>
-    </div>
+    </article>
 
-    <div class="col-12">
-    <div class="card">
-    <div class="card-header">
-    <h8 class="text-primary fw-bold texto"><b>A continuación se presentará una serie de distintas enfermedades.
-    Si usted padece o ha padecido alguna de ellas, por favor indique el año aproximado en que fue diagnosticado:</b></h8>
+    <article class="card doctor-pathological-card" aria-label="Registro de enfermedades">
+    <div class="doctor-pathological-section-heading">
+    <p class="dashboard-eyebrow">PADECIMIENTOS</p>
+    <h2>Enfermedades diagnosticadas</h2>
+    <p>A continuación se presenta una serie de enfermedades. Indica si las padece o las ha padecido y el año aproximado del diagnóstico.</p>
     </div>
-    <div class="card-body pb-0">
+    <div class="doctor-pathological-card-body">
     <div id="contePreguntasV2">
     </div>
     </div>
-    </div>
-
-
-    </div>
-
+    </article>
     </section>
-    </div>
+    </main>
 
-    <!----- FOOTER ---------->
-    <?php include_once __DIR__ . '/../components/footer-mvsd.php';?>
-    
+    <?php include_once __DIR__ . '/../components/footer-doctor.php';?>
+
     </div>
     </div>
 
@@ -237,6 +232,7 @@ echo $model->antecedentesPatologicosV2($data['idPaciente'], $preg_enfermedad);
     <script src="<?=RUTA_JS;?>app.js"></script>    
     <script src="<?=RUTA_PUBLIC;?>libs/simple-datatables/simple-datatables.js"></script>
     <script src="<?=RUTA_JS;?>main.js"></script>
+    <script src="<?=RUTA_JS;?>search-main.js"></script>
 
     </body>
     </html>

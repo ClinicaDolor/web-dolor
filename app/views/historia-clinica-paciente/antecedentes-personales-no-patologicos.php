@@ -54,11 +54,12 @@ $botonFinalizar = $model2->botonFinalizarModulo(3,$data['idPaciente'],$data['idR
     document.addEventListener("DOMContentLoaded", function() {
     const seccionActual = localStorage.getItem("seccionActual") || "Tabaquismo";
     localStorage.setItem("seccionActual", seccionActual);
-    let temaActual = temas.find(t => t.nombre === seccionActual);
+    let temaActual = temas.find(t => t.nombre === seccionActual) || temas[0];
 
     if (!seccionActual || seccionActual === "comentarios") {
     finalizarPreguntas();
-    } else {
+    } else if (temaActual) {
+    localStorage.setItem("seccionActual", temaActual.nombre);
     contenidoPreguntas(temaActual.id);
     }
 
@@ -294,7 +295,7 @@ $botonFinalizar = $model2->botonFinalizarModulo(3,$data['idPaciente'],$data['idR
     </script>
     </head>
 
-    <body>
+<body class="app-shell-body app-shell-patient patient-clinical-form">
     <div class="LoaderPage"></div>
     <div id="app">
         
@@ -395,7 +396,7 @@ $botonFinalizar = $model2->botonFinalizarModulo(3,$data['idPaciente'],$data['idR
 
     </div>
     <!----- FOOTER ---------->
-    <?php include_once __DIR__ . '/../components/footer-mvsd.php';?>
+<?php include_once __DIR__ . '/../components/footer-doctor.php';?>
     </div>
     </div>
 
