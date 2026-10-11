@@ -47,7 +47,7 @@ $botonFinalizar = $model->botonFinalizarModulo(1,$data['idPaciente'],$data['idRo
     
     </head>
 
-    <body>
+<body class="app-shell-body app-shell-patient patient-clinical-form">
     <div class="LoaderPage"></div>
     <div id="app">
            
@@ -260,7 +260,7 @@ $botonFinalizar = $model->botonFinalizarModulo(1,$data['idPaciente'],$data['idRo
  
     </div>
     <!----- FOOTER ---------->
-    <?php include_once __DIR__ . '/../components/footer-mvsd.php';?>
+<?php include_once __DIR__ . '/../components/footer-doctor.php';?>
     </div>
     </div>
 

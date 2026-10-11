@@ -4,7 +4,10 @@ require __DIR__ . '/../app/Config/constantes.php';
 //require_once __DIR__ . '/../vendor/tecnickcom/tcpdf/tcpdf.php';
 
 use App\Core\Router;
+use App\Core\SafeErrorHandler;
 use Dotenv\Dotenv;
+
+SafeErrorHandler::register();
 
 $dotenv = Dotenv::createImmutable(__DIR__ . '/../');
 $dotenv->load();

@@ -1,0 +1,119 @@
+{
+  "innerWidth": 375,
+  "innerHeight": 667,
+  "clientWidth": 360,
+  "scrollWidth": 360,
+  "scrollHeight": 951,
+  "horizontalOverflow": false,
+  "patientRows": 1,
+  "bodyScrollWidth": 959,
+  "mainRect": {
+    "left": 0,
+    "width": 360,
+    "right": 360
+  },
+  "tableWrapRect": {
+    "left": 15.390625,
+    "width": 329.21875,
+    "right": 344.609375
+  },
+  "tableRect": {
+    "left": 31.390625,
+    "width": 964.65625,
+    "right": 996.046875
+  },
+  "dataTableWrapperRect": {
+    "left": 31.390625,
+    "width": 297.21875,
+    "right": 328.609375
+  },
+  "dataTableContainerRect": {
+    "left": 31.390625,
+    "width": 297.21875,
+    "right": 328.609375
+  },
+  "tableParent": {
+    "tag": "DIV",
+    "className": "dataTable-container",
+    "left": 31.390625,
+    "width": 297.21875,
+    "right": 328.609375,
+    "overflowX": "auto",
+    "display": "block",
+    "scrollWidth": 965,
+    "clientWidth": 297
+  },
+  "formFieldCount": 0,
+  "formSectionCount": 0,
+  "formSubmitLabel": null,
+  "visibleActions": [
+    {
+      "text": "Inicio",
+      "href": "http://127.0.0.1:8102/clinica"
+    },
+    {
+      "text": "Pacientes",
+      "href": "http://127.0.0.1:8102/clinica/pacientes"
+    },
+    {
+      "text": "Cofepris",
+      "href": "http://127.0.0.1:8102/clinica/cofepris"
+    },
+    {
+      "text": "Recetas",
+      "href": "http://127.0.0.1:8102/clinica/recetas"
+    },
+    {
+      "text": "Perfil",
+      "href": "http://127.0.0.1:8102/clinica/perfil"
+    },
+    {
+      "text": "Cerrar Sesión",
+      "href": "http://127.0.0.1:8102/cerrar-sesion"
+    },
+    {
+      "text": "Nuevo paciente",
+      "href": "http://127.0.0.1:8102/clinica/paciente/nuevo"
+    },
+    {
+      "text": "ID",
+      "href": "http://127.0.0.1:8102/clinica/pacientes#"
+    },
+    {
+      "text": "FECHA ALTA",
+      "href": "http://127.0.0.1:8102/clinica/pacientes#"
+    },
+    {
+      "text": "NOMBRE COMPLETO",
+      "href": "http://127.0.0.1:8102/clinica/pacientes#"
+    },
+    {
+      "text": "EDAD",
+      "href": "http://127.0.0.1:8102/clinica/pacientes#"
+    },
+    {
+      "text": "SEXO",
+      "href": "http://127.0.0.1:8102/clinica/pacientes#"
+    },
+    {
+      "text": "FECHA NACIMIENTO",
+      "href": "http://127.0.0.1:8102/clinica/pacientes#"
+    },
+    {
+      "text": "",
+      "href": "http://127.0.0.1:8102/clinica/paciente/9301"
+    },
+    {
+      "text": "",
+      "href": "http://127.0.0.1:8102/clinica/paciente/pin/9301"
+    },
+    {
+      "text": "",
+      "href": "http://127.0.0.1:8102/clinica/modulos/paciente/9301"
+    },
+    {
+      "text": "",
+      "href": "http://127.0.0.1:8102/clinica/paciente/editar/9301"
+    }
+  ]
+}

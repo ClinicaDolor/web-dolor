@@ -45,8 +45,11 @@ $modulos = $model->obtenerModulosM7();
     document.addEventListener("DOMContentLoaded", function() {
     const seccionActual = localStorage.getItem("seccionActual") || "Opioides";
     localStorage.setItem("seccionActual", seccionActual);
-    let temaActual = temas.find(t => t.nombre === seccionActual);
+    let temaActual = temas.find(t => t.nombre === seccionActual) || temas[0];
+    if (temaActual) {
+    localStorage.setItem("seccionActual", temaActual.nombre);
     contenidoPreguntas(temaActual.id);
+    }
 
     // Inicializar las preguntas con valor 0 si no están configuradas en localStorage
     for (let i = 1; i <= 6; i++) {
@@ -236,7 +239,7 @@ $modulos = $model->obtenerModulosM7();
     </script>
     </head>
 
-    <body>
+<body class="app-shell-body app-shell-patient patient-clinical-form">
     <div class="LoaderPage"></div>
     <div id="app">
         
@@ -309,7 +312,7 @@ $modulos = $model->obtenerModulosM7();
 
     </div>
     <!----- FOOTER ---------->
-    <?php include_once __DIR__ . '/../components/footer-mvsd.php';?>
+<?php include_once __DIR__ . '/../components/footer-doctor.php';?>
     </div>
     </div>
 
