@@ -6,6 +6,7 @@ use App\Models\RecetaModel;
 use App\Models\RecetaExternoModel;
 use App\Models\PacienteModel;
 use App\Helpers\CalculadoraEdad;
+use App\Middleware\AuthMiddleware;
 
 use setasign\Fpdi\Tcpdf\Fpdi;
 
@@ -15,6 +16,9 @@ public function pdfReceta($idReceta){
 
     $model = new RecetaModel();
     $model->receta($idReceta);
+    $authMiddleware = new AuthMiddleware('clinica');
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($model->getIdPaciente(), $auth);
 
     $paciente = new PacienteModel($model->getIdPaciente());      
     $edad = CalculadoraEdad::calcularEdad($paciente->getFechaNacimiento());
@@ -125,7 +129,7 @@ public function pdfReceta($idReceta){
     $put($pdf, $c['tempX'], $c['tempY'], $model->getTemperatura() ?? '', 8.5);
 
     $pdf->Output('Receta ' . $paciente->getNombreCompleto() . '.pdf', 'I');
-=======
+
 
 $model = new RecetaModel();
 $model->receta($idReceta);
@@ -373,6 +377,9 @@ public function pdfCofepris($id){
 
 $model = new CofeprisModel();
 $model->cofepris($id);
+$authMiddleware = new AuthMiddleware('clinica');
+$auth = $authMiddleware->authPermisos();
+$authMiddleware->assertPatientAccess($model->getIdPaciente(), $auth);
 
 list($dia,$mes,$anio ) = explode('/', $model->getFecha());
 

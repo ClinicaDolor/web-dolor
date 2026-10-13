@@ -20,6 +20,11 @@ $model = new PacienteModulosModelo();
     <script src="<?=RUTA_JS;?>loader.js"></script>
 
     <style>
+        .clinical-summary-panel .clinical-summary-meta { color: #5f6b7a; font-size: .875rem; margin-bottom: .75rem; }
+        .clinical-summary-panel .clinical-summary-notice { border-left: 3px solid #0d6efd; padding-left: .75rem; color: #495057; }
+        .clinical-summary-panel .clinical-summary-section { border-top: 1px solid #e9ecef; padding: 1rem 0; }
+        .clinical-summary-panel .clinical-summary-section h3 { font-size: 1.05rem; margin-bottom: .35rem; color: #17324d; }
+        .clinical-summary-panel .clinical-summary-section li { margin-bottom: .35rem; }
         .row {
             display: flex;
             flex-wrap: wrap;
@@ -353,6 +358,26 @@ $model = new PacienteModulosModelo();
             </button>
         </div>
     </header>
+
+    <section class="col-12 mt-4 clinical-summary-entry" aria-labelledby="clinicalSummaryEntryTitle">
+        <article class="clinical-summary-entry-card">
+            <div class="clinical-summary-entry-icon" aria-hidden="true"><i data-feather="cpu"></i></div>
+            <div class="clinical-summary-entry-content">
+                <p class="dashboard-eyebrow mb-1">APOYO A LA REVISIÓN</p>
+                <h2 class="clinical-summary-entry-title" id="clinicalSummaryEntryTitle">Resumen clínico inteligente</h2>
+                <p class="clinical-summary-entry-description">Consulta una lectura estructurada de los nueve módulos del expediente, con referencias documentales y datos faltantes.</p>
+                <div class="clinical-summary-entry-meta" aria-label="Características del resumen">
+                    <span><i data-feather="layers" aria-hidden="true"></i> 9 módulos clínicos</span>
+                    <span><i data-feather="shield" aria-hidden="true"></i> Solo lectura</span>
+                    <span><i data-feather="server" aria-hidden="true"></i> Generación local</span>
+                </div>
+            </div>
+            <a class="btn btn-primary clinical-summary-entry-action" href="<?=SERVIDOR?>clinica/paciente/<?=$patientId?>/resumen-clinico">
+                <i data-feather="arrow-right" aria-hidden="true"></i>
+                <span>Abrir resumen</span>
+            </a>
+        </article>
+    </section>
 
     <div class="row mt-4 patient-record-layout">
 
@@ -761,6 +786,7 @@ $model = new PacienteModulosModelo();
     <script src="<?=RUTA_JS;?>main.js"></script>
     <script src="<?=RUTA_PUBLIC;?>libs/simple-datatables/simple-datatables.js"></script>
     <script src="<?=RUTA_JS?>search-main.js"></script>
+    <script src="<?=RUTA_JS?>clinical-summary.js"></script>
     
     <script>
 

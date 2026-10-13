@@ -22,14 +22,14 @@
                     <div class="auth-card-header">
                         <span class="auth-kicker">Portal de pacientes</span>
                         <h2 id="patient-login-title">Ingresa tu PIN</h2>
-                        <p>Tu información está protegida.</p>
+                        <p id="patient-login-description">Tu información está protegida.</p>
                     </div>
 
                     <div class="auth-field">
                         <label for="Pin">PIN de acceso</label>
                         <div class="auth-input-wrap">
                             <?php $authIcon = 'lock'; include __DIR__ . '/../components/auth-icon.php'; ?>
-                            <input type="password" class="form-control" id="Pin" autocomplete="one-time-code" inputmode="numeric" placeholder="Ingresa tu PIN" aria-describedby="responseMessage" aria-invalid="false">
+                            <input type="password" class="form-control" id="Pin" autocomplete="one-time-code" inputmode="numeric" placeholder="Ingresa tu PIN" aria-describedby="patient-login-description responseMessage" aria-invalid="false">
                         </div>
                     </div>
 

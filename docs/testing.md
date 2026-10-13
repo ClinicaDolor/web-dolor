@@ -1,4 +1,392 @@
 # Pruebas y criterios de aceptación
+
+## P07-MODAL-AUDIO-FIX-01 — Modal y narración de instrucciones — 2026-10-11
+
+La corrección se limitó a la vista P07 y reutilizó el patrón de modal, foco,
+controles y estados de voz ya usado por P04/P05. Se eliminaron los dos
+controles `.btnLeer` heredados de P07 para evitar que `voice-utilities.js`
+compitiera con la narración específica del módulo; ese archivo compartido no
+fue modificado.
+
+| Control | Resultado | Evidencia |
+|---|---|---|
+| Contrato modal y botón de ayuda | PASS | `node tests/p07/audio-mock.mjs` |
+| Narración `es-MX`, `onstart`, `onend`, `onerror` y cancelación | PASS estático/mock | `tests/p07/audio-mock.mjs` |
+| Lectura V1/V2 sin controles ni dependencias ocultas | PASS estático | `p07SpeechTextForActive()` en la vista |
+| Foco, Escape, click fuera y restauración de foco | PASS estático | listeners de P07 en la vista |
+| Reproducción audible humana | NO VERIFICADO | requiere navegador e interacción humana |
+| Modal, consola y responsive renderizados | NO VERIFICADO | no se obtuvo una sesión sintética de navegador en esta ejecución |
+
+No se realizaron escrituras, finalización ni navegación clínica con el
+paciente 310; se conserva el entorno sintético previo y P07 permanece en
+`VALIDACIÓN`.
+
+## P08-COMPLETE-01 — Medicación Actual — 2026-10-11
+
+Se utilizó exclusivamente la base sintética allowlisted
+`clinica_dolor_demo_20261010_final`, con pacientes 9301/9302 de clínicas
+9101/9102. `prepare-synthetic.php` confirmó la base activa y creó sólo filas
+marcadas `P08-SYNTH-20261011`; `bd_clinica` no se escribió. El servidor se
+inició con `tests/p08/start-server.ps1` y una `APP_KEY` efímera.
+
+| Control | Resultado | Evidencia |
+|---|---|---|
+| Aislamiento de base | PASS | preflight exacto de `SELECT DATABASE()` y clínicas 9101/9102 |
+| PHP lint y contrato | PASS | `php -l` y `node tests/p08/contract-check.mjs` |
+| GET propio | PASS | HTTP 200 y HTML P08 sintético |
+| GET sin sesión | PASS | HTTP 302 sin información clínica |
+| GET cruzado | PASS | HTTP 403 |
+| AJAX M6 con rol derivado | PASS | render propio sin confiar en `idRol` del cliente |
+| CRUD propio | PASS | alta, edición y baja con persistencia real |
+| No-op | PASS | segunda edición devuelve éxito sin UPDATE adicional |
+| Edición/eliminación cruzadas | PASS | HTTP 403 y sin escritura cruzada |
+| Campo fuera de allowlist | PASS | HTTP 422 |
+| Finalización módulo 6 | PASS | `next_url` local y segunda finalización idempotente |
+| Limpieza sintética | PASS | marcador y finalización temporal eliminados |
+| Audio mock/gestión de cancelación | PASS estático | contrato de `speechSynthesis`, `es-MX` y cancelación |
+| Capturas y responsive 1440/1280/768/375 | NO VERIFICADO | navegador IAB bloqueó localhost con `net::ERR_BLOCKED_BY_CLIENT`; Chrome no disponible |
+| Consola y reproducción audible humana | NO VERIFICADO | no se declara sin navegador utilizable |
+
+La ejecución reproducible es:
+
+```powershell
+php tests/p08/prepare-synthetic.php --database=clinica_dolor_demo_20261010_final --json
+node tests/p08/contract-check.mjs
+powershell -ExecutionPolicy Bypass -File tests/p08/start-server.ps1 -Port 8108
+php tests/p08/http-crud.php --database=clinica_dolor_demo_20261010_final --base-url=http://127.0.0.1:8108 --app-key=<APP_KEY_EFIMERA_DEL_SERVIDOR>
+php tests/p08/cleanup-synthetic.php --database=clinica_dolor_demo_20261010_final
+```
+
+P08 permanece en `VALIDACIÓN`; no se modificaron otros módulos ni se hicieron
+commits, despliegues o escrituras sobre la base real.
+
+## P07-COMPLETE-01 + adendum P05-FLOW-SPEED-01 — 2026-10-11
+
+Entorno utilizado: base sintética allowlisted
+`clinica_dolor_demo_20261010_final`, con pacientes 9301/9302 en clínicas
+distintas. El servidor local se ejecutó con una base explícitamente comprobada;
+no se utilizó `bd_clinica`. El catálogo P07 sintético contiene dos temas V1,
+una pregunta de selección, una pregunta de texto y dos enfermedades V2.
+
+| Control | Resultado | Evidencia |
+|---|---|---|
+| PHP lint de P07 | PASS | modelos, controladores, vista y runners `php -l` |
+| Sintaxis JS inline | PASS | `vm.Script` sobre el bloque P07 |
+| Contrato V1/V2, IDs, eventos y autorización | PASS | `node tests/p07/contract-check.mjs` |
+| GET propio de P07 | PASS | HTTP 200 y contenido sintético |
+| GET sin sesión | PASS | HTTP 302 sin contenido clínico |
+| GET cruzado | PASS | HTTP 403 sin HTML del paciente ajeno |
+| Persistencia V1 propia | PASS | POST real y lectura posterior de la respuesta |
+| Persistencia V2 propia | PASS | POST real de respuesta, tipo y año |
+| POST cruzado V1/V2 | PASS | HTTP 403; no se permitió escritura cruzada |
+| No y Sí sin dependencias | PASS | clic real y avance automático en navegador |
+| Sí con dependencias | PASS | permanece hasta tipo/año; después avanza |
+| Input con un Siguiente | PASS | el texto se guardó y cargó V2 con un clic |
+| Respuesta previamente guardada | PASS estático/flujo | `p07Dirty()` evita otro UPDATE; navegación recuperada |
+| V1/V2 y narración de transición | PASS estático | eventos delegados y `p07StopVoice()` |
+| Responsive/overflow P07 | PASS | navegador sintético a 1440×900 y 375×667 |
+| Paridad shell/footer P04 | PASS | P04 renderizado en 1280×720 para comparación |
+| Reproducción audible humana | NO VERIFICADO | no se declara a partir de mocks/DOM |
+| Finalización y destino del siguiente módulo | NO VERIFICADO | no se ejecutó una finalización clínica sintética |
+| P07 a 1280×720 y 768×1024 | NO VERIFICADO | no se ejecutaron esos viewports en P07 |
+
+Las escrituras de prueba se eliminaron con `tests/p07/cleanup-synthetic.php`;
+el catálogo sintético se conserva para repetir el procedimiento. P07 permanece
+en `VALIDACIÓN`. No se modificaron P04, P05 ni P06.
+
+## P06-COMPLETE-01 — Antecedentes Personales Quirúrgicos — 2026-10-11
+
+Entorno utilizado: base sintética allowlisted
+`clinica_dolor_demo_20261010_final`, con pacientes de prueba en clínicas
+distintas. El preflight confirmó que las operaciones no apuntaron a
+`bd_clinica`; las escrituras de los escenarios se eliminaron o ejecutaron
+dentro de transacciones con rollback.
+
+| Control | Resultado | Evidencia |
+|---|---|---|
+| PHP lint de modelo, controladores, vista y runner HTTP | PASS | `php -l` |
+| Contratos P06, IDs, campos, rutas y funciones existentes | PASS | `node tests/p06/contract-check.mjs` |
+| Sintaxis JavaScript inline y CSS scoped | PASS | comprobaciones automatizadas |
+| Modal, foco, Escape, cierre y retorno de foco | PASS | navegador sintético |
+| Narración y cancelación sin solapamiento | PASS (mock) | `node tests/p06/audio-mock.mjs` |
+| Reproducción audible real | NO VERIFICADO | no se declara a partir del mock |
+| Estado vacío y formulario de nueva cirugía | PASS | navegador sintético, 1440×900 y 375×667 |
+| Alta, edición y eliminación propia | PASS | `verify-isolation.php` y `http-crud.php` |
+| Edición y eliminación cruzada entre pacientes/clínicas | PASS | HTTP 403; sin escritura cruzada |
+| Acceso sin sesión | PASS | HTTP 302 |
+| Paciente propietario | PASS | HTTP 200 y contenido autorizado |
+| CRUD persistente después de la limpieza | PASS | `persistent_write=false` |
+| Finalización y contrato `next_url` | PASS estático/contractual | validador de flujo y URL relativa |
+| Regresión focal P04/P05 | PASS | runners existentes |
+| Viewports adicionales 1280×720 y 768×1024 | NO VERIFICADO | no se ejecutaron en esta sesión |
+
+La captura visual mostró el hero, estado vacío, modal, controles de voz,
+formulario y footer sin overflow visible en 1440×900 y 375×667. La prueba
+audible permanece pendiente de un navegador/interacción que permita confirmar
+reproducción real. P06 sigue en `VALIDACIÓN`; P07 no fue iniciado.
+
+## P05-RESTORE-REAL-01 — catálogo original y validación real de P05 — 2026-10-11
+
+Se utilizaron los archivos originales suministrados en `C:\Users\silvi\Downloads`
+(`pac_temas_modulo_3.sql` y `pac_preguntas_modulo_3.sql`) únicamente como fuente
+de lectura para `tests/fixtures/p05-catalog.php`; no se ejecutaron los dumps
+completos ni se tocó `bd_clinica`. La base activa fue exactamente
+`clinica_dolor_demo_20261010_final`, con pacientes sintéticos 9301/9302 en
+clínicas 9101/9102.
+
+La preparación idempotente verificó 7 temas y 25 preguntas (6 `select`, 19
+`input`) conservando IDs, textos, tipos y orden. El primer GET real de P05
+creó las 25 filas de respuesta vacías previstas por el comportamiento heredado;
+se registró y después se eliminó con `tests/p05/cleanup-synthetic.php`, junto
+con comentario y finalización del módulo 3, manteniendo el catálogo.
+
+| Control | Resultado |
+|---|---|
+| Aislamiento y catálogo 7/25 | PASS |
+| Sesión real por PIN sintético para 9301 | PASS |
+| AJAX real `contenidoPreguntasM3()` | PASS |
+| Sí, dependencia, regreso y recuperación | PASS |
+| No y cambio entre los siete temas | PASS |
+| Grupo Sanguineo con dos inputs | PASS |
+| Comentarios, finalización y `next_url` a P06 | PASS |
+| GET/POST cruzado entre clínicas | PASS; GET y POST rechazados |
+| Audio | PASS de eventos/estados; reproducción audible humana NO VERIFICADA |
+| 1440×900 y 375×667 reales | PASS; sin overflow |
+| 1280×720 y 768×1024 | NO VERIFICADO en esta ejecución |
+| Consola JavaScript | PASS; sin errores/advertencias durante el recorrido |
+| Regresión focal P04/P06 | PASS estático y focal; sin escrituras reales |
+
+Se corrigieron dos causas visuales demostradas al cargar el catálogo real: un
+override de paridad que convertía todos los `.pregunta-container` en visibles,
+y `flex: 1 0 100%` en la ayuda de navegación que producía overflow horizontal.
+Ambos cambios quedaron limitados a P05 en `app.css`. P05 permanece en
+`VALIDACIÓN`; no se inició P07.
+
+## P05-FIX-UI-NAV-01 — composición y botón Siguiente — 2026-10-11
+
+La salida dinámica de P05 mantiene una única columna: encabezado, controles de
+voz, hábito, pregunta, respuestas y navegación quedan dentro del ancho
+principal del cuestionario. Los controles de voz se ubican en la parte superior
+derecha del cuerpo, siguiendo la composición de P04.
+
+| Comprobación | Resultado | Evidencia |
+|---|---|---|
+| PHP lint de modelo y vista | PASS | `php -l` |
+| HTML contractual de `select` sin respuesta | PASS | `node tests/p05/navigation-contract.mjs` |
+| «Siguiente» siempre renderizado cuando falta respuesta | PASS estático | Rama `$respuestaLista=false`, botón disabled y mensaje accesible |
+| Guard de avance antes de cambiar pregunta | PASS estático | `p05QuestionIsReadyToAdvance()` + mensaje de bloqueo |
+| Cambio de tema y paso a comentarios | PASS contractual | `irASiguienteSeccion()` y `finalizarPreguntas()` conservados |
+| Contratos P05 y audio | PASS | `contract-check.mjs`, `audio-mock.mjs` |
+| Regresión focal P04 | PASS | aislamiento, finalización, audio mock y next-module |
+| Render autenticado y comparación visual 1440/375 | NO VERIFICADO | Falta catálogo P05 aprobado y sesión reproducible |
+| Persistencia real, dependencias y siete temas | NO VERIFICADO | No se ejecutaron escrituras clínicas |
+
+El test sintético verifica el contrato del HTML y no inventa temas o preguntas.
+
+## UI-PARITY-GATE-01 — paridad visual real y audio P05 — 2026-10-11
+
+La causa visual confirmada fue estructural: P05 renderizaba el toolbar de voz
+dentro del `card-header`, mientras P04 lo renderiza en el cuerpo antes de la
+pregunta; además, los wrappers Bootstrap heredados podían conservar columnas
+internas y hacer que una pregunta dinámica se presentara a la derecha. El
+catálogo sintético P05 permanece vacío, por lo que la pregunta visible se
+validó con `tests/p05/visual-fixture.html`, un fixture DOM sin persistencia
+basado en la estructura real.
+
+La corrección quedó limitada a la vista y CSS scoped P05: controles de voz al
+cuerpo de la tarjeta, flujo vertical forzado para wrappers de fila/columna,
+Sí/No horizontales en escritorio y apilados en móvil, navegación a todo el
+ancho, modal con `max-width: 540px` igual al máximo computado de P04 y estado
+activo del sidebar sincronizado con `aria-current="page"`. No se modificó P04,
+P06, el modelo, los controladores, rutas, AJAX, persistencia ni el catálogo.
+
+La causa de audio era un fallback de 350 ms condicionado a que el navegador
+reportara `speaking=false` y `pending=false`; una cola bloqueada podía dejar
+«Intentando iniciar la lectura…» indefinidamente. P05 ahora confirma
+«Reproduciendo…» sólo desde `onstart` y aplica un límite de 1500 ms que cancela
+la utterance y muestra una acción manual; `onerror`, cierre, navegación y
+`pagehide` conservan cancelación y fallback.
+
+| Comprobación | Resultado | Evidencia |
+|---|---|---|
+| PHP lint, contratos P05, navegación y `git diff --check` | PASS | `php -l`, runners P05 |
+| Gate estático reutilizable P04/P05/P06 | PASS | `node tests/patient-module-parity-gate.mjs` |
+| P04 real sintético a 1440×900 | PASS | navegador; hero/tarjeta 968 px, modal 540 px |
+| P05 real autenticado a 1440×900 | PASS parcial | navegador; shell, hero, tarjeta, sidebar y modal; 0 preguntas por catálogo vacío |
+| Fixture P05 a 1440×900 | PASS | captura y medición; hero/tarjeta 968 px, pregunta bajo instrucciones, Sí/No horizontal, sin overflow |
+| Fixture P05 a 375×667 | PASS | captura y medición; Sí/No apilados, modal 344.57 px, sin overflow |
+| Consola JavaScript P05/P06 | PASS | `tab.dev.logs()` vacío durante carga sintética |
+| Narración mock/onstart/onerror | PASS contractual | `node tests/p05/audio-mock.mjs` y gate estático |
+| Reproducción audible humana | NO VERIFICADO | el mock no demuestra audio audible |
+| Preguntas, dependencias, guardado y navegación real de siete temas P05 | NO VERIFICADO | catálogo sintético sin temas/preguntas; no se inventaron datos |
+| Gate visual P06 | PASS | captura sintética, hero 968 px, sin overflow, estado vacío/modal conservados |
+| P06 modificado durante esta actividad | NO | sólo verificación; P07 no iniciado |
+
+La vista P05 y el gate permanecen en `VALIDACIÓN`. El efecto secundario
+preexistente de siembra durante GET y los riesgos documentales de
+`ACT-05C-02` continúan abiertos.
+
+
+## P05-COMPLETE-01 — experiencia guiada y audio — 2026-10-11
+
+La vista P05 reutiliza el patrón funcional de audio de P04 sin copiar su
+lógica clínica: el modal se abre al cargar, solicita narración automática sólo
+cuando `speechSynthesis` está disponible, y ofrece controles «Escuchar» y
+«Detener». La pregunta activa puede repetirse manualmente; al cambiar de
+pregunta o abandonar la vista se cancela cualquier utterance anterior. La
+selección Sí/No, los campos dependientes, AJAX, comentario, finalización y
+`next_url` permanecen en la implementación propia de P05.
+
+| Comprobación | Resultado | Evidencia |
+|---|---|---|
+| Contrato de controles y funciones de voz | PASS | `node tests/p05/contract-check.mjs` |
+| Mock de narración, cancelación y estados `onstart/onend/onerror` | PASS | `node tests/p05/audio-mock.mjs` (mock, no reproducción audible) |
+| Sintaxis JavaScript inline | PASS | Extracción de script P05 + `new Function(...)` |
+| Catálogo real de siete temas | NO VERIFICADO | La base sintética allowlisted permanece sin fuente aprobada |
+| Persistencia, dependencias y navegación real de siete temas | NO VERIFICADO | Requiere catálogo P05 y sesión sintética reproducible |
+| Capturas autenticadas y responsive 1440/375 | NO VERIFICADO | No hay navegador/sesión/catálogo reproducible disponibles |
+| Regresión focal P04 | PASS | `tests/p04/verify-isolation.php`, `finalization-flow.mjs`, `audio-mock.mjs`, `next-module.php` |
+
+La prueba audible real no se infiere del contrato mock. La ausencia de
+catálogo no se compensa con preguntas inventadas ni se consulta `bd_clinica`.
+
+## P04-NEXT-01 — continuación al siguiente módulo — 2026-10-11
+
+Se centralizó la resolución en `PacienteModulosModelo::siguienteModuloPendiente()`.
+El método consulta `historia_clinica_modulos` en orden clínico y las
+finalizaciones formales del paciente después de insertar la finalización. Sólo
+acepta la pareja ID/slug canónica de los nueve módulos; cualquier slug
+desconocido devuelve `null`, que el controlador convierte en el fallback seguro
+`/historia-clinica`. El paciente se autoriza antes de consultar y construir la
+URL.
+
+`HttpMethod::jsonResponse()` recibió el parámetro opcional `$extra`; por ello la
+respuesta de finalización conserva `resultado`, `mensaje` y `token`, y añade
+`next_url` sin romper consumidores existentes. P04 consume ese campo sólo
+después de confirmar la finalización. P03 y P05–P11 no fueron modificados.
+
+| Escenario | Resultado | Evidencia |
+|---|---|---|
+| A. P04 finaliza, P05 pendiente | PASS | UI real; URL final `/historia-clinica/antecedentes-personales-no-patologicos/paciente/9301` |
+| B. P05 ya finalizado | PASS | UI real; saltó a `/historia-clinica/antecedentes-personales-quirurgicos/paciente/9301` |
+| C. Todos los posteriores finalizados | PASS | UI real; fallback `/historia-clinica` |
+| D. Falla comentario | PASS heredado de P04-FIX-FINALIZAR-01 | No finaliza ni navega; cubierto por `finalization-flow.mjs` |
+| E. Falla finalización | PASS heredado de P04-FIX-FINALIZAR-01 | Reintento sin duplicar comentario |
+| F. Doble clic | PASS heredado de P04-FIX-FINALIZAR-01 | Una sola secuencia |
+| G. Acceso cruzado | PASS | Sesión de 9301 recibió «No autorizado» al solicitar 9302 |
+| H. Catálogo/slug inválido | PASS | `tests/p04/next-module.php` devolvió fallback seguro dentro de una transacción revertida |
+| Módulo siguiente marcado por navegación | PASS | En A, módulo 3 permaneció sin finalización; la navegación GET no lo completó |
+
+Pruebas técnicas: PHP lint de modelo, controlador, helper, vista y fixture
+PASS; sintaxis JavaScript PASS mediante el arnés P04; `git diff --check` PASS
+sin errores de whitespace. La prueba reproducible del resolvedor es:
+
+```powershell
+$env:P04_TEST_DATABASE = 'clinica_dolor_demo_20261010_final'
+php tests/p04/next-module.php
+```
+
+Las escrituras se ejecutaron sólo sobre la base allowlisted y se restauraron al
+baseline: módulo 2 finalizado para 9301, módulos 3–9 pendientes, cero
+comentarios de prueba y seis filas sintéticas de antecedentes familiares.
+
+## P04-FIX-FINALIZAR-01 — guardar comentario y finalizar en secuencia — 2026-10-11
+
+La causa raíz confirmada estaba en el callback de éxito de
+`gestionarEnfermedadPaciente()`: intentaba iniciar `FinalizarModuloPaciente()`
+antes de liberar `p04PendingRequest` en `finally`. La segunda operación legítima
+era rechazada con «Espera a que termine el guardado actual».
+
+Se corrigió únicamente el flujo de `app/views/historia-clinica-paciente/antecedentes-familiares.php`:
+`agregarComentario()` ahora orquesta comentario y finalización con `async/await`,
+mantiene una sola protección de flujo, libera siempre el loader/botón y conserva
+el estado de comentario guardado para reintentar sólo la finalización. El
+guardado automático de preguntas, audio, modal, CSS, rutas, `idModulo = 2` y
+autorización no se modificaron.
+
+La validación real utilizó exclusivamente
+`clinica_dolor_demo_20261010_final`; el preflight confirmó la allowlist y que
+`bd_clinica` no era el destino. Al terminar se eliminaron los comentarios
+insertados por la prueba y se conservó la línea base sintética de finalización.
+
+| Caso | Resultado | Evidencia |
+|---|---|---|
+| A. Comentario válido → finalización | PASS | UI real; comentario y finalización de 9301, una fila de cada tipo; dashboard en 100% |
+| B. Comentario vacío permitido | PASS | UI real; finalización correcta, comentario vacío aceptado por el contrato actual |
+| C. Error al guardar comentario | PASS | Arnés controlado con HTTP 500; no se solicitó finalización, mensaje genérico y botón recuperado |
+| D. Comentario guardado + error de finalización | PASS | Arnés controlado: reintento emitió sólo la segunda finalización; un solo POST de comentario |
+| E. Doble clic | PASS | UI real; exactamente una secuencia, una inserción de comentario y una finalización |
+| F. Fallo de red | PASS | Arnés controlado; no redirige, cierra loader y rehabilita el botón |
+| G. Finalización exitosa | PASS | Dashboard sintético mostró Antecedentes familiares al 100% |
+| Paciente distinto sin cambios | PASS | 9302 conservó 0 comentarios y 0 finalizaciones de P04 |
+| Audio, modal y preguntas | NO VERIFICADO en esta actividad | Se conservaron; no se re-auditó su funcionamiento para limitar el alcance |
+
+El arnés reproducible de fallos está en
+`tests/p04/finalization-flow.mjs` y se ejecuta con
+`node tests/p04/finalization-flow.mjs`. Es una prueba controlada del
+orquestador extraído de la vista; los casos A, B, E y G se comprobaron además
+con la interfaz y la base sintética real.
+
+## P04-TEST-ENV-01 — entorno sintético reutilizable — 2026-10-11
+
+Se habilitó una línea base reproducible para P04 y futuros módulos P05–P11 en
+`tests/p04/`. La guarda `verify-isolation.php` es de solo lectura, exige la
+allowlist exacta `clinica_dolor_demo_20261010_final`, comprueba la base activa
+con `SELECT DATABASE()` y rechaza `bd_clinica`, nombres locales no autorizados,
+ausencia de variable o discrepancias entre CLI y entorno. No se modificó `.env`.
+
+El servidor de `start-server.ps1` sólo se inicia después del preflight, usa
+`127.0.0.1`, `variables_order=EGPCS` para compatibilidad con el código que lee
+`$_ENV`, y sobreescribe `DB_DATABASE` únicamente en el proceso de pruebas.
+`stop-server.ps1` finaliza el PID reportado. El router de pruebas sólo sirve
+assets locales y entrega las rutas al front controller real; no crea bypass de
+autenticación.
+
+Preflight:
+
+```powershell
+$env:P04_TEST_DATABASE = 'clinica_dolor_demo_20261010_final'
+php tests/p04/verify-isolation.php --database=clinica_dolor_demo_20261010_final --json
+```
+
+Resultado de la preparación: PASS; se verificaron dos pacientes sintéticos en
+clínicas distintas, dos accesos, nueve módulos y tablas mínimas P04–P11. La
+base no incorpora auxiliares de recetas externas ni COFEPRIS porque no son
+dependencias de P04. La sesión real se probó mediante el login por PIN del
+fixture, sin ruta de bypass ni secretos en documentación.
+
+El mock de voz se ejecuta con `node tests/p04/audio-mock.mjs`. La reproducción
+audible real queda separada y sólo debe marcarse PASS con interacción humana y
+un navegador que exponga Speech Synthesis.
+
+### Ejecución controlada de P04
+
+| Prueba | Resultado | Evidencia |
+|---|---|---|
+| Preflight y base activa | PASS | `clinica_dolor_demo_20261010_final`; guard exit 0 |
+| Base protegida como destino | PASS | `bd_clinica` fue rechazada con exit 2 |
+| GET sin sesión | PASS | HTTP 302 a `/historia-clinica/acceso` |
+| Login sintético por PIN | PASS | HTTP 200 y cookie `CLINICAJWT` en sesión local |
+| P04 autorizado | PASS | HTTP 200; modal, catálogo de preguntas y paciente sintético |
+| Selección No, guardado y avance | PASS | cambio sintético persistido y siguiente pregunta visible |
+| Regreso a pregunta | PASS | radio previamente guardado recuperado como `No` |
+| Campo dependiente | PASS parcial | se habilitó al elegir `Sí`; persistencia vía evento de texto no quedó verificada de forma independiente |
+| Endpoint autorizado de actualización | PASS | HTTP 200 con paciente/registro propios; la fila se restauró al baseline |
+| Comentarios | PASS | se incorporó la tabla sintética faltante y el endpoint devolvió HTTP 200 con `#comentarioModulos` |
+| GET cruzado | PASS | paciente de clínica distinta respondió HTTP 403 |
+| POST cruzado | PASS | actualización sobre paciente distinto respondió HTTP 403 y no alteró datos |
+| Audio mock | PASS | `node tests/p04/audio-mock.mjs`; texto y cancelación sin superposición |
+| Reproducción audible | NO VERIFICADO | el navegador de pruebas no permite demostrar audio audible humano |
+| Finalización del módulo | NO VERIFICADO | no se ejecutó una escritura de finalización dentro de esta actividad |
+
+La primera comprobación del panel de comentarios devolvió HTTP 500 genérico
+porque el fixture no contenía `pac_historia_clinica_comentario`. Se corrigió
+únicamente la infraestructura sintética: se agregó esa tabla a
+`tests/fixtures/security-fixtures.sql` y a la base sintética autorizada, sin
+modificar el runtime clínico. Antes de cerrar la sesión se restauraron las
+respuestas P04 sintéticas modificadas durante la prueba; la línea base quedó en
+6 filas para 9301 y 0 para 9302.
+
 ## Sprint final de demostración — 2026-10-10
 
 ### Fixture sintético ampliado
@@ -24,7 +412,7 @@ ejercitar el cálculo del módulo 2. El resultado observado fue:
 | 5. Antecedentes Personales Patológicos | 50% | Con avance | `/historia-clinica/antecedentes-personales-patologicos/paciente/9301` |
 | 6. Medicación Actual | 100% | Con avance | `/historia-clinica/medicacion-actual/paciente/9301` |
 | 7. Medicamentos que ha utilizado para controlar el dolor | 100% | Con avance | `/historia-clinica/medicacion-control-dolor/paciente/9301` |
-| 8. Procedimientos que ha utilizado para controlar el dolor | 100% | Con avance | `/historia-clinica/procedimientos-control-dolor/paciente/9301` |
+| 8. Procedimientos que ha utilizado para controlar el dolor | **VALIDACIÓN** | Procedimientos y tratamientos con catálogo sintético 10/10 | `/historia-clinica/procedimientos-control-dolor/paciente/9301` — P10-CATALOG-UNBLOCK-02; HTTP PASS, navegador NO VERIFICADO |
 | 9. Evaluación del dolor | 100% | Con avance | `/historia-clinica/evaluacion-dolor/paciente/9301` |
 
 El comportamiento de los módulos 4, 6, 7, 8 y 9 refleja literalmente las
@@ -1322,6 +1710,95 @@ descargas ni cargas de archivos.
   375 px.
 - P2 pendiente: copy heredado de estados vacíos y wrapping natural de nombres
   largos en tablas móviles; no bloquean la demostración.
+
+## P05-FUNC-01 — funcionamiento y seguridad — 2026-10-11
+
+La guarda de P05 confirmó que las comprobaciones se ejecutaron contra
+clinica_dolor_demo_20261010_final, nunca contra bd_clinica. Los pacientes
+sintéticos 9301 y 9302 pertenecen a clínicas distintas. El preflight fue
+PASS, pero el catálogo actual contiene 0 temas, 0 preguntas y 0 respuestas;
+además, la tabla activa no tiene todavía la columna pregunta que el SQL real
+consume. El fixture de pruebas se amplió únicamente con esa columna
+contractual, sin inventar temas, preguntas ni reglas.
+
+| Prueba | Resultado |
+|---|---|
+| Guardas de localStorage por paciente/módulo | PASS estático |
+| Radios Sí/No y etiquetas asociadas | PASS estático |
+| Bloqueo de doble guardado/finalización | PASS estático |
+| Modelo restringe paciente, pregunta y tema | PASS estático |
+| idRol no decide autorización | PASS estático |
+| Comentario→finalización y next_url | PASS estático |
+| PHP lint, JS inline y git diff --check | PASS |
+| GET P05 sin sesión | PASS; HTTP 302 |
+| POST de respuesta sin sesión | PASS; HTTP 302 |
+| GET propio/cruzado autenticado | NO VERIFICADO |
+| Siete temas, dependencias, guardado y recuperación | NO VERIFICADO; catálogo sintético vacío |
+| Rollback, doble POST real, finalización y dashboard | NO VERIFICADO |
+
+La creación de respuestas faltantes en GET es un efecto secundario
+preexistente y permanece documentado; no se ejecutó sobre datos reales.
+La matriz A–O reproducible está en tests/p05/README.md. P05 permanece en
+VALIDACIÓN.
+
+## P05-TEST-DATA-01 — catálogo sintético y esquema — 2026-10-11
+
+El diagnóstico revisó `tests/p05`, `tests/p04`,
+`tests/fixtures/security-fixtures.sql`, el historial de Git y las referencias
+del proyecto. No se encontró SQL versionado, migración, seeder, respaldo ni
+fixture que contenga los siete temas y las preguntas reales de P05. No se
+consultó ni exportó `bd_clinica` y no se inventaron textos clínicos.
+
+La guarda fail-closed confirmó que la conexión activa fue exactamente
+`clinica_dolor_demo_20261010_final`, con pacientes sintéticos 9301/9302 en
+clínicas 9101/9102. La base sintética tenía las tres tablas P05 pero la tabla
+`pac_preguntas_modulo_3` no tenía `pregunta`; el script reproducible
+`tests/p05/prepare-synthetic.php --repair-schema` añadió esa columna sólo en
+la base allowlisted, siguiendo el contrato ya presente en
+`tests/fixtures/security-fixtures.sql` y en `AntecedentesNoPatologicosModel`.
+
+| Control | Resultado |
+|---|---|
+| Base activa allowlisted y distinta de `bd_clinica` | PASS |
+| Guarda de esquema explícita | PASS |
+| Columna `pregunta` en base sintética | PASS; reparada y verificada |
+| Siete temas reales encontrados en el repositorio | FAIL/BLOQUEADO; fuente inexistente |
+| Preguntas reales importadas | NO VERIFICADO; no se inventaron |
+| Respuestas/escenarios sintéticos A–E | NO VERIFICADO; depende del catálogo |
+| Pruebas HTTP autenticadas P05 | NO VERIFICADO; catálogo no disponible |
+| Regresión focal P04: aislamiento, flujo, siguiente módulo y mock de audio | PASS |
+| `bd_clinica` modificada | PASS; no tocada |
+
+P05 permanece en VALIDACIÓN. Para continuar se necesita proporcionar una
+fuente versionada/aprobada de los siete temas y preguntas, o autorizar una
+lectura limitada y no personal de esas tablas de configuración desde la base
+clínica. La siembra preexistente durante GET y los riesgos de autorización
+siguen documentados.
+
+## P05-UI-01 — modernización visual — 2026-10-11
+
+La vista `app/views/historia-clinica-paciente/antecedentes-personales-no-patologicos.php`
+fue alineada con el patrón visual local de P04 sin alterar contratos clínicos.
+El `app.css` se carga con una versión derivada de `filemtime()` y los estilos
+quedaron scoped a `body.patient-nonpathological-page`.
+
+| Control | Resultado |
+|---|---|
+| Vista real de P05 verificada | PASS |
+| Hero, acciones y contexto del paciente | PASS estático |
+| Tarjetas Sí/No, labels y foco | PASS estático |
+| Modal, Escape, cierre por fondo y retorno de foco | PASS estático |
+| Secuencia comentario → finalización → `next_url` preservada | PASS contractual |
+| PHP lint | PASS |
+| JavaScript inline | PASS |
+| CSS y `git diff --check` | PASS |
+| P04 sin cambios funcionales | PASS por diff acotado |
+| Captura autenticada P05 a 1440/375 | NO VERIFICADO; catálogo sintético vacío y sin sesión reproducible |
+| Render real de preguntas y siete temas | NO VERIFICADO; no se inventaron registros |
+
+En el alcance original de P05-UI-01 el modal no implementaba audio; esa
+limitación quedó resuelta posteriormente por P05-COMPLETE-01, documentada al
+inicio de este archivo. P05 permanece en VALIDACIÓN.
 ## Cierre de entrega — demostración sintética — 2026-10-10
 
 Se repitió el recorrido Doctor → Expediente → Historia Clínica → Laboratorio
@@ -1390,3 +1867,98 @@ Se generaron capturas antes y después en escritorio, además de la captura
 móvil con ambos selectores inválidos. D04 permanece en **VALIDACIÓN**; D05
 continúa documentado como expediente individual y no se considera validado por
 esta actividad.
+
+## P09-RESTORE-REAL-01 — medicamento para controlar el dolor
+
+La línea base reutilizable de P09 está en `tests/p09/`. El ZIP autorizado
+`P09_CATALOGOS_SEGUROS.zip` se validó sin ejecutar volcados completos y se
+procesó con `import-catalog.php`, que sólo acepta la base exacta
+`clinica_dolor_demo_20261010_final`, valida las cuatro entradas esperadas y
+extrae las filas allowlisted. Resultado: 6 temas y 46 preguntas, con la
+columna `pregunta` sintética faltante y relaciones de fixture añadidas; 0
+respuestas importadas. La segunda ejecución fue idempotente.
+
+Procedimiento reproducible:
+
+```powershell
+php tests/p09/import-catalog.php --archive=C:\Users\silvi\Downloads\P09_CATALOGOS_SEGUROS.zip --json
+php tests/p09/prepare-synthetic.php --database=clinica_dolor_demo_20261010_final --json
+node tests/p09/contract-check.mjs
+node tests/p09/audio-mock.mjs
+powershell -ExecutionPolicy Bypass -File tests/p09/start-server.ps1 -Port 8109
+php tests/p09/http-crud.php --base-url=http://p09clean.localhost:8109 --database=clinica_dolor_demo_20261010_final --app-key=<clave-de-la-ejecución>
+php tests/p09/cleanup-synthetic.php --database=clinica_dolor_demo_20261010_final
+```
+
+PASS: login sintético, GET propio, seis AJAX, persistencia de No/Sí y sus
+dependencias, recuperación, avance automático, una pulsación de Siguiente,
+anti-doble-clic, modal, Escape/foco, aislamiento cruzado, finalización,
+`next_url` e idempotencia. PASS también para PHP lint, contrato, mock de audio,
+importación idempotente, limpieza sintética y `git diff --check`. La prueba
+visual real disponible (~1280×720) generó capturas del modal, primera pregunta
+y último tema.
+
+NO VERIFICADO: viewports 1440×900, 1280×720 exacto, 768×1024 y 375×667 por
+falta de control de viewport en el navegador disponible; consola DevTools,
+reproducción audible humana, fallo forzado de red y observación de no-op SQL a
+nivel de sentencia. El servidor de prueba fue detenido y las respuestas y
+finalizaciones sintéticas se limpiaron; el catálogo se conservó. No se usó
+`bd_clinica`, no hubo commits/despliegues y P10 no fue iniciado.
+
+## P10-CATALOG-UNBLOCK-02 — procedimientos para controlar el dolor
+
+La línea base reutilizable de P10 está en `tests/p10/`. El procedimiento es
+fail-closed: sólo acepta `clinica_dolor_demo_20261010_final`, comprueba la
+estructura existente y no escribe durante el preflight. No se ejecutaron
+volcados completos ni se tocó `bd_clinica`.
+
+Procedimiento reproducible:
+
+```powershell
+php tests/p10/prepare-synthetic.php --database=clinica_dolor_demo_20261010_final --json
+node tests/p10/contract-check.mjs
+node tests/p10/audio-mock.mjs
+powershell -ExecutionPolicy Bypass -File tests/p09/start-server.ps1 -Port 8109
+php tests/p10/http-crud.php --base-url=http://p09clean.localhost:8109 --database=clinica_dolor_demo_20261010_final --app-key=<clave-de-la-ejecución>
+```
+
+La preparación confirmó dos pacientes sintéticos independientes (clínicas
+9101 y 9102) y la base exacta `clinica_dolor_demo_20261010_final`. Se verificó
+`P10_CATALOGO_SEGURO.zip`, se validó el SQL interno y se cargaron exactamente
+10 tratamientos. La tabla demo tenía el campo heredado `tratamiento`; como
+estaba vacía, se corrigió a `procedimiento`. También se añadió `comentarios` a
+la tabla sintética de respuestas. No se ejecutó el dump completo ni se tocó
+`bd_clinica`.
+
+PASS: preflight aislado, PHP lint, sintaxis JS inline, contrato HTML/JS, mock
+de audio, importación idempotente, catálogo 10/10, login sintético, GET propio
+sin siembra, sesión ausente HTTP 302, acceso cruzado GET/AJAX/POST HTTP 403,
+JSON seguro, AJAX de los diez tratamientos, respuestas No/Sí, dependencias,
+efectos adversos, descripción, comentarios, recuperación, finalización HTTP
+200, `next_url` a evaluación del dolor, finalización idempotente, CRUD propio
+de procedimientos y limpieza. El frontend usa URLs relativas del mismo origen,
+conserva el modal con la estructura Bootstrap centrada de P04 y ofrece mensaje
+genérico con reintento.
+No se modificó el router de P09 y el servidor de prueba se detuvo al terminar.
+
+NO VERIFICADO: no-op SQL a nivel de sentencia, error de red observado en
+navegador, modal centrado observado en navegador, renderizado autenticado,
+responsive 1440/1280/768/375, overflow, foco/teclado observado, consola
+DevTools, captura full-page y reproducción audible humana. El IAB bloqueó la
+página sintética local con «Solicitud no disponible»; no se probó el host
+clínico ni se ejecutaron escrituras sobre datos reales. P10 permanece en
+VALIDACIÓN y P11 no fue iniciado.
+
+### P10-MODAL-EXACT-PARITY-01
+
+PASS estático: P10 adopta la misma jerarquía HTML de P04 (`modal`,
+`modal-dialog modal-dialog-centered`, `modal-content`, encabezado, cuerpo y
+footer), el degradado blanco/lavanda del encabezado, las variantes de botones,
+el orden Escuchar/Detener/Entendido y las reglas responsive scoped. Se
+conservan apertura automática, voz es-MX, cancelación, Escape, foco, clic fuera
+y la guarda contra reapertura durante renderizados AJAX.
+
+NO VERIFICADO: comparación renderizada P04/P10 a 1440×900, 1280×720 y
+375×667, capturas, consola DevTools, foco observado y reproducción audible
+humana; el navegador disponible no ofreció una sesión sintética reproducible.
+P10 permanece en VALIDACIÓN.

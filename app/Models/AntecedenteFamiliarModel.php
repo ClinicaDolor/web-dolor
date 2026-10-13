@@ -29,7 +29,27 @@ $this->bd = Database::getInstance();
 
 
     $stmt = $this->bd->query("SELECT * FROM pc_antecedentes_familiares WHERE id_paciente = '".$idPaciente."' ORDER BY id ASC");
-    $preguntas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    $stored = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    $storedByDisease = [];
+    foreach ($stored as $row) {
+        $storedByDisease[(string)($row['enfermedad'] ?? '')] = $row;
+    }
+    $preguntas = [];
+    foreach ($enfermedades_fijas as $fixedDisease) {
+        $preguntas[] = $storedByDisease[$fixedDisease] ?? [
+            'id' => 0,
+            'id_paciente' => (int)$idPaciente,
+            'enfermedad' => $fixedDisease,
+            'tipo' => '',
+            'detalle' => '',
+            'especificar' => '',
+        ];
+    }
+    foreach ($stored as $row) {
+        if (!in_array((string)($row['enfermedad'] ?? ''), $enfermedades_fijas, true)) {
+            $preguntas[] = $row;
+        }
+    }
 
     if (!empty($preguntas)) {
     $result .= '<table class="table-bordered" border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;">';
@@ -171,33 +191,33 @@ $this->bd = Database::getInstance();
     $especificar = $pregunta['especificar'];
     
     $claseActiva = ($index == 0) ? 'active' : ''; // Se activará la pregunta guardada en localStorage
-    $result .= '<div class="pregunta-container '.$claseActiva.'" data-index="'.$index.'" data-id="'.$idEnfermedad.'" data-enfermedad="'.$enfermedad.'" data-rol="'.$idRol.'">';
+    $result .= '<div class="pregunta-container '.$claseActiva.'" data-index="'.$index.'" data-id="'.$idEnfermedad.'" data-p04-disease="'.htmlspecialchars((string)$enfermedad, ENT_QUOTES, 'UTF-8').'" data-enfermedad="'.htmlspecialchars((string)$enfermedad, ENT_QUOTES, 'UTF-8').'" data-rol="'.htmlspecialchars((string)$idRol, ENT_QUOTES, 'UTF-8').'">';
             
     if (in_array($enfermedad, $enfermedades_fijas)) {
         $result .= '
         <div class="text-secondary fw-bold mb-1">Nombre de la enfermedad:</div>
         <h4 class="mb-3">'.$enfermedad.'</h4>
         <div class="text-secondary fw-bold mb-1">¿Alguno de tus familiares ha sido diagnosticado con esta enfermedad?:</div>
-        <div class="d-flex justify-content-start gap-2 mb-3">
-            <div class="text-center">
-                <input class="form-check-input custom-checkbox tipo-enfermedad" type="checkbox" 
+        <div class="d-flex justify-content-start gap-2 mb-3" role="radiogroup" aria-label="Selecciona Sí o No">
+            <div class="text-center p04-choice-card">
+                <input class="form-check-input custom-checkbox tipo-enfermedad" type="radio"
                     name="enfermedad_'.$idEnfermedad.'" 
                     id="enfermedad_'.$idEnfermedad.'_si" 
     value="Si" data-value="Si" '.($detalle == 'Si' ? 'checked' : '').' 
-                    onchange="editarEnfermedad('.$idEnfermedad.', this, 2, \''.$idRol.'\', 1)">
-                <h5 class=" d-block text-secondary mt-2" for="enfermedad_'.$idEnfermedad.'_si">
-                    Si
-                </h5>
+                    >
+                <label class="d-block text-secondary mt-2 p04-choice-label" for="enfermedad_'.$idEnfermedad.'_si">
+                    Sí
+                </label>
             </div>
-            <div class="text-center">
-                <input class="form-check-input custom-checkbox tipo-enfermedad" type="checkbox" 
+            <div class="text-center p04-choice-card">
+                <input class="form-check-input custom-checkbox tipo-enfermedad" type="radio"
                     name="enfermedad_'.$idEnfermedad.'" 
                     id="enfermedad_'.$idEnfermedad.'_no" 
     value="No" data-value="No" '.($detalle == 'No' ? 'checked' : '').' 
-                    onchange="editarEnfermedad('.$idEnfermedad.', this, 2, \''.$idRol.'\', 1)">
-                <h5 class=" d-block text-secondary mt-2" for="enfermedad_'.$idEnfermedad.'_no">
+                    >
+                <label class="d-block text-secondary mt-2 p04-choice-label" for="enfermedad_'.$idEnfermedad.'_no">
                     No
-                </h5>
+                </label>
             </div>
         </div>
         ';
@@ -311,31 +331,67 @@ $this->bd = Database::getInstance();
     }
    
     public function editarEnfermedadPaciente($data){
-    $opcionEdicion = $data['edicion'];
+    $opcionEdicion = filter_var($data['edicion'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 4]]);
+    $idPaciente = filter_var($data['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    $idEnfermedad = filter_var($data['idEnfermedad'] ?? 0, FILTER_VALIDATE_INT);
+    $diseaseName = trim((string)($data['enfermedad'] ?? ''));
+    if ($opcionEdicion === false || $idPaciente === false || $idEnfermedad === false || $idEnfermedad < 0 || !array_key_exists('detalle', $data) || !is_scalar($data['detalle'])) {
+    return array('resultado' => 422, 'mensaje' => 'Datos de actualización no válidos.');
+    }
+    if ($idEnfermedad === 0) {
+    if ($opcionEdicion !== 2 || !in_array($diseaseName, $this->enfermedadesFijas(), true)) {
+        return array('resultado' => 403, 'mensaje' => 'No autorizado.');
+    }
+    $existing = $this->bd->prepare('SELECT id FROM pc_antecedentes_familiares WHERE id_paciente = :id_paciente AND enfermedad = :enfermedad LIMIT 1');
+    $existing->execute([':id_paciente' => (int)$idPaciente, ':enfermedad' => $diseaseName]);
+    $idEnfermedad = (int)$existing->fetchColumn();
+    if ($idEnfermedad < 1) {
+        $insert = $this->bd->prepare("INSERT INTO pc_antecedentes_familiares (id_paciente, enfermedad, detalle, tipo, especificar) VALUES (:id_paciente, :enfermedad, '', '', '')");
+        $insert->execute([':id_paciente' => (int)$idPaciente, ':enfermedad' => $diseaseName]);
+        $idEnfermedad = (int)$this->bd->lastInsertId();
+    }
+    }
+
+    $detalle = trim((string)$data['detalle']);
 
     $consulta2 = "";
     if($opcionEdicion == 1){
     $consulta = "enfermedad";
     }else if($opcionEdicion == 2){
     $consulta = "detalle";
-    if($data['detalle'] == "No"){
+    if(!in_array($detalle, ['Si', 'No'], true)){
+    return array('resultado' => 422, 'mensaje' => 'Respuesta no válida.');
+    }
+    if($detalle == "No"){
     $consulta2 = ",tipo = '', especificar = ''";
     }
     }else if($opcionEdicion == 3){
     $consulta = "tipo";
+    if(!in_array($detalle, ['Tipo 1', 'Tipo 2', 'Gestacional'], true)){
+    return array('resultado' => 422, 'mensaje' => 'Tipo de diabetes no válido.');
+    }
     }else if($opcionEdicion == 4){
     $consulta = "especificar";
     }
 
+    $ownership = $this->bd->prepare('SELECT id FROM pc_antecedentes_familiares WHERE id = :id_enfermedad AND id_paciente = :id_paciente LIMIT 1');
+    $ownership->execute([
+    ':id_enfermedad' => $idEnfermedad,
+    ':id_paciente' => $idPaciente
+    ]);
+    if (!$ownership->fetchColumn()) {
+    return array('resultado' => 403, 'mensaje' => 'No autorizado.');
+    }
 
     $sql = "UPDATE pc_antecedentes_familiares SET 
-    $consulta = :detalle $consulta2 WHERE id = :id_enfermedad";
+    $consulta = :detalle $consulta2 WHERE id = :id_enfermedad AND id_paciente = :id_paciente";
 
     $stmt = $this->bd->prepare($sql);                    
             
     $datos = [
-    ':id_enfermedad' => $data['idEnfermedad'],
-    ':detalle' => $data['detalle']
+    ':id_enfermedad' => $idEnfermedad,
+    ':id_paciente' => $idPaciente,
+    ':detalle' => $detalle
     ];
         
     if ($stmt->execute($datos)) {

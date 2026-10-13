@@ -140,7 +140,14 @@ return $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
 public function mostrarTablaRecetas($idPaciente){
 $result = '';
-$stmt = $this->bd->query("SELECT * FROM receta_medica WHERE id_paciente = '".$idPaciente."' ORDER BY fecha_hora DESC");
+$idPaciente = filter_var($idPaciente, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+
+if ($idPaciente === false) {
+return $result;
+}
+
+$stmt = $this->bd->prepare("SELECT * FROM receta_medica WHERE id_paciente = :id_paciente ORDER BY fecha_hora DESC");
+$stmt->execute([':id_paciente' => $idPaciente]);
 $registros = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
 $result .= '<table class="table table-striped table-hover table-sm pb-0 mb-0" id="tableRecetas">

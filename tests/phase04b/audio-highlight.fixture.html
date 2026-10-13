@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <title>PHASE-04B-03 audio highlight fixture</title>
+</head>
+<body>
+  <main>
+    <p id="instructions" data-narration-instructions>
+      Primero lee esta instrucción. Después continúa con la siguiente pregunta.
+    </p>
+    <pre id="result" aria-live="polite"></pre>
+  </main>
+  <script>
+    window.__speechEvents = [];
+    const phaseSpeechMock = {
+      lastUtterance: null,
+      speak(utterance) {
+        this.lastUtterance = utterance;
+        window.__speechEvents.push('speak');
+      },
+      cancel() {
+        window.__speechEvents.push('cancel');
+        this.lastUtterance = null;
+      }
+    };
+    Object.defineProperty(window, 'speechSynthesis', { configurable: true, writable: true, value: phaseSpeechMock });
+    Object.defineProperty(window, 'SpeechSynthesisUtterance', { configurable: true, writable: true, value: function (text) {
+      this.text = text;
+      this.lang = '';
+    } });
+  </script>
+  <script src="/public/assets/js/patient-narration-highlight.js"></script>
+  <script>
+    (function () {
+      const output = document.getElementById('result');
+      try {
+      const target = document.getElementById('instructions');
+      const checks = [];
+      const record = (name, pass, details) => checks.push({ name, pass: Boolean(pass), details: details || '' });
+      const tokens = () => Array.from(target.querySelectorAll('[data-narration-token]'));
+      const assertCheck = (name, condition, details) => record(name, condition, details);
+      const utterance = new SpeechSynthesisUtterance(target.textContent);
+
+      window.speechSynthesis.speak(utterance);
+      utterance.onstart();
+      assertCheck('start highlights first token', tokens()[0].classList.contains('is-reading'));
+      assertCheck('text remains intact', target.textContent.replace(/\s+/g, ' ').trim() === 'Primero lee esta instrucción. Después continúa con la siguiente pregunta.');
+
+      const secondStart = Number(tokens()[1].dataset.narrationStart);
+      utterance.onboundary({ name: 'word', charIndex: secondStart });
+      assertCheck('boundary highlights known token', tokens()[1].classList.contains('is-reading'));
+      assertCheck('boundary marks prior token read', tokens()[0].classList.contains('is-read'));
+      assertCheck('boundary sync state', target.dataset.narrationSync === 'word-boundary');
+
+      window.speechSynthesis.cancel();
+      assertCheck('cancel clears active highlight', tokens().every(token => !token.classList.contains('is-reading')));
+      utterance.onboundary({ name: 'word', charIndex: secondStart });
+      assertCheck('late boundary after cancel is ignored', tokens().every(token => !token.classList.contains('is-reading')));
+
+      const errorUtterance = new SpeechSynthesisUtterance(target.textContent);
+      window.speechSynthesis.speak(errorUtterance);
+      errorUtterance.onstart();
+      errorUtterance.onerror({ error: 'synthesis-failed' });
+      assertCheck('error resets highlight', tokens().every(token => !token.classList.contains('is-reading')));
+      assertCheck('error state is exposed', target.dataset.narrationState === 'error');
+
+      const fallbackUtterance = new SpeechSynthesisUtterance(target.textContent);
+      window.speechSynthesis.speak(fallbackUtterance);
+      fallbackUtterance.onstart();
+      fallbackUtterance.onend();
+      assertCheck('end marks all text read', tokens().every(token => token.classList.contains('is-read')));
+      assertCheck('unsupported-boundary fallback is explicit', target.dataset.narrationFallback === 'sin-eventos-boundary');
+      assertCheck('fallback does not claim word sync', target.dataset.narrationSync === 'unsupported');
+
+      window.__phase04bAudioHighlight = {
+        pass: checks.every(check => check.pass),
+        checks,
+        tokenCount: tokens().length,
+        speechEvents: window.__speechEvents.slice()
+      };
+      output.textContent = JSON.stringify(window.__phase04bAudioHighlight, null, 2);
+      } catch (error) {
+        window.__phase04bAudioHighlight = { pass: false, error: String(error && error.stack || error) };
+        output.textContent = JSON.stringify(window.__phase04bAudioHighlight, null, 2);
+      }
+    }());
+  </script>
+</body>
+</html>

@@ -1,326 +1,122 @@
-<?php 
-use App\Config\Database;
+<?php
 use App\Models\MedicacionDolorModel;
-$bd = Database::getInstance();
 
 $model = new MedicacionDolorModel();
-$preguntas_fijas = $model->obtenerPreguntasModulos(); 
-foreach ($preguntas_fijas as $preg) {
-echo $model->medicacionDolorQuest($data['idPaciente'], $preg);
-}
-
+$idPaciente = (int)($data['idPaciente'] ?? 0);
 $modulos = $model->obtenerModulosM7();
+$escape = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+$pageTitle = $data['title'] ?? 'Medicamentos para controlar el dolor';
+$patientName = $data['nombre'] ?? 'Paciente';
+$versionedAsset = static function (string $baseUrl, string $assetPath, string $publicPath): string {
+    $filesystemPath = realpath(__DIR__ . '/../../public/' . ltrim($publicPath, '/'));
+    $version = $filesystemPath !== false && is_file($filesystemPath) ? filemtime($filesystemPath) : false;
+    return $baseUrl . $assetPath . ($version === false ? '' : '?v=' . (int)$version);
+};
+$appCssUrl = $versionedAsset(RUTA_CSS, 'app.css', 'assets/css/app.css');
 ?>
-   
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?=$data['title'];?></title>
-    <link rel="shortcut icon" href="<?=RUTA_IMAGES ?>/logo-clinica.png">
-    <link rel="apple-touch-icon" href="<?=RUTA_IMAGES ?>/logo-clinica.png">
-    <link rel="stylesheet" href="<?=RUTA_CSS;?>bootstrap.css">
-    <link rel="stylesheet" href="<?=RUTA_PUBLIC;?>libs/perfect-scrollbar/perfect-scrollbar.css">
-    <link rel="stylesheet" href="<?=RUTA_PUBLIC;?>libs/simple-datatables/style.css">
-    <link rel="stylesheet" href="<?=RUTA_CSS;?>app.css">
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script src="<?=RUTA_JS;?>loader.js"></script>
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title><?= $escape($pageTitle); ?></title>
+<link rel="shortcut icon" href="<?= RUTA_IMAGES; ?>/logo-clinica.png">
+<link rel="apple-touch-icon" href="<?= RUTA_IMAGES; ?>/logo-clinica.png">
+<link rel="stylesheet" href="<?= RUTA_CSS; ?>bootstrap.css">
+<link rel="stylesheet" href="<?= RUTA_PUBLIC; ?>libs/perfect-scrollbar/perfect-scrollbar.css">
+<link rel="stylesheet" href="<?= $appCssUrl; ?>">
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="<?= RUTA_JS; ?>loader.js"></script>
+<style>
+body.patient-nonpathological-page #preguntas-container { display: block; }
+body.patient-nonpathological-page .pregunta-container { display: none; }
+body.patient-nonpathological-page .pregunta-container.active { display: block; }
+</style>
+<script>
+const p09Themes = <?= json_encode(array_map(static fn($id, $name) => ['id' => (int)$id, 'nombre' => $name], array_keys($modulos), array_values($modulos)), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+const p09ModuleId = 7;
+let p09SaveInFlight = false;
+let p09TransitionInFlight = false;
+let p09FinalizationInFlight = false;
+let p09LastFocusedElement = null;
+let p09SpeechRequestId = 0;
+let p09SpeechStarted = false;
+let p09VoiceFeedbackTimer = null;
 
-    <style>
-    /* Contenedor de preguntas visible inicialmente */
-    #preguntas-container { display: block; }
-    .pregunta-container { display: none; }
-    .pregunta-container.active { display: block; }
-    </style>
+function p09Main() { return document.getElementById('main'); }
+function p09PatientId() { return Number(p09Main()?.dataset.paciente || 0); }
+function p09Role() { return p09Main()?.dataset.rol || 'Paciente'; }
+function p09Key(name) { return `p09:${p09PatientId()}:modulo-${p09ModuleId}:${name}`; }
+function p09Theme(id) { return p09Themes.find(theme => String(theme.id) === String(id)) || null; }
+function p09SetMessage(message) { const node = document.getElementById('p09-page-message'); if (node) node.textContent = message || ''; }
+function p09SetBusy(busy) { document.querySelectorAll('[data-p09-control], [data-p09-next], [data-p09-next-theme], [data-p09-previous-question], [data-p09-previous-theme], [data-p09-finalize]').forEach(control => { if (control.dataset.p09BusyOriginal === undefined) control.dataset.p09BusyOriginal = control.disabled ? 'true' : 'false'; control.disabled = busy || (control.dataset.p09BusyOriginal === 'true'); }); }
 
-    <script>
-    const modulos = <?=json_encode($modulos)?>;
-
-    const temas = Object.keys(modulos).map(id => {
-    return { id: id, nombre: modulos[id] };
-    });
-
-    // Al cargar la página se carga el módulo correspondiente (por defecto "Tabaquismo")
-    document.addEventListener("DOMContentLoaded", function() {
-    const seccionActual = localStorage.getItem("seccionActual") || "Opioides";
-    localStorage.setItem("seccionActual", seccionActual);
-    let temaActual = temas.find(t => t.nombre === seccionActual) || temas[0];
-    if (temaActual) {
-    localStorage.setItem("seccionActual", temaActual.nombre);
-    contenidoPreguntas(temaActual.id);
-    }
-
-    // Inicializar las preguntas con valor 0 si no están configuradas en localStorage
-    for (let i = 1; i <= 6; i++) {
-    if (localStorage.getItem(`preguntaActual_${i}`) === null) {
-    localStorage.setItem(`preguntaActual_${i}`, 0);
-    }
-    }
-
-    });
-
-    // ---------- CONTENIDO DE LAS PREGUNTAS ----------
-    function contenidoPreguntas(idCuestionario, idValor = 0) {
-    // Limpia las preguntas anteriores, si existen
-    document.querySelectorAll('.pregunta-container').forEach(p => p.remove());
-
-    const usuarioDiv = document.getElementById('main');
-    const idPaciente = usuarioDiv.getAttribute('data-paciente');
-    const idRol = usuarioDiv.getAttribute('data-rol');
-
-    fetch(`/buscar/contenido-preguntas-modulo-7/${idPaciente}/${idRol}/${idCuestionario}`)
-    .then(response => response.text())
-    .then(data => {
-    // Insertar el contenido en el contenedor específico del módulo
-    document.getElementById('contePreguntas_' + idCuestionario).innerHTML = data;
-    feather.replace();
-
-    // Reactivar el IntersectionObserver para las nuevas secciones (si lo utilizas)
-    document.querySelectorAll('.sectionQuestion').forEach(section => {
-    observer.observe(section);
-    });
-
-    // Cargar el progreso para el módulo actual
-    cargarProgreso(idCuestionario, idValor);
-    });
-    }
-
-    // ---------- GUARDAR Y CARGAR PROGRESO ----------
-    function guardarProgreso(index, idCuestionario) {
-    localStorage.setItem("preguntaActual_" + idCuestionario, index);
-    }
-
-    function cargarProgreso(idCuestionario, idValor = 0) {
-    let indexGuardado = localStorage.getItem("preguntaActual_" + idCuestionario);
-    indexGuardado = indexGuardado ? parseInt(indexGuardado) : idValor;
-    const preguntas = document.querySelectorAll('.pregunta-container');
-
-    // Remover la clase 'active' de todas las preguntas
-    preguntas.forEach(pregunta => pregunta.classList.remove('active'));
-
-    // Asegurar que el índice guardado no exceda el número de preguntas
-    if (preguntas.length > 0) {
-    if (indexGuardado >= preguntas.length) {
-    indexGuardado = preguntas.length - 1;
-    }
-    preguntas[indexGuardado].classList.add('active');
-    }
-    return indexGuardado;
-    }
-
-    // ---------- NAVEGACIÓN ENTRE PREGUNTAS ----------
-    function siguientePregunta(idTema) {
-    const preguntas = document.querySelectorAll('.pregunta-container');
-    let activeIndex = -1;
-
-    // Mostrar y ocultar el loader (suponiendo que usas jQuery para ello)
-    $(".LoaderPage").show();
-    $(".LoaderPage").fadeOut(1000);
-
-    preguntas.forEach((pregunta, index) => {
-    if (pregunta.classList.contains('active')) {
-    activeIndex = index;
-    pregunta.classList.remove('active');
-    }
-    });
-
-    if (activeIndex === -1 && preguntas.length > 0) {
-    activeIndex = cargarProgreso(idTema);
-    }
-
-    // Si se está en la última pregunta del módulo...
-    if (activeIndex >= preguntas.length - 1) {
-    // Buscar el módulo actual en el arreglo de temas
-    let seccionActual = localStorage.getItem("seccionActual") || temas[0].nombre;
-    let currentIndex = temas.findIndex(t => t.nombre === seccionActual);
-
-    // Si existe un siguiente módulo, preparar el botón para dirigir a esa sección
-    if (currentIndex < temas.length - 1) {
-    let nuevoTema = temas[currentIndex + 1];
-    // Se coloca el botón en el contenedor de botones de la última pregunta
-    let lastPregunta = preguntas[preguntas.length - 1];
-    let botonesContainer = lastPregunta.querySelector('.mt-3.d-flex.justify-content-between');
-    botonesContainer.innerHTML = `<button class="btn btn-success" onclick="irASiguienteSeccion('${nuevoTema.nombre}', ${nuevoTema.id})">${nuevoTema.nombre} <i data-feather="message-circle"></i></button>`;
-    return;
-    } 
-
-    } else {
-    // Avanzar a la siguiente pregunta dentro del mismo módulo
-    const nuevoIndice = activeIndex + 1;
-    preguntas[nuevoIndice].classList.add('active');
-    guardarProgreso(nuevoIndice, idTema);
-    }
-    }
-
-    //---------- MUESTRA LA PREGUNTA ANTERIOR ----------
-    function anteriorPregunta(idTema) {
-    const preguntas = document.querySelectorAll('.pregunta-container');
-    let activeIndex = -1;
-
-    $(".LoaderPage").show();
-    $(".LoaderPage").fadeOut(1000);
-
-    preguntas.forEach((pregunta, index) => {
-    if (pregunta.classList.contains('active')) {
-    activeIndex = index;
-    pregunta.classList.remove('active');
-    }
-    }); 
-
-    if (activeIndex === -1 && preguntas.length > 0) {
-    activeIndex = cargarProgreso(idTema);
-    }
-
-    // Si se está en la primera pregunta del módulo...
-    if (activeIndex <= 0) {
-    let seccionActual = localStorage.getItem("seccionActual") || temas[0].nombre;
-    let currentIndex = temas.findIndex(t => t.nombre === seccionActual);
-    if (currentIndex > 0) {
-    let nuevoTema = temas[currentIndex - 1];
-    localStorage.setItem("seccionActual", nuevoTema.nombre);
-    // Se asume que al cargar el módulo anterior se muestra la última pregunta
-    contenidoPreguntas(nuevoTema.id, true);
-    return;
-    }
-    } else {
-    // Retroceder a la pregunta anterior dentro del mismo módulo
-    const nuevoIndice = activeIndex - 1;
-    preguntas[nuevoIndice].classList.add('active');
-    guardarProgreso(nuevoIndice, idTema);
-    }
-    }
-
-    //---------- IR A LA SIGUIENTE SECCION ----------
-    function irASiguienteSeccion(nombreTema, idTema) {
-    $(".LoaderPage").show();
-    $(".LoaderPage").fadeOut(1000);
-    localStorage.setItem("seccionActual", nombreTema);
-    contenidoPreguntas(idTema);
-    }
-
-    //---------- CONTROL SERVER ----------
-    function gestionarMedicacionControl(url, parametros, callback, idUpdate = 0) {
-    if(idUpdate == 1){
-    $(".LoaderPage").show();
-    }
-    fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(parametros)
-    }).then(res => res.json()).then(data => {
-    if(idUpdate == 1){
-    $(".LoaderPage").fadeOut(1000);
-    }
-    if (data.resultado) callback();
-    else document.getElementById('mensaje').textContent = 'Error: ' + data.mensaje;
-    });
-    }
-
-    //---------- EDITAR ENFERMEDADES DEL PACIENTE ----------
-    function respuestaPreguntaSelect (idPaciente, idRespuesta, elemento, idTema, idTipo, idRol, idUpdate = 0) {
-    gestionarMedicacionControl(`/${idRol === "Paciente" ? "historia-clinica" : "clinica"}/paciente/editar-cuestionario-modulo7`, {
-    idPaciente,
-    idRespuesta, 
-    idTema,
-    idTipo,
-    detalle: elemento.value,
-    idRol
-    }, 
-    () => contenidoPreguntas(idTema),
-    idUpdate);
-    }
-
-    //---------- FINALIZAR MODULO DEL PACIENTE----------
-    function finalizarModuloPAC(idModulo, idPaciente) {
-    gestionarMedicacionControl('/historia-clinica/paciente/finalizar-modulo-paciente', { idModulo, idPaciente }, () => window.location.href = '/historia-clinica');
-    }
-
-    </script>
-    </head>
-
-<body class="app-shell-body app-shell-patient patient-clinical-form">
-    <div class="LoaderPage"></div>
-    <div id="app">
-        
-    <!---------- SIDEBAR ---------->
-    <?=$data['sidebar'];?>
-    
-    <div id="main" data-rol="<?=$data['idRol'];?>" data-paciente="<?=$data['idPaciente'];?>">
-    <nav class="navbar navbar-header navbar-expand navbar-light">
-    <a class="sidebar-toggler"><span class="navbar-toggler-icon"></span></a>
-    <button class="btn navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-    <span class="navbar-toggler-icon"></span>
-    </button>
-                
-    <div class="collapse navbar-collapse" id="navbarSupportedContent">
-    <ul class="navbar-nav d-flex align-items-center navbar-light ms-auto">
-    </ul>
-    </div>
-    </nav>
-
-    <!---------- CONTENIDO DE LA PAGINA ---------->
-    <div class="main-content container-fluid">
-
-    <div class="page-title mb-4">     
-    <h8><?=$data['nombre'];?></h8>
-    <h3><?=$data['title'];?></h3>
-    </div>
-    
-    <section class="section">
-
-    <div class="card">
-
-    <!---------- CONTENEDOR DE PREGUNTAS ---------->
-    <div id="preguntas-container">
-
-    <div class="card-header pb-0">
-    <div class="row">
-
-    <div id="seccion100" data-autoplay="false" class="col-12 col-md-11 d-flex align-items-center sectionQuestion mb-2">
-    <img src="<?=RUTA_IMAGES ?>/iconos/audio.png" onclick="readQuestion()" class="img-fluid pointer" style="max-height: 30px; margin-right: 10px;" data-target="seccion100">
-
-    <h8 class="text-primary fw-bold texto">
-    A continuación, se mostrará una serie de medicamentos comúnmente utilizados para el control del dolor.
-    Por favor, indique si ha utilizado alguno de ellos. En caso afirmativo, anote la dosis que utiliza, los resultados obtenidos y si actualmente lo sigue utilizando o no.
-     </h8>
-    </div>
-
-    <div class="col-12">
-    <div id="mensaje" class="text-center text-danger mt-2"></div>
-    </div>
-
-    </div>
-    </div>
-
-    <div class="card-body">
-    <div id="contePreguntas_1"></div>
-    <div id="contePreguntas_2"></div>
-    <div id="contePreguntas_3"></div>
-    <div id="contePreguntas_4"></div>
-    <div id="contePreguntas_5"></div>
-    <div id="contePreguntas_6"></div>
-    </div>
-    </div>
-
-    </div>
-
-
-
-    </div>
-    </section>
-
-    </div>
-    <!----- FOOTER ---------->
-<?php include_once __DIR__ . '/../components/footer-doctor.php';?>
-    </div>
-    </div>
-
-    <script src="<?=RUTA_JS;?>voice-utilities.js"></script>
-    <script src="<?=RUTA_JS;?>/feather-icons/feather.min.js"></script>
-    <script src="<?=RUTA_PUBLIC;?>libs/perfect-scrollbar/perfect-scrollbar.min.js"></script>
-    <script src="<?=RUTA_JS;?>app.js"></script>    
-    <script src="<?=RUTA_PUBLIC;?>libs/simple-datatables/simple-datatables.js"></script>
-    <script src="<?=RUTA_JS;?>main.js"></script>
-    </body>
-    </html>
+function p09StopVoice(message = '') {
+    p09SpeechRequestId += 1; p09SpeechStarted = false;
+    if (p09VoiceFeedbackTimer !== null) { window.clearTimeout(p09VoiceFeedbackTimer); p09VoiceFeedbackTimer = null; }
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    const status = document.getElementById('p09VoiceStatus'); if (status) status.textContent = message;
+    const prompt = document.getElementById('p09VoicePrompt'); if (prompt && message) prompt.textContent = message;
+    document.querySelectorAll('.p09-voice-stop').forEach(button => { button.hidden = true; button.tabIndex = -1; });
+}
+function p09Speak(text, mode = 'instructions') {
+    if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') { p09SetMessage('La lectura por voz no está disponible. Puedes continuar con las instrucciones escritas.'); return false; }
+    const cleanText = String(text || '').replace(/\s+/g, ' ').trim(); if (!cleanText) return false;
+    p09StopVoice();
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    const voices = window.speechSynthesis.getVoices(); const voice = voices.find(item => /^es-MX/i.test(item.lang)) || voices.find(item => /^es[-_]/i.test(item.lang));
+    utterance.lang = voice ? voice.lang : 'es-MX'; if (voice) utterance.voice = voice; utterance.rate = .88;
+    const requestId = ++p09SpeechRequestId; p09SpeechStarted = false;
+    const prompt = document.getElementById('p09VoicePrompt'); const status = document.getElementById('p09VoiceStatus');
+    if (mode === 'instructions' && prompt) prompt.textContent = 'Intentando iniciar la lectura...';
+    if (mode === 'question' && status) status.textContent = 'Intentando iniciar la lectura de la pregunta.';
+    utterance.onstart = () => { if (requestId !== p09SpeechRequestId) return; p09SpeechStarted = true; if (mode === 'instructions' && prompt) prompt.textContent = 'Reproduciendo instrucciones. Puedes detenerlas o repetirlas.'; if (mode === 'question' && status) status.textContent = 'Reproduciendo la pregunta activa. Puedes detenerla o repetirla.'; document.querySelectorAll('.p09-voice-stop').forEach(button => { button.hidden = false; button.tabIndex = 0; }); };
+    utterance.onend = () => { if (requestId !== p09SpeechRequestId) return; p09SpeechStarted = false; if (mode === 'instructions' && prompt) prompt.textContent = 'Lectura finalizada. Puedes repetirla cuando quieras.'; if (mode === 'question' && status) status.textContent = 'Lectura de la pregunta finalizada.'; document.querySelectorAll('.p09-voice-stop').forEach(button => { button.hidden = true; button.tabIndex = -1; }); };
+    utterance.onerror = () => { if (requestId !== p09SpeechRequestId) return; p09SpeechStarted = false; if (mode === 'instructions' && prompt) prompt.textContent = 'No se pudo iniciar la lectura. Presiona Escuchar para intentarlo de nuevo.'; if (mode === 'question' && status) status.textContent = 'No se pudo iniciar la lectura. Presiona Escuchar para intentarlo de nuevo.'; };
+    try { window.speechSynthesis.speak(utterance); p09VoiceFeedbackTimer = window.setTimeout(() => { if (requestId === p09SpeechRequestId && !p09SpeechStarted) { window.speechSynthesis.cancel(); if (mode === 'instructions' && prompt) prompt.textContent = 'No se pudo iniciar automáticamente. Presiona Escuchar para intentarlo.'; } }, 1500); return true; } catch (error) { p09SetMessage('La lectura por voz no está disponible en este momento.'); return false; }
+}
+function p09ReadInstructions() { p09Speak(document.getElementById('p09InstructionsText')?.textContent || 'En esta sección revisaremos los medicamentos utilizados para controlar el dolor.'); }
+function p09ReadCurrentQuestion() { const modal = document.getElementById('p09InstructionsModal'); if (modal && modal.getAttribute('aria-hidden') !== 'true') { p09SetMessage('Cierra las instrucciones para escuchar la pregunta.'); return; } const active = document.querySelector('.p09-question.active'); if (!active) return; const copy = active.cloneNode(true); copy.querySelectorAll('button, input, select, textarea, .p09-navigation, [aria-live]').forEach(node => node.remove()); p09Speak(copy.textContent, 'question'); }
+function p09OpenInstructions() { const modal = document.getElementById('p09InstructionsModal'); if (!modal) return; p09LastFocusedElement = PatientInstructionsModal.capture(modal, document.activeElement, '.patient-nonpathological-help'); PatientInstructionsModal.open(modal, { opener: p09LastFocusedElement, focusSelector: '.btn-close' }); p09ReadInstructions(); }
+function p09CloseInstructions() { const modal = document.getElementById('p09InstructionsModal'); if (!modal) return; PatientInstructionsModal.close(modal, { returnFocus: p09LastFocusedElement, fallbackSelector: '.patient-nonpathological-help' }); p09StopVoice(); p09LastFocusedElement = null; window.setTimeout(p09ReadCurrentQuestion, 0); }
+function p09StorageTheme() { return localStorage.getItem(p09Key('theme')) || String(p09Themes[0]?.id || ''); }
+function p09StorageIndex(themeId) { const value = Number(localStorage.getItem(p09Key('question-' + themeId))); return Number.isInteger(value) && value >= 0 ? value : 0; }
+function p09SavePosition(themeId, index) { localStorage.setItem(p09Key('theme'), String(themeId)); localStorage.setItem(p09Key('question-' + themeId), String(index)); }
+function p09Active() { return document.querySelector('.p09-question.active'); }
+function p09Questions(themeId) { return Array.from(document.querySelectorAll('#contePreguntas_' + themeId + ' .p09-question')); }
+function p09ShowQuestion(themeId, index = p09StorageIndex(themeId)) { const questions = p09Questions(themeId); if (!questions.length) return; const safeIndex = Math.min(Math.max(index, 0), questions.length - 1); questions.forEach((question, questionIndex) => question.classList.toggle('active', questionIndex === safeIndex)); p09SavePosition(themeId, safeIndex); p09RefreshState(); if (window.feather) window.feather.replace(); }
+async function p09LoadTheme(themeId, index = null, announce = false) { if (p09TransitionInFlight) return; const theme = p09Theme(themeId); if (!theme) return; p09TransitionInFlight = true; p09SetBusy(true); p09StopVoice(); try { const response = await fetch(`/buscar/contenido-preguntas-modulo-7/${encodeURIComponent(p09PatientId())}/${encodeURIComponent(p09Role())}/${encodeURIComponent(theme.id)}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } }); if (!response.ok) throw new Error('load'); const html = await response.text(); const target = document.getElementById('contePreguntas_' + theme.id); if (!target) throw new Error('target'); document.querySelectorAll('[id^="contePreguntas_"]').forEach(node => { if (node !== target) node.innerHTML = ''; }); target.innerHTML = html; p09ShowQuestion(theme.id, index === null ? p09StorageIndex(theme.id) : index); if (announce) p09SetMessage('Sección cargada: ' + theme.nombre + '.'); } catch (error) { p09SetMessage('No se pudo cargar la sección. Inténtalo nuevamente.'); } finally { p09TransitionInFlight = false; p09SetBusy(false); } }
+function p09Value(control) { return control?.value?.trim?.() ?? ''; }
+function p09Controls(question) { return Array.from(question?.querySelectorAll('[data-p09-control]') || []); }
+function p09Field(question, type) { return question?.querySelector(`[data-p09-control="${type}"]`); }
+function p09Ready(question) { if (!question) return false; const response = question.querySelector('[data-p09-control="response"]:checked')?.value || ''; if (!response) return false; if (response === 'No') return true; const dose = p09Value(p09Field(question, 'text')); const result = question.querySelector('[data-p09-control="result"]:checked')?.value || ''; const consumption = question.querySelector('[data-p09-control="consumption"]:checked')?.value || ''; const adverse = result === 'Tuve efectos adversos' ? p09Value(question.querySelector('[data-p09-type="5"]')) : true; return Boolean(dose && result && consumption && adverse); }
+function p09RefreshState() { const active = p09Active(); if (!active) return; const next = active.querySelector('[data-p09-next]'); if (next) { const ready = p09Ready(active); next.disabled = !ready || p09SaveInFlight || p09TransitionInFlight; next.setAttribute('aria-disabled', next.disabled ? 'true' : 'false'); next.title = ready ? 'Continuar' : 'Completa la respuesta para continuar'; } }
+async function p09Request(control, value) { if (p09SaveInFlight) return false; const payload = { idPaciente: p09PatientId(), idRespuesta: Number(control.dataset.p09Response || 0), idPregunta: Number(control.dataset.p09QuestionId || 0), idTema: Number(control.dataset.p09Theme), idTipo: Number(control.dataset.p09Type), detalle: value, idRol: p09Role() }; p09SaveInFlight = true; p09SetBusy(true); p09SetMessage('Guardando respuesta...'); try { const response = await fetch('/historia-clinica/paciente/editar-cuestionario-modulo7', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, body: JSON.stringify(payload) }); const data = await response.json(); if (!response.ok || !data || !data.resultado) throw new Error(data?.mensaje || 'No se pudo guardar la respuesta.'); if (Number(data.idRespuesta) > 0) { const question = control.closest('.p09-question'); question?.querySelectorAll('[data-p09-control]').forEach(item => { item.dataset.p09Response = String(data.idRespuesta); }); } control.dataset.p09SavedValue = value; p09SetMessage('Respuesta guardada.'); return true; } catch (error) { p09SetMessage(error.message || 'No se pudo guardar la respuesta.'); return false; } finally { p09SaveInFlight = false; p09SetBusy(false); p09RefreshState(); } }
+async function p09SaveActive() { const active = p09Active(); if (!active) return false; const currentResult = active.querySelector('[data-p09-control="result"]:checked')?.value || ''; for (const control of p09Controls(active)) { if (control.dataset.p09Type === '5' && currentResult !== 'Tuve efectos adversos') continue; const value = control.type === 'radio' ? (control.checked ? control.value : null) : p09Value(control); if (value === null || value === (control.dataset.p09SavedValue || '')) continue; if (!await p09Request(control, value)) return false; } return true; }
+async function p09HandleControl(control) { const active = p09Active(); if (!active) return; const savedAlready = control.dataset.p09SavedValue === control.value; if (control.dataset.p09Control === 'response') { const saved = savedAlready || await p09Request(control, control.value); if (!saved) return; if (control.value === 'No') { p09Advance(active); return; } await p09LoadTheme(Number(active.dataset.p09Theme), Number(active.dataset.index || 0)); return; } if (control.dataset.p09Control === 'result' || control.dataset.p09Control === 'consumption') { const saved = await p09SaveActive(); if (saved && control.dataset.p09Control === 'result') await p09LoadTheme(Number(active.dataset.p09Theme), Number(active.dataset.index || 0)); } else p09RefreshState(); }
+async function p09Advance(active) { if (!active || p09SaveInFlight || p09TransitionInFlight || !(await p09SaveActive())) return; const themeId = Number(active.dataset.p09Theme); const questions = p09Questions(themeId); const index = questions.indexOf(active); if (index < questions.length - 1) { p09ShowQuestion(themeId, index + 1); p09ReadCurrentQuestion(); return; } const themeIndex = p09Themes.findIndex(theme => String(theme.id) === String(themeId)); if (themeIndex < p09Themes.length - 1) { await p09LoadTheme(p09Themes[themeIndex + 1].id, 0, true); p09ReadCurrentQuestion(); return; } await p09Finalize(); }
+async function p09Finalize() { if (p09FinalizationInFlight || p09SaveInFlight || p09TransitionInFlight) return; const active = p09Active(); if (!active || !p09Ready(active)) { p09SetMessage('Completa los datos del medicamento antes de finalizar.'); return; } if (!await p09SaveActive()) return; p09FinalizationInFlight = true; p09SetBusy(true); p09SetMessage('Finalizando módulo...'); try { const response = await fetch('/historia-clinica/paciente/finalizar-modulo-paciente', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idModulo: p09ModuleId, idPaciente: p09PatientId() }) }); const data = await response.json(); if (!response.ok || !data || !data.resultado || typeof data.next_url !== 'string' || !data.next_url.startsWith('/')) throw new Error('finalize'); window.location.assign(data.next_url); } catch (error) { p09SetMessage('No se pudo finalizar el módulo. Inténtalo nuevamente.'); } finally { p09FinalizationInFlight = false; p09SetBusy(false); } }
+document.addEventListener('click', event => { const control = event.target.closest?.('[data-p09-control]'); if (control && control.type === 'radio') p09HandleControl(control); const next = event.target.closest?.('[data-p09-next]'); if (next) p09Advance(p09Active()); const nextTheme = event.target.closest?.('[data-p09-next-theme]'); if (nextTheme) p09Advance(p09Active()); const previous = event.target.closest?.('[data-p09-previous-question]'); if (previous) { const active = p09Active(); const questions = p09Questions(Number(active?.dataset.p09Theme)); const index = questions.indexOf(active); if (index > 0) p09ShowQuestion(Number(active.dataset.p09Theme), index - 1); } const previousTheme = event.target.closest?.('[data-p09-previous-theme]'); if (previousTheme) p09LoadTheme(Number(previousTheme.dataset.p09PreviousTheme), 0, true); const finalize = event.target.closest?.('[data-p09-finalize]'); if (finalize) p09Finalize(); });
+document.addEventListener('input', event => { if (event.target.matches?.('[data-p09-control="text"]')) p09RefreshState(); });
+document.addEventListener('keydown', event => { const modal = document.getElementById('p09InstructionsModal'); if (!modal || modal.getAttribute('aria-hidden') === 'true') return; if (event.key === 'Escape') { event.preventDefault(); p09CloseInstructions(); } if (event.key === 'Tab') { const controls = Array.from(modal.querySelectorAll('button, [href], input, select, textarea')).filter(node => !node.disabled && node.offsetParent !== null); if (controls.length) { const first = controls[0], last = controls[controls.length - 1]; if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); } else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); } } } });
+document.addEventListener('click', event => { if (event.target?.id === 'p09InstructionsModal') p09CloseInstructions(); });
+window.addEventListener('pagehide', () => p09StopVoice());
+document.addEventListener('DOMContentLoaded', async () => { if (window.feather) window.feather.replace(); const themeId = Number(p09StorageTheme()) || Number(p09Themes[0]?.id); await p09LoadTheme(themeId); p09OpenInstructions(); });
+</script>
+</head>
+<body class="app-shell-body app-shell-patient patient-clinical-form patient-nonpathological-page patient-pain-medication-page">
+<div class="LoaderPage"></div><div id="app">
+<?= $data['sidebar']; ?>
+<div id="main" data-rol="<?= $escape($data['idRol'] ?? 'Paciente'); ?>" data-paciente="<?= $idPaciente; ?>">
+<nav class="navbar navbar-header navbar-expand navbar-light"><button type="button" class="sidebar-toggler border-0 bg-transparent" aria-label="Abrir menú principal" aria-controls="sidebar" aria-expanded="true"><span class="navbar-toggler-icon"></span></button><button class="btn navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Abrir navegación"><span class="navbar-toggler-icon"></span></button><div class="collapse navbar-collapse" id="navbarSupportedContent"><ul class="navbar-nav d-flex align-items-center navbar-light ms-auto"></ul></div></nav>
+<main class="main-content container-fluid patient-nonpathological-content">
+<header class="page-title portal-page-title patient-nonpathological-hero mb-4"><div class="patient-nonpathological-hero-copy"><p class="dashboard-eyebrow">MI HISTORIA CLÍNICA</p><h1><?= $escape($pageTitle); ?></h1><p>Responde las preguntas sobre los medicamentos utilizados para controlar el dolor.</p><span class="patient-nonpathological-context">Paciente: <?= $escape($patientName); ?></span></div><div class="patient-nonpathological-hero-actions"><button type="button" id="p09HelpButton" class="btn patient-nonpathological-help" aria-label="¿Cómo llenar esta sección?" aria-haspopup="dialog" aria-controls="p09InstructionsModal" onclick="p09OpenInstructions()"><i data-feather="help-circle" aria-hidden="true"></i><span>¿Cómo llenar esta sección?</span></button><a class="btn patient-nonpathological-back" href="<?= SERVIDOR; ?>historia-clinica"><i data-feather="arrow-left" aria-hidden="true"></i><span>Volver a mi Historia Clínica</span></a></div></header>
+<div id="p09-page-message" class="patient-nonpathological-message" role="alert" aria-live="polite"></div>
+<section class="section patient-nonpathological-workspace" aria-label="Medicamentos para controlar el dolor"><section id="preguntas-container" class="card patient-nonpathological-card" aria-labelledby="p09-questions-title"><div class="card-header patient-nonpathological-card-header"><div class="patient-nonpathological-card-heading"><div class="patient-nonpathological-instruction-heading"><p class="dashboard-eyebrow">MEDICAMENTOS PARA CONTROLAR EL DOLOR</p><h2 id="p09-questions-title">Responde una pregunta a la vez</h2><p class="patient-nonpathological-instruction texto">Te preguntaremos si has utilizado cada medicamento y, cuando corresponda, podrás registrar dosis, resultados y consumo actual.</p></div></div></div><div class="card-body patient-nonpathological-card-body"><div id="mensaje-preguntas" class="patient-nonpathological-inline-message" role="alert" aria-live="polite"></div><div class="patient-nonpathological-question-tools" aria-label="Controles de lectura de la pregunta"><button id="p09ReadQuestionButton" type="button" class="btn patient-nonpathological-voice-button" onclick="p09ReadCurrentQuestion()"><i data-feather="volume-2" aria-hidden="true"></i><span>Escuchar</span></button><button type="button" class="btn patient-nonpathological-voice-button p09-voice-stop" hidden tabindex="-1" onclick="p09StopVoice('Audio detenido.')"><i data-feather="square" aria-hidden="true"></i><span>Detener</span></button><span id="p09VoiceStatus" class="visually-hidden" role="status" aria-live="polite"></span></div><div class="patient-nonpathological-generated"><?php if (!$modulos): ?><div class="alert alert-warning p09-catalog-warning" role="status">El catálogo de este módulo no está disponible en el entorno de prueba. No se cargaron preguntas ni se realizaron cambios.</div><?php else: foreach ($modulos as $idTema => $tema): ?><div id="contePreguntas_<?= (int)$idTema; ?>"></div><?php endforeach; endif; ?></div></div></section></section>
+</main>
+<div id="p09InstructionsModal" class="modal fade patient-nonpathological-modal patient-instructions-modal" tabindex="-1" role="dialog" aria-labelledby="p09InstructionsTitle" aria-describedby="p09InstructionsText" aria-modal="true" aria-hidden="true" style="display:none;"><div class="modal-dialog modal-dialog-centered patient-instructions-dialog"><div class="modal-content patient-nonpathological-modal-content patient-instructions-modal-content"><div class="modal-header patient-instructions-modal-header"><h2 id="p09InstructionsTitle" class="modal-title patient-instructions-modal-title">Antes de comenzar: Medicamentos para controlar el dolor</h2><button type="button" class="btn-close" aria-label="Cerrar instrucciones" onclick="p09CloseInstructions()"></button></div><div class="modal-body patient-instructions-modal-body"><p id="p09InstructionsText" data-narration-instructions>En esta sección revisaremos medicamentos utilizados para controlar el dolor. Te preguntaremos si has utilizado cada medicamento. Si respondes Sí, podrás indicar la dosis, los resultados obtenidos y si todavía lo utilizas. Si tuviste efectos adversos, podrás describirlos. Puedes regresar para revisar tus respuestas. Al terminar continuarás con la siguiente sección de tu Historia Clínica</p><p id="p09VoicePrompt" class="patient-nonpathological-voice-prompt patient-instructions-voice-prompt" role="status" aria-live="polite">Para escuchar las instrucciones, presiona este botón.</p><p class="patient-nonpathological-modal-note patient-instructions-modal-note">Tus respuestas se guardan mientras avanzas. Puedes cerrar esta ventana sin perder tu progreso.</p></div><div class="modal-footer patient-nonpathological-modal-actions patient-instructions-modal-actions"><button type="button" class="btn patient-nonpathological-secondary patient-instructions-secondary" onclick="p09ReadInstructions()"><i data-feather="volume-2" aria-hidden="true"></i><span>Escuchar</span></button><button type="button" class="btn patient-nonpathological-secondary patient-instructions-secondary" onclick="p09StopVoice('Audio detenido.')"><i data-feather="square" aria-hidden="true"></i><span>Detener</span></button><button type="button" class="btn btn-primary" onclick="p09CloseInstructions()">Entendido, comenzar</button></div></div></div></div>
+<?php include_once __DIR__ . '/../components/footer-doctor.php'; ?>
+</div></div>
+<script src="<?= RUTA_JS; ?>patient-instructions-modal.js"></script><script src="<?= RUTA_JS; ?>patient-narration-highlight.js"></script><script src="<?= RUTA_JS; ?>voice-utilities.js"></script><script src="<?= RUTA_JS; ?>/feather-icons/feather.min.js"></script><script src="<?= RUTA_PUBLIC; ?>libs/perfect-scrollbar/perfect-scrollbar.min.js"></script><script src="<?= RUTA_JS; ?>app.js"></script><script src="<?= RUTA_JS; ?>main.js"></script>
+</body>
+</html>

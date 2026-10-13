@@ -1,19 +1,9 @@
 <?php
-use App\Config\Database;
 use App\Models\PacienteModulosModelo;
 use App\Models\AntecedenteFamiliarModel;
 
-$bd = Database::getInstance();
 $model2 = new PacienteModulosModelo();
 $model = new AntecedenteFamiliarModel();
-
-// Se conserva el contrato actual: el modelo prepara las cinco enfermedades
-// fijas antes de construir el resumen. Este comportamiento puede escribir en
-// GET y queda documentado como riesgo independiente de esta modernización.
-$enfermedades_fijas = $model->enfermedadesFijas();
-foreach ($enfermedades_fijas as $enf) {
-    echo $model->antecedentesFamiliares($data['idPaciente'], $enf);
-}
 
 $contenidoAntescedentesFamiliares = $model->editorTextoAF($data['idPaciente']);
 

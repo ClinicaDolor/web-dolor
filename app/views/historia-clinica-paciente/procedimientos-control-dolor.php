@@ -1,411 +1,128 @@
-<?php 
-use App\Config\Database;
-use App\Models\ProcedimientosDolorModel;
-$bd = Database::getInstance();
- 
-$model = new ProcedimientosDolorModel();
-$preguntas_fijas = $model->obtenerPreguntasModulos(); 
-foreach ($preguntas_fijas as $preg) {
-echo $model->procedimientosModulo8($data['idPaciente'], $preg);
-}
-
+<?php
+$escape = static fn($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
+$idPaciente = (int) ($data['idPaciente'] ?? 0);
+$patientName = trim((string) ($data['nombre'] ?? 'Paciente'));
+$pageTitle = (string) ($data['title'] ?? 'Procedimientos para controlar el dolor');
+$versionedAsset = static function (string $baseUrl, string $assetPath, string $publicPath): string {
+    $filesystemPath = realpath(__DIR__ . '/../../public/' . ltrim($publicPath, '/'));
+    $version = $filesystemPath !== false && is_file($filesystemPath) ? filemtime($filesystemPath) : false;
+    return $baseUrl . $assetPath . ($version === false ? '' : '?v=' . (int) $version);
+};
+$appCssUrl = $versionedAsset(RUTA_CSS, 'app.css', 'assets/css/app.css');
+$loaderJsUrl = $versionedAsset(RUTA_JS, 'loader.js', 'assets/js/loader.js');
+$featherJsUrl = $versionedAsset(RUTA_JS, 'feather-icons/feather.min.js', 'assets/js/feather-icons/feather.min.js');
+$appJsUrl = $versionedAsset(RUTA_JS, 'app.js', 'assets/js/app.js');
+$mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
+$voiceUtilitiesJsUrl = $versionedAsset(RUTA_JS, 'voice-utilities.js', 'assets/js/voice-utilities.js');
 ?>
-  
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?=$data['title'];?></title>
-    <link rel="shortcut icon" href="<?=RUTA_IMAGES ?>/logo-clinica.png">
-    <link rel="apple-touch-icon" href="<?=RUTA_IMAGES ?>/logo-clinica.png">
-    <link rel="stylesheet" href="<?=RUTA_CSS;?>bootstrap.css">
-    <link rel="stylesheet" href="<?=RUTA_PUBLIC;?>libs/perfect-scrollbar/perfect-scrollbar.css">
-    <link rel="stylesheet" href="<?=RUTA_PUBLIC;?>libs/simple-datatables/style.css">
-    <link rel="stylesheet" href="<?=RUTA_CSS;?>app.css">
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script src="<?=RUTA_JS;?>loader.js"></script>
-   
-    <style>
-    /* Contenedor de preguntas visible inicialmente */
-    #preguntas-container { display: block; }
-    .pregunta-container { display: none; }
-    .pregunta-container.active { display: block; }
-    /* Sección de comentarios oculta inicialmente */
-    #tratamientos-container { display: none; }
-    .tratamiento-container { display: none; }
-    .tratamiento-container.active { display: block; }
-    </style>
-
+    <title><?= $escape($pageTitle); ?></title>
+    <link rel="shortcut icon" href="<?= RUTA_IMAGES; ?>logo-clinica.png">
+    <link rel="apple-touch-icon" href="<?= RUTA_IMAGES; ?>logo-clinica.png">
+    <link rel="stylesheet" href="<?= RUTA_CSS; ?>bootstrap.css">
+    <link rel="stylesheet" href="<?= RUTA_PUBLIC; ?>libs/perfect-scrollbar/perfect-scrollbar.css">
+    <link rel="stylesheet" href="<?= RUTA_PUBLIC; ?>libs/simple-datatables/style.css">
+    <link rel="stylesheet" href="<?= $appCssUrl; ?>">
+    <script src="<?= $loaderJsUrl; ?>"></script>
     <script>
-    document.addEventListener("DOMContentLoaded", function() {
-    const seccionActual = localStorage.getItem("seccionActual");
-    
-    if (!seccionActual || seccionActual === "preguntas") {
-    contenidoPreguntas();
-    } else if (seccionActual === "tratamientos") {
-    seccionTratamientos();
-    }
+    (() => {
+        'use strict';
 
-    if (localStorage.getItem(`preguntaActual`) === null) {
-    localStorage.setItem(`preguntaActual`, 0);
-    }
+        const p10 = {
+            patientId: <?= $idPaciente; ?>,
+            section: 'procedures', procedureIndex: Number(localStorage.getItem('p10:<?= $idPaciente; ?>:procedure-index') || 0),
+            treatmentIndex: Number(localStorage.getItem('p10:<?= $idPaciente; ?>:treatment-index') || 0),
+            procedures: [], treatments: [], commentsAvailable: false, busy: false, finalizing: false, speechId: 0, lastFocus: null
+        };
+        const byId = id => document.getElementById(id);
+        const esc = value => String(value ?? '').replace(/[&<>'"]/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[character]));
+        const text = value => String(value ?? '').trim();
+        const endpoint = path => { const normalized = String(path || ''); return normalized.startsWith('/') ? normalized : `/${normalized}`; };
+        const currentRecord = () => p10.section === 'procedures' ? p10.procedures[p10.procedureIndex] : p10.treatments[p10.treatmentIndex];
 
-    if (localStorage.getItem(`preguntaActualV2`) === null) {
-    localStorage.setItem(`preguntaActualV2`, 0);
-    }
+        function message(value, kind = '') { const node = byId('p10-page-message'); if (!node) return; node.textContent = value || ''; node.className = `patient-procedures-message${kind ? ` is-${kind}` : ''}`; }
+        function friendlyError(error) { const raw = text(error?.message); if (!raw || error instanceof TypeError || /network|fetch|resource|failed/i.test(raw)) return 'No pudimos cargar esta sección. Verifica tu conexión e inténtalo nuevamente.'; return raw; }
+        function showLoadError(error, section) { const node = byId('p10-page-message'); if (!node) return; node.className = 'patient-procedures-message'; node.replaceChildren(); const label = document.createElement('span'); label.textContent = friendlyError(error); const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'btn p10-secondary'; retry.dataset.p10Action = 'retry-load'; retry.dataset.p10Section = section; retry.textContent = 'Reintentar'; node.append(label, retry); }
+        function persistPosition() { localStorage.setItem(`p10:${p10.patientId}:section`, p10.section); localStorage.setItem(`p10:${p10.patientId}:procedure-index`, String(p10.procedureIndex)); localStorage.setItem(`p10:${p10.patientId}:treatment-index`, String(p10.treatmentIndex)); }
 
-    });
+        async function getJson(path) {
+            const response = await fetch(endpoint(path), { headers: { 'Accept': 'application/json' } });
+            let data = null; try { data = await response.json(); } catch (error) { throw new Error('Respuesta no válida del servidor.'); }
+            if (!response.ok || !data || data.resultado === false) throw new Error(data?.mensaje || 'No se pudo cargar la información.');
+            return data;
+        }
+        async function postJson(path, body) {
+            const response = await fetch(endpoint(path), { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify({ ...body, idPaciente: p10.patientId }) });
+            let data = null; try { data = await response.json(); } catch (error) { throw new Error('Respuesta no válida del servidor.'); }
+            if (!response.ok || !data || data.resultado === false) throw new Error(data?.mensaje || 'No se pudo guardar la información.');
+            return data;
+        }
+        function setBusy(value) { p10.busy = value; document.querySelectorAll('[data-p10-action]').forEach(control => { control.disabled = value; control.setAttribute('aria-busy', value ? 'true' : 'false'); }); }
+        function renderShell() { const isTreatment = p10.section === 'treatments'; const title = byId('p10-section-title'); const description = byId('p10-section-description'); const eyebrow = byId('p10-section-eyebrow'); if (title) title.textContent = isTreatment ? 'Tratamientos para controlar el dolor' : 'Procedimientos para controlar el dolor'; if (description) description.textContent = isTreatment ? 'Responde si has recibido cada tratamiento y registra los resultados cuando corresponda.' : 'Registra los procedimientos que te hayan realizado, su fecha y los resultados obtenidos.'; if (eyebrow) eyebrow.textContent = isTreatment ? 'TRATAMIENTOS PARA CONTROLAR EL DOLOR' : 'PROCEDIMIENTOS PARA CONTROLAR EL DOLOR'; }
+        function procedureResultOptions(value) { return [['', 'Selecciona un resultado'], ['Funciono', 'Funcionó'], ['No funciono', 'No funcionó'], ['Tuve efectos adversos', 'Tuve efectos adversos']].map(([option, label]) => `<option value="${esc(option)}" ${String(value ?? '') === option ? 'selected' : ''}>${esc(label)}</option>`).join(''); }
 
-    // ---------- CONTENIDO DE LAS PREGUNTAS ----------
-    function contenidoPreguntas(idValor = 0) {
-    const usuarioDiv = document.getElementById('main');
-    const idPaciente = usuarioDiv.getAttribute('data-paciente');
-    const idRol = usuarioDiv.getAttribute('data-rol');
+        function renderProcedures() {
+            p10.section = 'procedures'; renderShell(); const root = byId('p10-generated'); if (!root) return;
+            if (!p10.procedures.length) { root.innerHTML = `<div class="p10-empty-state" role="status"><div class="p10-empty-icon" aria-hidden="true"><i data-feather="clipboard"></i></div><h3>No hay procedimientos registrados</h3><p>Agrega un procedimiento si te han realizado alguno para controlar el dolor. La ausencia de registros no se guarda como una respuesta clínica.</p><div class="p10-actions"><button type="button" class="btn btn-primary" data-p10-action="add-procedure"><i data-feather="plus" aria-hidden="true"></i> Agregar procedimiento</button><button type="button" class="btn p10-secondary" data-p10-action="go-treatments">Continuar a tratamientos</button></div></div>`; if (window.feather) window.feather.replace(); persistPosition(); return; }
+            p10.procedureIndex = Math.max(0, Math.min(p10.procedureIndex, p10.procedures.length - 1)); const item = p10.procedures[p10.procedureIndex]; const adverse = item.resultados === 'Tuve efectos adversos';
+            root.innerHTML = `<article class="p10-question" aria-labelledby="p10-procedure-heading"><div class="p10-question-progress">Procedimiento ${p10.procedureIndex + 1} de ${p10.procedures.length}</div><h3 id="p10-procedure-heading">Registra el procedimiento realizado</h3><div class="p10-form-grid"><label class="p10-field p10-field-wide">Nombre del procedimiento<input class="form-control" data-p10-field="procedimiento" type="text" maxlength="500" value="${esc(item.procedimiento)}" placeholder="Escribe el nombre del procedimiento"></label><label class="p10-field">Fecha aproximada<input class="form-control" data-p10-field="fecha" type="date" value="${esc(item.fecha)}"></label><label class="p10-field">Resultado obtenido<select class="form-select" data-p10-field="resultados">${procedureResultOptions(item.resultados)}</select></label><label class="p10-field p10-field-wide" data-p10-description-field ${adverse ? '' : 'hidden'}>Describe los efectos adversos<textarea class="form-control" data-p10-field="descripcion" maxlength="2000" rows="4" placeholder="Describe los efectos adversos">${esc(item.descripcion)}</textarea></label></div><div class="p10-record-actions"><button type="button" class="btn p10-danger" data-p10-action="delete-procedure"><i data-feather="trash-2" aria-hidden="true"></i> Eliminar procedimiento</button><button type="button" class="btn p10-secondary" data-p10-action="add-procedure"><i data-feather="plus" aria-hidden="true"></i> Agregar otro</button></div></article><nav class="p10-navigation" aria-label="Navegación de procedimientos"><button type="button" class="btn p10-secondary" data-p10-action="previous-procedure" ${p10.procedureIndex === 0 ? 'disabled' : ''}><i data-feather="chevron-left" aria-hidden="true"></i> Anterior</button><button type="button" class="btn btn-primary" data-p10-action="save-procedure">${p10.procedureIndex === p10.procedures.length - 1 ? 'Guardar y continuar' : 'Guardar y siguiente'} <i data-feather="chevron-right" aria-hidden="true"></i></button></nav>`;
+            if (window.feather) window.feather.replace(); persistPosition();
+        }
 
-    fetch(`/buscar/contenido-preguntas-modulo-8/${idPaciente}/${idRol}`)
-    .then(response => response.text())
-    .then(data => {
+        function treatmentChoice(value, selected) { return `<button type="button" class="p10-choice-card ${selected ? 'is-selected' : ''}" role="radio" aria-checked="${selected ? 'true' : 'false'}" data-p10-treatment-choice="${value}"><span>${value === 'Si' ? 'Sí' : 'No'}</span>${selected ? '<i data-feather="check" aria-hidden="true"></i>' : ''}</button>`; }
+        function renderTreatments() {
+            p10.section = 'treatments'; renderShell(); const root = byId('p10-generated'); if (!root) return;
+            if (!p10.treatments.length) { root.innerHTML = `<div class="p10-empty-state p10-catalog-state" role="status"><div class="p10-empty-icon" aria-hidden="true"><i data-feather="info"></i></div><h3>Catálogo de tratamientos no disponible</h3><p>La estructura sintética no contiene el catálogo autorizado de este módulo. No se inventaron tratamientos ni se crearon respuestas vacías.</p><button type="button" class="btn p10-secondary" data-p10-action="go-procedures"><i data-feather="chevron-left" aria-hidden="true"></i> Volver a procedimientos</button></div>`; if (window.feather) window.feather.replace(); persistPosition(); return; }
+            p10.treatmentIndex = Math.max(0, Math.min(p10.treatmentIndex, p10.treatments.length - 1)); const item = p10.treatments[p10.treatmentIndex]; const uses = item.utilizo || ''; const result = item.resultado || ''; const adverse = result === 'Tuve efectos adversos'; const ready = uses === 'No' || (uses === 'Si' && result && (!adverse || text(item.descripcion))); const comments = p10.commentsAvailable ? `<label class="p10-field p10-field-wide">Comentarios<textarea class="form-control" data-p10-treatment-field="comentarios" maxlength="2000" rows="4">${esc(item.comentarios)}</textarea></label>` : ''; const dependencies = uses === 'Si' ? `<div class="p10-dependencies"><label class="p10-field">Resultados obtenidos<select class="form-select" data-p10-treatment-field="resultado"><option value="">Selecciona una opción</option><option value="Funciono" ${result === 'Funciono' ? 'selected' : ''}>Funcionó</option><option value="No funciono" ${result === 'No funciono' ? 'selected' : ''}>No funcionó</option><option value="Tuve efectos adversos" ${adverse ? 'selected' : ''}>Tuve efectos adversos</option></select></label>${adverse ? '<label class="p10-field p10-field-wide">Describe los efectos adversos<textarea class="form-control" data-p10-treatment-field="descripcion" maxlength="2000" rows="4">' + esc(item.descripcion) + '</textarea></label>' : ''}${comments}</div>` : '';
+            root.innerHTML = `<article class="p10-question" aria-labelledby="p10-treatment-heading"><div class="p10-question-progress">Tratamiento ${p10.treatmentIndex + 1} de ${p10.treatments.length}</div><h3 id="p10-treatment-heading">¿Has recibido este tratamiento?</h3><p class="p10-treatment-name">${esc(item.tratamiento)}</p><div class="p10-choice-group" role="radiogroup" aria-label="Respuesta sobre ${esc(item.tratamiento)}">${treatmentChoice('Si', uses === 'Si')}${treatmentChoice('No', uses === 'No')}</div>${dependencies}<p class="p10-navigation-hint" role="status">${uses === '' ? 'Selecciona una respuesta para continuar.' : ready ? 'Respuesta guardada. Puedes continuar.' : 'Completa los datos solicitados para continuar.'}</p></article><nav class="p10-navigation" aria-label="Navegación de tratamientos"><button type="button" class="btn p10-secondary" data-p10-action="previous-treatment"><i data-feather="chevron-left" aria-hidden="true"></i> ${p10.treatmentIndex === 0 ? 'Procedimientos' : 'Anterior'}</button><button type="button" class="btn ${ready ? 'btn-primary' : 'p10-secondary'}" data-p10-action="save-treatment" ${ready ? '' : 'disabled'}>${p10.treatmentIndex === p10.treatments.length - 1 ? 'Finalizar módulo' : 'Guardar y siguiente'} <i data-feather="chevron-right" aria-hidden="true"></i></button></nav>`;
+            if (window.feather) window.feather.replace(); persistPosition();
+        }
 
-    const contenedor = document.getElementById('contePreguntas');
-    contenedor.innerHTML = data;
-    feather.replace();
+        async function loadProcedures() { const data = await getJson(`/buscar/contenido-preguntas-modulo-8/${p10.patientId}/Paciente`); p10.procedures = Array.isArray(data.procedimientos) ? data.procedimientos : []; renderProcedures(); }
+        async function loadTreatments() { const data = await getJson(`/buscar/contenido-preguntas-tratamiento-modulo-8/${p10.patientId}/Paciente`); p10.treatments = Array.isArray(data.items) ? data.items : []; p10.commentsAvailable = data.comments_available === true; renderTreatments(); }
+        async function addProcedure() { if (p10.busy) return; setBusy(true); message('Agregando procedimiento…'); try { await postJson('/historia-clinica/paciente/agregar-procedimiento-dolor-modulo8', {}); await loadProcedures(); p10.procedureIndex = p10.procedures.length - 1; renderProcedures(); message('Procedimiento agregado.', 'success'); } catch (error) { message(friendlyError(error)); } finally { setBusy(false); } }
+        async function saveProcedure() { if (p10.busy || !p10.procedures[p10.procedureIndex]) return; const item = p10.procedures[p10.procedureIndex]; const root = byId('p10-generated'); const fields = { procedimiento: root?.querySelector('[data-p10-field="procedimiento"]')?.value || '', fecha: root?.querySelector('[data-p10-field="fecha"]')?.value || '', resultados: root?.querySelector('[data-p10-field="resultados"]')?.value || '', descripcion: root?.querySelector('[data-p10-field="descripcion"]')?.value || '' }; const changes = [[1, 'procedimiento'], [2, 'fecha'], [3, 'resultados'], [4, 'descripcion']].filter(([, key]) => text(fields[key]) !== text(item[key])); if (!changes.length) { nextProcedure(); return; } setBusy(true); message('Guardando…'); try { for (const [edicion, key] of changes) await postJson('/historia-clinica/paciente/editar-procedimiento-dolor-modulo8', { idProcedimiento: item.id, edicion, detalle: fields[key] }); await loadProcedures(); message('Procedimiento guardado.', 'success'); nextProcedure(); } catch (error) { message(friendlyError(error)); } finally { setBusy(false); } }
+        function nextProcedure() { if (p10.procedureIndex < p10.procedures.length - 1) { p10.procedureIndex += 1; renderProcedures(); return; } p10.section = 'treatments'; p10.treatmentIndex = 0; loadTreatments().catch(error => showLoadError(error, 'treatments')); }
+        async function deleteProcedure() { const item = p10.procedures[p10.procedureIndex]; if (!item || p10.busy || !window.confirm('¿Deseas eliminar este procedimiento?')) return; setBusy(true); message('Eliminando…'); try { await postJson('/historia-clinica/paciente/eliminar-procedimiento-dolor-modulo8', { idProcedimiento: item.id }); p10.procedureIndex = Math.max(0, p10.procedureIndex - 1); await loadProcedures(); message('Procedimiento eliminado.', 'success'); } catch (error) { message(friendlyError(error)); } finally { setBusy(false); } }
+        async function chooseTreatment(value) { const item = p10.treatments[p10.treatmentIndex]; if (!item || p10.busy || item.utilizo === value) return; setBusy(true); message('Guardando respuesta…'); try { await postJson('/historia-clinica/paciente/editar-tratamiento-dolor-modulo8', { idTratamiento: item.id_tratamiento, edicion: 1, detalle: value }); await loadTreatments(); if (value === 'No' && p10.treatmentIndex < p10.treatments.length - 1) p10.treatmentIndex += 1; renderTreatments(); message(value === 'No' ? 'Respuesta guardada. Avanzando…' : 'Respuesta guardada. Completa los datos solicitados.', 'success'); } catch (error) { message(friendlyError(error)); } finally { setBusy(false); } }
+        async function saveTreatment() { const item = p10.treatments[p10.treatmentIndex]; if (!item || p10.busy) return; const root = byId('p10-generated'); const result = root?.querySelector('[data-p10-treatment-field="resultado"]')?.value || ''; const description = root?.querySelector('[data-p10-treatment-field="descripcion"]')?.value || ''; const comments = root?.querySelector('[data-p10-treatment-field="comentarios"]')?.value || ''; if (item.utilizo === 'Si' && (!result || (result === 'Tuve efectos adversos' && !text(description)))) { message('Completa los datos solicitados antes de continuar.'); return; } const changes = []; if (result !== text(item.resultado)) changes.push([2, result]); if (result === 'Tuve efectos adversos' && description !== text(item.descripcion)) changes.push([4, description]); if (p10.commentsAvailable && comments !== text(item.comentarios)) changes.push([3, comments]); if (p10.treatmentIndex === p10.treatments.length - 1 && item.utilizo === 'No' && !changes.length) return finalize(); setBusy(true); message('Guardando…'); try { for (const [edicion, detalle] of changes) await postJson('/historia-clinica/paciente/editar-tratamiento-dolor-modulo8', { idTratamiento: item.id_tratamiento, edicion, detalle }); await loadTreatments(); if (p10.treatmentIndex === p10.treatments.length - 1) { setBusy(false); await finalize(); return; } p10.treatmentIndex += 1; renderTreatments(); message('Respuesta guardada.', 'success'); } catch (error) { message(friendlyError(error)); } finally { setBusy(false); } }
+        async function finalize() { if (p10.busy || p10.finalizing) return; const item = p10.treatments[p10.treatmentIndex]; if (!item || item.utilizo === '' || (item.utilizo === 'Si' && (!item.resultado || (item.resultado === 'Tuve efectos adversos' && !text(item.descripcion))))) { message('Completa los datos del tratamiento antes de finalizar.'); return; } p10.finalizing = true; setBusy(true); message('Finalizando módulo…'); try { const data = await postJson('/historia-clinica/paciente/finalizar-modulo-paciente', { idPaciente: p10.idPaciente, idModulo: 8 }); if (typeof data.next_url !== 'string' || !data.next_url.startsWith('/')) throw new Error('No se recibió el siguiente destino.'); window.location.assign(data.next_url); } catch (error) { message(friendlyError(error)); } finally { p10.finalizing = false; setBusy(false); } }
 
-    // Reactivar el IntersectionObserver para las nuevas secciones
-    document.querySelectorAll('.sectionQuestion').forEach(section => {
-    observer.observe(section);
-    });
+        function p10VoiceState(active) { const stop = byId('p10-question-stop'); if (stop) { stop.hidden = !active; stop.tabIndex = active ? 0 : -1; } }
+        function p10StopVoice(announce = false) { p10.speechId += 1; if ('speechSynthesis' in window) window.speechSynthesis.cancel(); p10VoiceState(false); if (announce) { const status = byId('p10-voice-status'); if (status) status.textContent = 'Audio detenido.'; const prompt = byId('p10-voice-prompt'); if (prompt) prompt.textContent = 'Audio detenido. Presiona Escuchar para repetir.'; } }
+        function p10Read(textToRead, mode = 'question') { if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') { message('La lectura por voz no está disponible. Puedes continuar con el texto escrito.'); return; } const clean = text(textToRead).replace(/\s+/g, ' '); if (!clean) return; p10StopVoice(false); const utterance = new SpeechSynthesisUtterance(clean); const voices = window.speechSynthesis.getVoices(); const spanish = voices.find(voice => /^es-MX/i.test(voice.lang)) || voices.find(voice => /^es[-_]/i.test(voice.lang)); utterance.lang = spanish?.lang || 'es-MX'; if (spanish) utterance.voice = spanish; utterance.rate = .88; const requestId = ++p10.speechId; if (mode === 'instructions') { const prompt = byId('p10-voice-prompt'); if (prompt) prompt.textContent = 'Intentando iniciar la lectura…'; } utterance.onstart = () => { if (requestId !== p10.speechId) return; p10VoiceState(mode === 'question'); const node = byId(mode === 'question' ? 'p10-voice-status' : 'p10-voice-prompt'); if (node) node.textContent = mode === 'question' ? 'Reproduciendo la pregunta activa.' : 'Reproduciendo instrucciones.'; }; utterance.onend = () => { if (requestId !== p10.speechId) return; p10VoiceState(false); const node = byId(mode === 'question' ? 'p10-voice-status' : 'p10-voice-prompt'); if (node) node.textContent = mode === 'question' ? 'Lectura finalizada.' : 'Lectura finalizada. Puedes repetirla.'; }; utterance.onerror = () => { if (requestId !== p10.speechId) return; p10VoiceState(false); message('No fue posible reproducir el audio. Puedes continuar con el texto escrito.'); }; window.speechSynthesis.speak(utterance); }
+        function p10ReadInstructions() { p10StopVoice(false); p10Read('En esta sección registraremos los procedimientos y tratamientos que has recibido para controlar el dolor. Primero podrás agregar los procedimientos que te hayan realizado, indicando su nombre, la fecha aproximada y los resultados que obtuviste. Después te preguntaremos por diferentes tratamientos. Si has recibido alguno, selecciona Sí e indica cómo te fue. Si experimentaste efectos adversos, podrás describirlos. Al terminar continuarás con la siguiente sección de tu Historia Clínica.', 'instructions'); }
+        function p10ReadCurrentQuestion(announce = true) { if (!announce) return; const item = currentRecord(); if (!item) return; p10Read(p10.section === 'procedures' ? `Procedimiento: ${item.procedimiento || 'sin nombre'}. Fecha aproximada: ${item.fecha || 'no registrada'}. Resultado: ${item.resultados || 'sin seleccionar'}.` : `Tratamiento: ${item.tratamiento}. ¿Has recibido este tratamiento? ${item.utilizo === 'Si' ? 'Sí.' : item.utilizo === 'No' ? 'No.' : 'Sin responder.'} ${item.resultado ? `Resultado: ${item.resultado}.` : ''}`, 'question'); }
+        function p10OpenInstructions() { const modal = byId('p10InstructionsModal'); if (!modal) return; if (modal.getAttribute('aria-hidden') !== 'true') { byId('p10InstructionsClose')?.focus(); return; } p10StopVoice(false); p10.lastFocus = PatientInstructionsModal.capture(modal, document.activeElement, '[data-p10-help]'); PatientInstructionsModal.open(modal, { opener: p10.lastFocus, focusSelector: '#p10InstructionsClose' }); window.setTimeout(() => p10ReadInstructions(), 80); }
+        function p10CloseInstructions() { p10StopVoice(false); const modal = byId('p10InstructionsModal'); if (modal) PatientInstructionsModal.close(modal, { returnFocus: p10.lastFocus, fallbackSelector: '[data-p10-help]' }); p10.lastFocus = null; }
 
-    cargarProgreso(idValor);
-    });
-    } 
-
-    function guardarProgreso(index) {
-    localStorage.setItem("preguntaActual", index);
-    }
-
-    function cargarProgreso(idValor) {
-    let indexGuardado = localStorage.getItem("preguntaActual");
-    indexGuardado = indexGuardado ? parseInt(indexGuardado) : 0;
-
-    const preguntas = document.querySelectorAll('.pregunta-container');
-    
-    // Calcular el nuevo índice dentro de los límites permitidos
-    let nuevoIndex = indexGuardado + idValor;
-    if (nuevoIndex < 0) nuevoIndex = 0; // Evita ir antes de la primera pregunta
-    if (nuevoIndex >= preguntas.length) nuevoIndex = preguntas.length - 1; // Evita ir después de la última pregunta
-
-    // Remover la clase 'active' de todas las preguntas
-    preguntas.forEach(pregunta => pregunta.classList.remove('active'));
-
-    // Asegúrate de que el índice esté dentro del rango de preguntas
-    if (preguntas[nuevoIndex]) {
-    // Activar la nueva pregunta
-    preguntas[nuevoIndex].classList.add('active');
-    // Mostrar el botón si es la última pregunta
-    mostrarBotonAgregar(preguntas[nuevoIndex], nuevoIndex, preguntas.length);
-    }
-    guardarProgreso(nuevoIndex);
-    }
-
-    //---------- PREGUNTA ANTERIOR ----------
-    function anteriorPregunta() {
-    const preguntas = document.querySelectorAll('.pregunta-container');
-    let activeIndex = -1;
-
-    $(".LoaderPage").show(); 
-    $(".LoaderPage").fadeOut(1000);
-
-    preguntas.forEach((pregunta, index) => {
-    if (pregunta.classList.contains('active')) {
-    activeIndex = index;
-    pregunta.classList.remove('active');
-    }
-    });
-
-    if (activeIndex > 0) {
-    const nuevoIndice = activeIndex - 1;
-    preguntas[nuevoIndice].classList.add('active');
-    mostrarBotonAgregar(preguntas[nuevoIndice], nuevoIndice, preguntas.length);
-    guardarProgreso(nuevoIndice); // Guarda el progreso al retroceder
-    }
-    }
-
-    //---------- PREGUNTA SIGUIENTE ----------
-    function siguientePregunta() {
-    const preguntas = document.querySelectorAll('.pregunta-container');
-    let activeIndex = -1;
-
-    $(".LoaderPage").show();
-    $(".LoaderPage").fadeOut(1000);
-
-    preguntas.forEach((pregunta, index) => {
-    if (pregunta.classList.contains('active')) {
-    activeIndex = index;
-    pregunta.classList.remove('active');
-    }
-    });
-
-    if (activeIndex < preguntas.length - 1) {
-    const nuevoIndice = activeIndex + 1;
-    preguntas[nuevoIndice].classList.add('active');
-    mostrarBotonAgregar(preguntas[nuevoIndice], nuevoIndice, preguntas.length);
-    guardarProgreso(nuevoIndice); // Guarda el progreso al avanzar
-    }
-
-    }
-
-    //------------------------------ SECCION DE TRATAMIENTOS ------------------------------
-    function seccionTratamientos() {
-    $(".LoaderPage").show();
-    $(".LoaderPage").fadeOut(1000);
-    document.getElementById("preguntas-container").style.display = "none";
-    document.getElementById("tratamientos-container").style.display = "block";
-    localStorage.setItem("seccionActual", "tratamientos");
-    contenidoTratamientos();
-    }
-
-    function contenidoTratamientos(idValor = 0) {
-    const usuarioDiv = document.getElementById('main');
-    const idPaciente = usuarioDiv.getAttribute('data-paciente');
-    const idRol = usuarioDiv.getAttribute('data-rol');
-
-    fetch(`/buscar/contenido-preguntas-tratamiento-modulo-8/${idPaciente}/${idRol}`)
-    .then(response => response.text())
-    .then(data => {
-    document.getElementById('conteTratamiento').innerHTML = data;
-    feather.replace();
-            
-    // Reactivar el IntersectionObserver para las nuevas secciones (si lo utilizas)
-    document.querySelectorAll('.sectionQuestion').forEach(section => {
-    observer.observe(section);
-    });
-
-    cargarProgresoV2(idValor);
-    });
-
-    }
-
-    function guardarProgresoV2(index) {
-    localStorage.setItem("preguntaActualV2", index);
-    }
-
-    function cargarProgresoV2(idValor) {
-    let indexGuardado = localStorage.getItem("preguntaActualV2");
-    indexGuardado = indexGuardado ? parseInt(indexGuardado) : 0;
-
-    const preguntas = document.querySelectorAll('.tratamiento-container');
-    
-    // Calcular el nuevo índice dentro de los límites permitidos
-    let nuevoIndex = indexGuardado + idValor;
-    if (nuevoIndex < 0) nuevoIndex = 0; // Evita ir antes de la primera pregunta
-    if (nuevoIndex > preguntas.length) nuevoIndex = preguntas.length - 1; // Evita ir después de la última
-
-    // Remover la clase 'active' de todas las preguntas
-    preguntas.forEach(pregunta => pregunta.classList.remove('active'));
-
-    // Activar la nueva pregunta
-    preguntas[nuevoIndex].classList.add('active');
-
-    // Guardar el nuevo progreso
-    guardarProgresoV2(nuevoIndex);
-    }
-
-   //---------- PREGUNTA ANTERIOR ----------
-   function anteriorPreguntaV2() {
-    const preguntas = document.querySelectorAll('.tratamiento-container');
-    let activeIndex = -1;
-
-    $(".LoaderPage").show(); 
-    $(".LoaderPage").fadeOut(1000);
-
-    preguntas.forEach((pregunta, index) => {
-    if (pregunta.classList.contains('active')) {
-    activeIndex = index;
-    pregunta.classList.remove('active');
-    }
-    });
-
-    if (activeIndex > 0) {
-    const nuevoIndice = activeIndex - 1;
-    preguntas[nuevoIndice].classList.add('active');
-    //guardarProgresoV2(nuevoIndice); // Guarda el progreso al retroceder
-    }
-
-    }
-
-    //---------- PREGUNTA SIGUIENTE ----------
-    function siguientePreguntaV2() {
-    const preguntas = document.querySelectorAll('.tratamiento-container');
-    let activeIndex = -1;
-
-    $(".LoaderPage").show();
-    $(".LoaderPage").fadeOut(1000);
-
-    preguntas.forEach((pregunta, index) => {
-    if (pregunta.classList.contains('active')) {
-    activeIndex = index;
-    pregunta.classList.remove('active');
-    }
-    });
-
-    if (activeIndex < preguntas.length - 1) {
-    const nuevoIndice = activeIndex + 1;
-    preguntas[nuevoIndice].classList.add('active');
-    guardarProgresoV2(nuevoIndice); // Guarda el progreso al avanzar
-    }
-    }
-
-    
-    //------------------------------ SECCION DE TRATAMIENTOS ------------------------------
-    function seccionProcedimientos() {
-    $(".LoaderPage").show();
-    $(".LoaderPage").fadeOut(1000);
-    document.getElementById("preguntas-container").style.display = "block";
-    document.getElementById("tratamientos-container").style.display = "none";
-    localStorage.setItem("seccionActual", "preguntas");
-    contenidoPreguntas();
-    }
-
-    // Función nueva para controlar la visibilidad del botón
-    function mostrarBotonAgregar(pregunta, index, total) {
-    const btnAgregar = pregunta.querySelector('.btnAgregarProcedimiento');
-    if (btnAgregar) {
-    if (index === total - 1) {
-    btnAgregar.style.display = 'block';
-    } else {
-    btnAgregar.style.display = 'none';
-    }
-    }
-    }
-
-    //---------- CONTROL SERVER ----------
-    function gestionarControlDolor(url, parametros, callback, idUpdate = 0) {
-    if(idUpdate == 1){
-    $(".LoaderPage").show();
-    }
-    fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(parametros)
-    }).then(res => res.json()).then(data => {
-    if(idUpdate == 1){
-    $(".LoaderPage").fadeOut(1000);
-    }
-    if (data.resultado) callback();
-    else document.getElementById('mensaje').textContent = 'Error: ' + data.mensaje;
-    });
-    }
-
-    //---------- AGREGAR PROCEDIMIENTO DEL PACIENTE ----------
-    function agregarProcedimientosDolor(idPaciente, idRol) {
-    gestionarControlDolor(`/${idRol === "Paciente" ? "historia-clinica" : "clinica"}/paciente/agregar-procedimiento-dolor-modulo8`, {
-    idPaciente,
-    idRol
-    }, 
-    () => contenidoPreguntas(1),
-    1);
-    } 
-
-    //---------- EDITAR PROCEDIMIENTO DEL PACIENTE ----------
-    function editarProcedimientosDolor(idProcedimiento, elemento, parametro, idRol) {
-    gestionarControlDolor(`/${idRol === "Paciente" ? "historia-clinica" : "clinica"}/paciente/editar-procedimiento-dolor-modulo8`, {
-    idProcedimiento,
-    detalle: elemento.value,
-    edicion: parametro,
-    idRol
-    }, 
-    () => contenidoPreguntas(0));
-    }
- 
-    //---------- ELIMINAR PROCEDIMIENTO DEL PACIENTE ----------
-    function eliminarProcedimientosDolor(idProcedimiento, idRol) {
-    gestionarControlDolor(`/${idRol === "Paciente" ? "historia-clinica" : "clinica"}/paciente/eliminar-procedimiento-dolor-modulo8`, {
-    idProcedimiento,
-    idRol
-    }, 
-    () => contenidoPreguntas(1),
-    1);
-    }
-
-    //---------- EDITAR TRATAMIENTO DEL PACIENTE ----------
-    function editarTratamientosDolor(idTratamiento, elemento, parametro, idRol, idUpdate = 0) {
-    gestionarControlDolor(`/${idRol === "Paciente" ? "historia-clinica" : "clinica"}/paciente/editar-tratamiento-dolor-modulo8`, {
-    idTratamiento,
-    detalle: elemento.value,
-    edicion: parametro,
-    idRol
-    }, 
-    () => contenidoTratamientos(0),
-    idUpdate);
-    }
-
-    //---------- FINALIZAR MODULO DEL PACIENTE----------
-    function finalizarModuloPAC(idModulo, idPaciente) {
-    gestionarControlDolor('/historia-clinica/paciente/finalizar-modulo-paciente', { idModulo, idPaciente }, () => window.location.href = '/historia-clinica');
-    }
-
+        document.addEventListener('click', event => { const help = event.target.closest?.('[data-p10-help]'); if (help) { p10OpenInstructions(); return; } if (event.target.id === 'p10InstructionsModal') { p10CloseInstructions(); return; } const choice = event.target.closest?.('[data-p10-treatment-choice]'); if (choice) { chooseTreatment(choice.dataset.p10TreatmentChoice); return; } const actionControl = event.target.closest?.('[data-p10-action]'); const action = actionControl?.dataset.p10Action; if (!action) return; if (action === 'add-procedure') addProcedure(); else if (action === 'save-procedure') saveProcedure(); else if (action === 'delete-procedure') deleteProcedure(); else if (action === 'previous-procedure' && p10.procedureIndex > 0) { p10.procedureIndex -= 1; renderProcedures(); } else if (action === 'go-treatments') { p10.treatmentIndex = 0; loadTreatments().catch(error => showLoadError(error, 'treatments')); } else if (action === 'go-procedures' || (action === 'previous-treatment' && p10.treatmentIndex === 0)) { loadProcedures().catch(error => showLoadError(error, 'procedures')); } else if (action === 'retry-load') { const section = actionControl.dataset.p10Section === 'treatments' ? 'treatments' : 'procedures'; message('Reintentando…'); (section === 'treatments' ? loadTreatments() : loadProcedures()).catch(error => showLoadError(error, section)); } else if (action === 'previous-treatment') { p10.treatmentIndex -= 1; renderTreatments(); } else if (action === 'save-treatment') saveTreatment(); });
+        document.addEventListener('change', event => { if (event.target.matches('[data-p10-field="resultados"]')) { const field = event.target.closest('.p10-question')?.querySelector('[data-p10-description-field]'); if (field) field.hidden = event.target.value !== 'Tuve efectos adversos'; } });
+        document.addEventListener('keydown', event => { const modal = byId('p10InstructionsModal'); if (!modal || modal.getAttribute('aria-hidden') === 'true') return; if (event.key === 'Escape') { event.preventDefault(); p10CloseInstructions(); } if (event.key === 'Tab') { const controls = [...modal.querySelectorAll('button, [href], input, select, textarea')].filter(node => !node.disabled && node.offsetParent !== null); if (!controls.length) return; const first = controls[0], last = controls[controls.length - 1]; if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); } else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); } } });
+        window.addEventListener('pagehide', () => p10StopVoice(false));
+        window.p10OpenInstructions = p10OpenInstructions; window.p10CloseInstructions = p10CloseInstructions; window.p10ReadInstructions = p10ReadInstructions; window.p10StopVoice = p10StopVoice; window.p10ReadCurrentQuestion = p10ReadCurrentQuestion;
+        document.addEventListener('DOMContentLoaded', async () => { if (window.feather) window.feather.replace(); const savedSection = localStorage.getItem(`p10:${p10.patientId}:section`); p10OpenInstructions(); try { if (savedSection === 'treatments') { p10.section = 'treatments'; await loadTreatments(); } else await loadProcedures(); } catch (error) { showLoadError(error, savedSection === 'treatments' ? 'treatments' : 'procedures'); } });
+    })();
     </script>
-    </head>
-
-<body class="app-shell-body app-shell-patient patient-clinical-form">
-    <div class="LoaderPage"></div>
-    <div id="app">
-        
-    <!---------- SIDEBAR ---------->
-    <?=$data['sidebar'];?>
-    
-    <div id="main" data-rol="<?=$data['idRol'];?>" data-paciente="<?=$data['idPaciente'];?>">
-    <nav class="navbar navbar-header navbar-expand navbar-light">
-    <a class="sidebar-toggler"><span class="navbar-toggler-icon"></span></a>
-    <button class="btn navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-    <span class="navbar-toggler-icon"></span>
-    </button>
-                
-    <div class="collapse navbar-collapse" id="navbarSupportedContent">
-    <ul class="navbar-nav d-flex align-items-center navbar-light ms-auto">
-    </ul>
+</head>
+<body class="app-shell-body app-shell-patient patient-clinical-form patient-procedures-page">
+<div class="LoaderPage" aria-hidden="true"></div><div id="app">
+    <?= $data['sidebar']; ?>
+    <div id="main" data-paciente="<?= $idPaciente; ?>" data-rol="Paciente">
+        <nav class="navbar navbar-header navbar-expand navbar-light"><button type="button" class="sidebar-toggler border-0 bg-transparent" aria-label="Abrir menú principal" aria-controls="sidebar" aria-expanded="true"><span class="navbar-toggler-icon"></span></button><button class="btn navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Abrir navegación"><span class="navbar-toggler-icon"></span></button><div class="collapse navbar-collapse" id="navbarSupportedContent"><ul class="navbar-nav d-flex align-items-center navbar-light ms-auto"></ul></div></nav>
+        <main class="main-content container-fluid patient-procedures-content">
+            <header class="page-title portal-page-title patient-procedures-hero mb-4"><div class="patient-procedures-hero-copy"><p class="dashboard-eyebrow">MI HISTORIA CLÍNICA</p><h1><?= $escape($pageTitle); ?></h1><p id="p10-hero-description">Registra los procedimientos y tratamientos utilizados para controlar el dolor.</p><span class="patient-procedures-context">Paciente: <?= $escape($patientName); ?></span></div><div class="patient-procedures-hero-actions"><button type="button" id="p10HelpButton" class="btn patient-procedures-help" aria-label="¿Cómo llenar esta sección?" aria-haspopup="dialog" aria-controls="p10InstructionsModal" data-p10-help><i data-feather="help-circle" aria-hidden="true"></i><span>¿Cómo llenar esta sección?</span></button><a class="btn patient-procedures-back" href="<?= $escape(SERVIDOR . 'historia-clinica'); ?>"><i data-feather="arrow-left" aria-hidden="true"></i><span>Volver a mi Historia Clínica</span></a></div></header>
+            <div id="p10-page-message" class="patient-procedures-message" role="alert" aria-live="polite"></div>
+            <section class="patient-procedures-card card" aria-labelledby="p10-section-title"><div class="card-header patient-procedures-card-header"><div><p id="p10-section-eyebrow" class="dashboard-eyebrow">PROCEDIMIENTOS PARA CONTROLAR EL DOLOR</p><h2 id="p10-section-title">Procedimientos para controlar el dolor</h2><p id="p10-section-description">Registra los procedimientos que te hayan realizado, su fecha y los resultados obtenidos.</p></div><div class="patient-procedures-question-tools" aria-label="Controles de lectura"><button type="button" class="btn p10-voice-button" onclick="p10ReadCurrentQuestion()"><i data-feather="volume-2" aria-hidden="true"></i><span>Escuchar</span></button><button id="p10-question-stop" type="button" class="btn p10-voice-button" hidden tabindex="-1" onclick="p10StopVoice(true)"><i data-feather="square" aria-hidden="true"></i><span>Detener</span></button><span id="p10-voice-status" class="visually-hidden" role="status" aria-live="polite"></span></div></div><div class="card-body patient-procedures-card-body"><div id="p10-generated"></div></div></section>
+        </main>
+        <div id="p10InstructionsModal" class="modal fade patient-family-history-modal patient-instructions-modal" tabindex="-1" role="dialog" aria-labelledby="p10InstructionsTitle" aria-describedby="p10InstructionsText" aria-modal="true" aria-hidden="true" style="display: none;"><div class="modal-dialog modal-dialog-centered patient-instructions-dialog"><div class="modal-content patient-family-history-modal-content patient-instructions-modal-content"><div class="modal-header patient-instructions-modal-header"><h2 id="p10InstructionsTitle" class="modal-title patient-instructions-modal-title">Antes de comenzar: Procedimientos y tratamientos</h2><button id="p10InstructionsClose" type="button" class="btn-close" aria-label="Cerrar instrucciones" onclick="p10CloseInstructions()"></button></div><div class="modal-body patient-instructions-modal-body"><p id="p10InstructionsText" data-narration-instructions>En esta sección registraremos los procedimientos y tratamientos que has recibido para controlar el dolor. Primero podrás agregar los procedimientos que te hayan realizado, indicando su nombre, la fecha aproximada y los resultados que obtuviste. Después te preguntaremos por diferentes tratamientos. Si has recibido alguno, selecciona Sí e indica cómo te fue. Si experimentaste efectos adversos, podrás describirlos. Al terminar continuarás con la siguiente sección de tu Historia Clínica.</p><p id="p10-voice-prompt" class="patient-family-history-voice-prompt patient-instructions-voice-prompt" role="status" aria-live="polite">Para escuchar las instrucciones, presiona este botón.</p><p class="patient-family-history-modal-note patient-instructions-modal-note">Tus respuestas se guardan mientras avanzas. Puedes cerrar esta ventana sin perder tu progreso.</p></div><div class="modal-footer patient-family-history-modal-actions patient-instructions-modal-actions"><button id="p10ReadInstructionsButton" type="button" class="btn patient-family-history-secondary patient-instructions-secondary p10-voice-speak" onclick="p10ReadInstructions()"><i data-feather="volume-2" aria-hidden="true"></i> <span>Escuchar</span></button><button id="p10StopInstructionsButton" type="button" class="btn patient-family-history-secondary patient-instructions-secondary" onclick="p10StopVoice(true)"><i data-feather="square" aria-hidden="true"></i> <span>Detener</span></button><button type="button" class="btn btn-primary" onclick="p10CloseInstructions()">Entendido, comenzar</button></div></div></div></div>
+        <?php include_once __DIR__ . '/../components/footer-doctor.php'; ?>
     </div>
-    </nav>
-
-    <!---------- CONTENIDO DE LA PAGINA ---------->
-    <div class="main-content container-fluid">
-
-    <div class="page-title mb-4">     
-    <h8><?=$data['nombre'];?></h8>
-    <h3><?=$data['title'];?></h3>
-    </div>
-    
-    <section class="section">
-
-    <!---------- SECCION DE PROCEDIMIENTOS ---------->
-    <div id="preguntas-container">
-    <div class="card">
-    <div id="contePreguntas"></div>
-    </div>
-    </div>
-
-    <!---------- SECCION DE TRATAMIENTOS ---------->
-    <div id="tratamientos-container">
-    <div class="card">
-    <div id="conteTratamiento"></div>
-    </div>
-    </div>
-    
-    </section>
-
-    </div>
-    <!----- FOOTER ---------->
-<?php include_once __DIR__ . '/../components/footer-doctor.php';?>
-    </div>
-    </div>
-
-    <script src="<?=RUTA_JS;?>voice-utilities.js"></script>
-    <script src="<?=RUTA_JS;?>/feather-icons/feather.min.js"></script>
-    <script src="<?=RUTA_PUBLIC;?>libs/perfect-scrollbar/perfect-scrollbar.min.js"></script>
-    <script src="<?=RUTA_JS;?>app.js"></script>    
-    <script src="<?=RUTA_PUBLIC;?>libs/simple-datatables/simple-datatables.js"></script>
-    <script src="<?=RUTA_JS;?>main.js"></script>
-    
-    </body>
-    </html>
+</div>
+<script src="<?= RUTA_JS; ?>patient-instructions-modal.js"></script><script src="<?= RUTA_JS; ?>patient-narration-highlight.js"></script><script src="<?= $voiceUtilitiesJsUrl; ?>"></script><script src="<?= $featherJsUrl; ?>"></script><script src="<?= RUTA_PUBLIC; ?>libs/perfect-scrollbar/perfect-scrollbar.min.js"></script><script src="<?= $appJsUrl; ?>"></script><script src="<?= $mainJsUrl; ?>"></script>
+</body>
+</html>

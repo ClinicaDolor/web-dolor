@@ -1,15 +1,7 @@
 <?php
-use App\Config\Database;
 use App\Models\ProcedimientosDolorModel;
 
-// Se conserva la preparación existente del módulo. La siembra de respuestas
-// durante GET es un riesgo heredado documentado y no forma parte de D30.
-$bd = Database::getInstance();
 $model = new ProcedimientosDolorModel();
-$preguntas_fijas = $model->obtenerPreguntasModulos();
-foreach ($preguntas_fijas as $preg) {
-    echo $model->procedimientosModulo8($data['idPaciente'], $preg);
-}
 
 $escape = static function ($value): string {
     return htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');

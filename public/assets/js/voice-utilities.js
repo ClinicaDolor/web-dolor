@@ -1,173 +1,158 @@
-// Pre-cargar las voces para que estén disponibles
+// Utilidades compartidas de lectura por voz.
+// La voz se inicia únicamente por interacción del usuario o por el comportamiento
+// automático ya configurado por cada módulo; nunca se envían datos a servicios externos.
 let voicesLoaded = false;
+let currentUtterance = null;
+let currentSectionId = null;
+let shouldReadNext = false;
+
+const speechApi = 'speechSynthesis' in window ? window.speechSynthesis : null;
 
 function preloadVoices() {
-  const voices = speechSynthesis.getVoices();
-  if (voices.length > 0) {
-    voicesLoaded = true;
-  }
+  if (!speechApi) return [];
+  const voices = speechApi.getVoices();
+  voicesLoaded = voices.length > 0;
+  return voices;
 }
 
 preloadVoices();
-speechSynthesis.onvoiceschanged = preloadVoices;
+if (speechApi) speechApi.onvoiceschanged = preloadVoices;
 
-let currentUtterance = null;
-let currentSectionId = null;
+function spanishVoice() {
+  const voices = preloadVoices();
+  return voices.find(voice => /^es-MX/i.test(voice.lang))
+    || voices.find(voice => /^es(-|_)/i.test(voice.lang))
+    || null;
+}
 
-// Variable que controla si se debe leer la siguiente sección automáticamente
-let shouldReadNext = false;
+function restoreSectionText(sectionId) {
+  const section = document.getElementById(sectionId);
+  const textoElement = section ? section.querySelector('.texto') : null;
+  if (textoElement && textoElement.dataset.original) {
+    textoElement.textContent = textoElement.dataset.original;
+  }
+}
 
-// Función para leer el texto de la sección
+function detenerLectura() {
+  if (speechApi) speechApi.cancel();
+  if (currentSectionId) restoreSectionText(currentSectionId);
+  currentUtterance = null;
+  currentSectionId = null;
+  shouldReadNext = false;
+}
+
 function leerTextoSeccion(sectionId) {
-  // Si ya estamos reproduciendo una sección, detener la reproducción actual
-  if (currentSectionId === sectionId && speechSynthesis.speaking) {
-    speechSynthesis.cancel();
-    currentSectionId = null;
-    const textoElement = document.querySelector(`#${sectionId} .texto`);
-    if (textoElement) {
-      textoElement.innerText = textoElement.getAttribute('data-original') || textoElement.innerText;
-    }
-    return;
+  if (!speechApi || typeof SpeechSynthesisUtterance === 'undefined') {
+    console.warn('La síntesis de voz no está disponible en este navegador.');
+    return false;
   }
 
-  // Si hay otra reproducción en curso, cancelarla y restaurar el texto de la sección anterior
-  if (speechSynthesis.speaking) {
-    speechSynthesis.cancel();
-    if (currentSectionId) {
-      const prevTexto = document.querySelector(`#${currentSectionId} .texto`);
-      if (prevTexto) {
-        prevTexto.innerText = prevTexto.getAttribute('data-original') || prevTexto.innerText;
-      }
-    }
+  if (currentSectionId === sectionId && speechApi.speaking) {
+    detenerLectura();
+    return false;
   }
+
+  detenerLectura();
 
   const section = document.getElementById(sectionId);
   if (!section) {
-    console.error("Sección no encontrada:", sectionId);
-    return;
+    console.warn('Sección no encontrada:', sectionId);
+    return false;
   }
 
-  const textoElement = section.querySelector(".texto");
+  const textoElement = section.querySelector('.texto');
   if (!textoElement) {
-    console.error("Elemento de texto no encontrado en la sección:", sectionId);
-    return;
+    console.warn('Elemento de texto no encontrado en la sección:', sectionId);
+    return false;
   }
 
-  const originalText = textoElement.innerText.trim();
-  textoElement.setAttribute('data-original', originalText);
+  const originalText = textoElement.textContent.trim();
   if (!originalText) {
-    console.error("No hay texto para leer en la sección:", sectionId);
-    return;
+    console.warn('No hay texto para leer en la sección:', sectionId);
+    return false;
   }
 
+  textoElement.dataset.original = originalText;
   const utterance = new SpeechSynthesisUtterance(originalText);
-  utterance.lang = "es-ES";
-  utterance.rate = 1;
+  const voice = spanishVoice();
+  utterance.lang = voice ? voice.lang : 'es-MX';
+  if (voice) utterance.voice = voice;
+  utterance.rate = .88;
   utterance.pitch = 1;
-
-  // Forzar el uso de voz en español si está disponible
-  const voces = speechSynthesis.getVoices();
-  const vozEspañol = voces.find(voz => voz.name.includes("Google Español") || voz.lang.includes("es"));
-  if (vozEspañol) {
-    utterance.voice = vozEspañol;
-  }
 
   currentSectionId = sectionId;
   currentUtterance = utterance;
 
-  // Actualizar el resaltado letra a letra mediante onboundary
-  utterance.onboundary = function(event) {
-    const index = event.charIndex;
-    const spokenPart = originalText.slice(0, index);
-    const remainingPart = originalText.slice(index);
-    textoElement.innerHTML = `<span class="highlightText">${spokenPart}</span>${remainingPart}`;
-  };
-
-  // Cuando termine de leer esta sección, leer la siguiente
-  utterance.onend = function() {
+  utterance.onend = function () {
+    restoreSectionText(sectionId);
     currentSectionId = null;
     currentUtterance = null;
-    textoElement.innerText = originalText;
-
-    // Leer la siguiente sección si es que debe
     if (shouldReadNext) {
+      shouldReadNext = false;
       leerSiguienteSeccion();
-      shouldReadNext = false; // Resetear la bandera
     }
   };
 
-  // Iniciar la reproducción
-  function iniciarReproduccion() {
-    window.speechSynthesis.speak(utterance);
-  }
+  utterance.onerror = function () {
+    restoreSectionText(sectionId);
+    currentSectionId = null;
+    currentUtterance = null;
+  };
 
-  // Verificar si las voces están listas antes de reproducir
-  if (voicesLoaded) {
-    iniciarReproduccion();
-  } else {
-    speechSynthesis.onvoiceschanged = () => {
-      voicesLoaded = true;
-      iniciarReproduccion();
-    };
-  }
+  speechApi.speak(utterance);
+  return true;
 }
 
-// Función para leer la siguiente sección
 function leerSiguienteSeccion() {
   const nextSection = document.querySelector('.sectionQuestion:not([data-autoplay="true"])');
-  if (nextSection) {
-    const nextSectionId = nextSection.id;
-    leerTextoSeccion(nextSectionId);
-    nextSection.setAttribute('data-autoplay', 'true'); // Marcarla como ya leída
-  }
+  if (!nextSection) return;
+  leerTextoSeccion(nextSection.id);
+  nextSection.setAttribute('data-autoplay', 'true');
 }
 
-// Botón para repetir manualmente
-document.querySelectorAll('.btnLeer').forEach(button => {
-  button.addEventListener('click', function() {
-    const target = this.getAttribute('data-target');
-    // Repetir la lectura del texto de la sección correspondiente
-    leerTextoSeccion(target);
+function bindVoiceButtons() {
+  document.querySelectorAll('.btnLeer').forEach(button => {
+    if (button.dataset.voiceBound === 'true') return;
+    button.dataset.voiceBound = 'true';
+    button.addEventListener('click', function () {
+      leerTextoSeccion(this.getAttribute('data-target'));
+    });
   });
-});
+}
 
-// Intersection Observer para detectar cuando la sección se visualiza
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bindVoiceButtons, { once: true });
+} else {
+  bindVoiceButtons();
+}
+
 const observerOptions = {
   root: null,
-  rootMargin: "0px",
-  threshold: 0.5 // Se considera visible cuando al menos el 50% es visible
+  rootMargin: '0px',
+  threshold: 0.5
 };
 
-const observerCallback = (entries, observer) => {
-  entries.forEach(entry => {
-    if (entry.isIntersecting) {
+if ('IntersectionObserver' in window) {
+  const observerCallback = entries => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
       const section = entry.target;
-      // Solo reproducir si la sección no se ha reproducido previamente
-      if (section.getAttribute('data-autoplay') === "false") {
-        const sectionId = section.id;
+      if (section.getAttribute('data-autoplay') !== 'false') return;
 
-        // Si la sección es la primera, la leemos
-        if (!currentSectionId) {
-          leerTextoSeccion(sectionId);
-          section.setAttribute('data-autoplay', 'true');
-        } else {
-          // Si ya estamos reproduciendo, marcaremos que debemos leer la siguiente
-          shouldReadNext = true;
-        }
+      if (!currentSectionId) {
+        leerTextoSeccion(section.id);
+        section.setAttribute('data-autoplay', 'true');
+      } else {
+        shouldReadNext = true;
       }
-    }
-  });
-};
+    });
+  };
 
-const observer = new IntersectionObserver(observerCallback, observerOptions);
-document.querySelectorAll('.sectionQuestion').forEach(section => {
-  observer.observe(section);
-});
+  const observer = new IntersectionObserver(observerCallback, observerOptions);
+  document.querySelectorAll('.sectionQuestion').forEach(section => observer.observe(section));
+}
 
-// ---------- LEER LAS PREGUNTAS ----------
-function readQuestion(){
+function readQuestion() {
   const firstSection = document.querySelector('.sectionQuestion');
-  const sectionId = firstSection.id;
-  leerTextoSeccion(sectionId);
-}   
-      
+  if (firstSection) leerTextoSeccion(firstSection.id);
+}

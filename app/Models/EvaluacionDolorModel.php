@@ -637,4 +637,278 @@ public function cuestionarioModulo9($idPaciente) {
     }
 
   
+    /**
+     * P11 safe rendering and persistence helpers.
+     * GET requests only read existing rows/files; initialization happens on POST.
+     */
+    private function p11PatientSex(int $idPaciente): string
+    {
+        $stmt = $this->bd->prepare('SELECT sexo FROM pc_paciente WHERE id = :id LIMIT 1');
+        $stmt->execute([':id' => $idPaciente]);
+        $sex = (string) ($stmt->fetchColumn() ?: 'M');
+        return strtoupper($sex) === 'F' ? 'F' : 'M';
+    }
+
+    private function p11StorageRoot(): string
+    {
+        return dirname(__DIR__) . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'evaluacion-dolor';
+    }
+
+    private function p11DefaultPath(string $orientation, string $sex): string
+    {
+        $orientation = $orientation === 'espalda' ? 'espalda' : 'frente';
+        $prefix = $orientation === 'espalda' ? 'Espalda_' : 'Frente_';
+        return dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . 'assets' . DIRECTORY_SEPARATOR
+            . 'images' . DIRECTORY_SEPARATOR . 'evaluacion-dolor' . DIRECTORY_SEPARATOR . $orientation
+            . DIRECTORY_SEPARATOR . $prefix . $sex . '.png';
+    }
+
+    private function p11PrivatePath(int $idPaciente, string $orientation): string
+    {
+        $orientation = $orientation === 'espalda' ? 'espalda' : 'frente';
+        return $this->p11StorageRoot() . DIRECTORY_SEPARATOR . $orientation . '_' . $idPaciente . '.png';
+    }
+
+    /** Return an authorized caller-facing path; authorization is enforced by the controller. */
+    public function p11ImagePath(int $idPaciente, string $orientation): ?string
+    {
+        $orientation = $orientation === 'espalda' ? 'espalda' : ($orientation === 'frente' ? 'frente' : '');
+        if ($orientation === '') {
+            return null;
+        }
+
+        $private = $this->p11PrivatePath($idPaciente, $orientation);
+        if (is_file($private)) {
+            return $private;
+        }
+
+        // Legacy files remain readable through the authorized endpoint for compatibility.
+        // They are not copied or created by GET. Their direct public exposure remains a tracked risk.
+        $sex = $this->p11PatientSex($idPaciente);
+        $prefix = $orientation === 'espalda' ? 'Espalda_' : 'Frente_';
+        $legacy = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . 'assets'
+            . DIRECTORY_SEPARATOR . 'images' . DIRECTORY_SEPARATOR . 'evaluacion-dolor' . DIRECTORY_SEPARATOR
+            . $orientation . DIRECTORY_SEPARATOR . $prefix . $sex . '_' . $idPaciente . '.png';
+        if (is_file($legacy)) {
+            return $legacy;
+        }
+
+        $default = $this->p11DefaultPath($orientation, $sex);
+        return is_file($default) ? $default : null;
+    }
+
+    private function p11SavePng(int $idPaciente, string $orientation, string $dataUri): array
+    {
+        if (!preg_match('/^data:image\/png;base64,([A-Za-z0-9+\/=\r\n]+)$/', $dataUri, $matches)) {
+            return ['resultado' => 422, 'mensaje' => 'La imagen no tiene un formato válido.'];
+        }
+        $binary = base64_decode($matches[1], true);
+        if ($binary === false || strlen($binary) > 4 * 1024 * 1024) {
+            return ['resultado' => 422, 'mensaje' => 'La imagen excede el tamaño permitido.'];
+        }
+        $imageInfo = @getimagesizefromstring($binary);
+        if (!$imageInfo || ($imageInfo[2] ?? null) !== IMAGETYPE_PNG || ($imageInfo[0] ?? 0) < 1 || ($imageInfo[1] ?? 0) < 1) {
+            return ['resultado' => 422, 'mensaje' => 'La imagen no pudo validarse.'];
+        }
+
+        $root = $this->p11StorageRoot();
+        if (!is_dir($root) && !mkdir($root, 0770, true) && !is_dir($root)) {
+            return ['resultado' => 500, 'mensaje' => 'No se pudo preparar el almacenamiento seguro.'];
+        }
+        $target = $this->p11PrivatePath($idPaciente, $orientation);
+        $temporary = tempnam($root, 'p11_');
+        if ($temporary === false || file_put_contents($temporary, $binary, LOCK_EX) === false || !rename($temporary, $target)) {
+            if ($temporary !== false && is_file($temporary)) {
+                @unlink($temporary);
+            }
+            return ['resultado' => 500, 'mensaje' => 'No se pudo guardar la imagen. Inténtalo nuevamente.'];
+        }
+        return ['resultado' => 200, 'mensaje' => 'Imagen guardada.'];
+    }
+
+    public function p11GuardarImagen(int $idPaciente, string $orientation, string $dataUri): array
+    {
+        return $this->p11SavePng($idPaciente, $orientation, $dataUri);
+    }
+
+    public function p11LimpiarImagen(int $idPaciente, string $orientation): array
+    {
+        $orientation = $orientation === 'espalda' ? 'espalda' : ($orientation === 'frente' ? 'frente' : '');
+        if ($orientation === '') {
+            return ['resultado' => 422, 'mensaje' => 'Orientación no válida.'];
+        }
+        $default = $this->p11DefaultPath($orientation, $this->p11PatientSex($idPaciente));
+        if (!is_file($default)) {
+            return ['resultado' => 500, 'mensaje' => 'La imagen base no está disponible.'];
+        }
+        $root = $this->p11StorageRoot();
+        if (!is_dir($root) && !mkdir($root, 0770, true) && !is_dir($root)) {
+            return ['resultado' => 500, 'mensaje' => 'No se pudo preparar el almacenamiento seguro.'];
+        }
+        $target = $this->p11PrivatePath($idPaciente, $orientation);
+        $temporary = tempnam($root, 'p11_');
+        if ($temporary === false || !copy($default, $temporary) || !rename($temporary, $target)) {
+            if ($temporary !== false && is_file($temporary)) {
+                @unlink($temporary);
+            }
+            return ['resultado' => 500, 'mensaje' => 'No se pudo limpiar el mapa. Inténtalo nuevamente.'];
+        }
+        return ['resultado' => 200, 'mensaje' => 'Mapa limpio.'];
+    }
+
+    private function p11Evaluation(int $idPaciente): ?array
+    {
+        $stmt = $this->bd->prepare(
+            'SELECT id, id_paciente, dolor, tiempo_dolor, descripcion, incremento
+             FROM pc_paciente_evaluacion_dolor
+             WHERE id_paciente = :id_paciente ORDER BY id ASC LIMIT 1'
+        );
+        $stmt->execute([':id_paciente' => $idPaciente]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
+    private function p11Html($value): string
+    {
+        return htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
+    }
+
+    public function p11MostrarMapa(int $idPaciente, string $role, string $orientation): string
+    {
+        $orientation = $orientation === 'espalda' ? 'espalda' : 'frente';
+        $label = $orientation === 'espalda' ? 'Imagen de espalda' : 'Imagen de frente';
+        $name = $orientation === 'espalda' ? 'colorEspalda' : 'colorFrente';
+        $canvas = $orientation === 'espalda' ? 'painEspalda' : 'painFrente';
+        $next = $orientation === 'espalda' ? 'cuestionario' : 'espalda';
+        $previous = $orientation === 'espalda' ? 'frente' : '';
+        $html = '<div class="p11-map-content" data-p11-map="' . $orientation . '">';
+        $html .= '<div class="p11-section-heading"><div><p class="dashboard-eyebrow">MAPA CORPORAL</p><h2>' . $label . '</h2><p class="p11-muted">Selecciona una sensación y marca la zona correspondiente.</p></div>';
+        $html .= '<button type="button" class="btn p11-secondary" data-p11-action="clear-' . $orientation . '"><i data-feather="trash-2" aria-hidden="true"></i><span>Limpiar ' . ($orientation === 'espalda' ? 'espalda' : 'frente') . '</span></button></div>';
+        $html .= '<p class="p11-legend-note">Usa una categoría por zona. Las etiquetas conservan el significado vigente del módulo; la correspondencia histórica de azul/amarillo queda documentada como pendiente de confirmación clínica.</p>';
+        $colors = [
+            ['#ff0000', 'color-rojo-' . $orientation, 'Dolor'],
+            ['#0000ff', 'color-azul-' . $orientation, 'Adormecido'],
+            ['#00ff00', 'color-verde-' . $orientation, 'Molestia al roce'],
+            ['#ffff00', 'color-amarillo-' . $orientation, 'Sin sensibilidad'],
+            ['#ff00ff', 'color-magenta-' . $orientation, 'Punzadas y calambres'],
+        ];
+        $html .= '<fieldset class="p11-colors"><legend>Selecciona el tipo de sensación</legend><div class="p11-color-options">';
+        foreach ($colors as [$color, $id, $text]) {
+            $html .= '<label class="p11-color-option"><input type="radio" name="' . $name . '" id="' . $id . '" value="' . $color . '" data-color="' . $color . '"><span class="p11-color-swatch" style="--p11-color:' . $color . '" aria-hidden="true"></span><span>' . $text . '</span></label>';
+        }
+        $html .= '</div></fieldset><div class="p11-canvas-wrap"><canvas id="' . $canvas . '" width="1200" height="1800" data-p11-orientation="' . $orientation . '" aria-label="Mapa corporal: ' . $label . '"></canvas></div>';
+        $html .= '<div class="p11-nav">';
+        if ($role === 'Paciente' && $previous !== '') {
+            $html .= '<button type="button" class="btn p11-secondary" data-p11-nav="frente"><i data-feather="chevron-left" aria-hidden="true"></i><span>Imagen de frente</span></button>';
+        }
+        if ($role === 'Paciente' && $next !== '') {
+            $html .= '<button type="button" class="btn btn-primary" data-p11-nav="' . $next . '"><span>' . ($next === 'cuestionario' ? 'Cuestionario' : 'Imagen de espalda') . '</span><i data-feather="chevron-right" aria-hidden="true"></i></button>';
+        }
+        $html .= '</div></div>';
+        return $html;
+    }
+
+    public function p11MostrarCuestionario(int $idPaciente, string $role): string
+    {
+        $row = $this->p11Evaluation($idPaciente) ?: [];
+        $dolor = (string) ($row['dolor'] ?? '');
+        $readonly = $role === 'Doctor' ? ' readonly' : '';
+        $html = '<div class="p11-questionnaire" data-p11-questionnaire="true">';
+        $html .= '<div class="p11-section-heading"><div><p class="dashboard-eyebrow">EVALUACIÓN DEL DOLOR</p><h2>Responde las preguntas</h2><p class="p11-muted">Describe tu dolor con la mayor claridad posible.</p></div></div>';
+        $html .= '<div class="p11-question"><h3>¿Tiene dolor actualmente?</h3><div class="p11-choice-grid">';
+        foreach (['Si' => 'Sí', 'No' => 'No'] as $value => $text) {
+            $checked = $dolor === $value ? ' checked' : '';
+            $disabled = $role === 'Doctor' ? ' disabled' : '';
+            $html .= '<label class="p11-choice"><input type="radio" name="p11Dolor" value="' . $value . '"' . $checked . $disabled . '><span>' . $text . '</span></label>';
+        }
+        $html .= '</div></div><div class="p11-dependent-fields"' . ($dolor === 'Si' ? '' : ' hidden') . '>';
+        $html .= '<label>¿Desde hace cuánto tiempo tiene dolor?<textarea name="tiempo_dolor" rows="2"' . $readonly . '>' . $this->p11Html($row['tiempo_dolor'] ?? '') . '</textarea></label>';
+        $html .= '<label>Describa cómo inició el dolor, sus características y localización.<textarea name="descripcion" rows="4"' . $readonly . '>' . $this->p11Html($row['descripcion'] ?? '') . '</textarea></label>';
+        $html .= '<label>¿Se ha incrementado el dolor o permanece igual desde el inicio?<textarea name="incremento" rows="3"' . $readonly . '>' . $this->p11Html($row['incremento'] ?? '') . '</textarea></label></div>';
+        if ($role === 'Paciente') {
+            $html .= '<div class="p11-question-actions"><button type="button" class="btn p11-secondary" data-p11-nav="espalda"><i data-feather="chevron-left" aria-hidden="true"></i><span>Volver a espalda</span></button><button type="button" class="btn p11-secondary" data-p11-action="save-question"><span>Guardar respuestas</span></button><button type="button" class="btn btn-primary" data-p11-action="finish"><span>Finalizar módulo</span><i data-feather="check" aria-hidden="true"></i></button></div>';
+        }
+        $html .= '</div>';
+        return $html;
+    }
+
+    public function p11ActualizarEvaluacion(int $idPaciente, array $changes): array
+    {
+        $allowed = [1 => 'dolor', 2 => 'tiempo_dolor', 3 => 'descripcion', 4 => 'incremento'];
+        $normalized = [];
+        foreach ($changes as $field => $value) {
+            $field = (int) $field;
+            if (!isset($allowed[$field])) {
+                return ['resultado' => 422, 'mensaje' => 'Campo de evaluación no válido.'];
+            }
+            $value = is_scalar($value) ? trim((string) $value) : '';
+            if ($field === 1) {
+                if ($value === 'Sí') $value = 'Si';
+                if (!in_array($value, ['Si', 'No'], true)) {
+                    return ['resultado' => 422, 'mensaje' => 'Selecciona una respuesta válida.'];
+                }
+            } elseif (mb_strlen($value) > 4000) {
+                return ['resultado' => 422, 'mensaje' => 'La respuesta es demasiado larga.'];
+            }
+            $normalized[$allowed[$field]] = $value;
+        }
+        if ($normalized === []) {
+            return ['resultado' => 422, 'mensaje' => 'No hay cambios para guardar.'];
+        }
+        $this->bd->beginTransaction();
+        try {
+            $row = $this->p11Evaluation($idPaciente);
+            if (!$row) {
+                $insert = $this->bd->prepare('INSERT INTO pc_paciente_evaluacion_dolor (id_paciente) VALUES (:id_paciente)');
+                $insert->execute([':id_paciente' => $idPaciente]);
+                $row = $this->p11Evaluation($idPaciente);
+            }
+            if (!$row) throw new \RuntimeException('evaluation-row');
+            if (($normalized['dolor'] ?? null) === 'No') {
+                $normalized['tiempo_dolor'] = '';
+                $normalized['descripcion'] = '';
+                $normalized['incremento'] = '';
+            }
+            $sets = [];
+            $params = [':id' => (int) $row['id'], ':id_paciente' => $idPaciente];
+            foreach ($normalized as $column => $value) {
+                if ((string) ($row[$column] ?? '') === $value) continue;
+                $placeholder = ':v_' . $column;
+                $sets[] = $column . ' = ' . $placeholder;
+                $params[$placeholder] = $value;
+            }
+            if ($sets !== []) {
+                $sql = 'UPDATE pc_paciente_evaluacion_dolor SET ' . implode(', ', $sets) . ' WHERE id = :id AND id_paciente = :id_paciente';
+                $stmt = $this->bd->prepare($sql);
+                $stmt->execute($params);
+            }
+            $this->bd->commit();
+            return ['resultado' => 200, 'mensaje' => 'Respuesta guardada.'];
+        } catch (\Throwable $exception) {
+            if ($this->bd->inTransaction()) $this->bd->rollBack();
+            throw $exception;
+        }
+    }
+
+    public function p11EstaCompleto(int $idPaciente): bool
+    {
+        $row = $this->p11Evaluation($idPaciente);
+        if (!$row) return false;
+        if ((string) $row['dolor'] === 'No') return true;
+        return (string) $row['dolor'] === 'Si'
+            && trim((string) $row['tiempo_dolor']) !== ''
+            && trim((string) $row['descripcion']) !== ''
+            && trim((string) $row['incremento']) !== '';
+    }
+
+    public function p11FinalizarModulo(int $idPaciente): array
+    {
+        $existing = $this->bd->prepare('SELECT id FROM pac_historia_clinica_finalizar WHERE id_modulo = 9 AND id_paciente = :id LIMIT 1');
+        $existing->execute([':id' => $idPaciente]);
+        if ($existing->fetchColumn() !== false) return ['resultado' => 200, 'mensaje' => 'El módulo ya estaba finalizado.'];
+        if (!$this->p11EstaCompleto($idPaciente)) return ['resultado' => 422, 'mensaje' => 'Completa la evaluación antes de finalizar.'];
+        $insert = $this->bd->prepare('INSERT INTO pac_historia_clinica_finalizar (id_modulo, id_paciente) VALUES (9, :id)');
+        $insert->execute([':id' => $idPaciente]);
+        return ['resultado' => 200, 'mensaje' => 'El módulo se finalizó correctamente.'];
+    }
 }

@@ -1,18 +1,7 @@
 <?php 
-use App\Config\Database;
 use App\Models\AntecedentesPatologicosModel;
-$bd = Database::getInstance();
 
 $model = new AntecedentesPatologicosModel();
-$preguntas_fijas = $model->obtenerPreguntasModulos(); 
-foreach ($preguntas_fijas as $preg) {
-echo $model->antecedentesPatologicos($data['idPaciente'], $preg);
-}
-
-$preguntas_enfermedad = $model->obtenerPreguntasModulosV2(); 
-foreach ($preguntas_enfermedad as $preg_enfermedad ) {
-echo $model->antecedentesPatologicosV2($data['idPaciente'], $preg_enfermedad);
-}
 
 $escape = static function ($value): string {
     return htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');

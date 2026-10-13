@@ -235,6 +235,19 @@ CREATE TABLE pac_historia_clinica_finalizar (
   CONSTRAINT pac_finalizar_fixture_paciente_fk FOREIGN KEY (id_paciente) REFERENCES pc_paciente (id) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE pac_historia_clinica_comentario (
+  id INT NOT NULL AUTO_INCREMENT,
+  id_modulo INT NOT NULL,
+  id_paciente INT NOT NULL,
+  comentario TEXT NOT NULL,
+  fecha_hora TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY id_modulo (id_modulo),
+  KEY id_paciente (id_paciente),
+  CONSTRAINT pac_comentario_fixture_modulo_fk FOREIGN KEY (id_modulo) REFERENCES historia_clinica_modulos (id) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT pac_comentario_fixture_paciente_fk FOREIGN KEY (id_paciente) REFERENCES pc_paciente (id) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Tablas mínimas requeridas por PacienteModulosModelo para calcular
 -- porcentajeModulo1()..porcentajeModulo9(). Se mantienen vacías salvo por
 -- los registros sintéticos explícitos al final de este fixture.
@@ -258,6 +271,7 @@ CREATE TABLE pac_temas_modulo_3 (
 CREATE TABLE pac_preguntas_modulo_3 (
   id INT NOT NULL,
   id_tema INT NOT NULL,
+  pregunta TEXT NOT NULL,
   tipo VARCHAR(50) NOT NULL,
   PRIMARY KEY (id),
   KEY id_tema (id_tema)

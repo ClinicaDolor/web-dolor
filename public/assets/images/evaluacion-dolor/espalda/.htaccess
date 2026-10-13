@@ -1,0 +1,5 @@
+# Patient-specific pain-map files must only be served through the authenticated
+# controller endpoint. Generic anatomical bases remain public assets.
+<FilesMatch "^Espalda_[FM]_[0-9]+\.png$">
+    Require all denied
+</FilesMatch>

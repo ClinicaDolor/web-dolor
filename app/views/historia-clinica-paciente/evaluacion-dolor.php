@@ -1,440 +1,175 @@
-<?php 
-use App\Config\Database;
-use App\Models\EvaluacionDolorModel;
-$bd = Database::getInstance();
-
-$model = new EvaluacionDolorModel();
-echo $model->imagenFrenteModulo9($data['idPaciente'], $data['sexo']); 
-echo $model->imagenEspaldaModulo9($data['idPaciente'], $data['sexo']); 
-echo $model->cuestionarioModulo9($data['idPaciente']);
-
+<?php
+$escape = static fn($value) => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
+$pageTitle = $data['title'] ?? 'Evaluación del dolor';
+$patientId = (int) ($data['idPaciente'] ?? 0);
+$patientName = $data['nombre'] ?? 'Paciente';
+$patientSex = $data['sexo'] ?? '';
+$versionedAsset = static function (string $baseUrl, string $assetPath, string $publicPath): string {
+    $filesystemPath = realpath(__DIR__ . '/../../public/' . ltrim($publicPath, '/'));
+    $version = $filesystemPath !== false && is_file($filesystemPath) ? filemtime($filesystemPath) : false;
+    return $baseUrl . $assetPath . ($version === false ? '' : '?v=' . (int) $version);
+};
+$appCssUrl = $versionedAsset(RUTA_CSS, 'app.css', 'assets/css/app.css');
+$loaderJsUrl = $versionedAsset(RUTA_JS, 'loader.js', 'assets/js/loader.js');
+$voiceUtilitiesJsUrl = $versionedAsset(RUTA_JS, 'voice-utilities.js', 'assets/js/voice-utilities.js');
+$featherJsUrl = $versionedAsset(RUTA_JS, 'feather-icons/feather.min.js', 'assets/js/feather-icons/feather.min.js');
+$appJsUrl = $versionedAsset(RUTA_JS, 'app.js', 'assets/js/app.js');
+$mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
+$serverUrl = rtrim(SERVIDOR, '/') . '/';
 ?>
- 
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?=$data['title'];?></title>
-    <link rel="shortcut icon" href="<?=RUTA_IMAGES ?>/logo-clinica.png">
-    <link rel="apple-touch-icon" href="<?=RUTA_IMAGES ?>/logo-clinica.png">
+    <title><?=$escape($pageTitle);?></title>
+    <link rel="shortcut icon" href="<?=RUTA_IMAGES;?>logo-clinica.png">
+    <link rel="apple-touch-icon" href="<?=RUTA_IMAGES;?>logo-clinica.png">
     <link rel="stylesheet" href="<?=RUTA_CSS;?>bootstrap.css">
     <link rel="stylesheet" href="<?=RUTA_PUBLIC;?>libs/perfect-scrollbar/perfect-scrollbar.css">
-    <link rel="stylesheet" href="<?=RUTA_PUBLIC;?>libs/simple-datatables/style.css">
-    <link rel="stylesheet" href="<?=RUTA_CSS;?>app.css">
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script src="<?=RUTA_JS;?>loader.js"></script>
-
-    <script>
-    document.addEventListener("DOMContentLoaded", function() {
-    const seccionActual = localStorage.getItem("seccionActual");
-    
-    if (!seccionActual || seccionActual === "frente") {
-    contenidoFrente();
-    } else if (seccionActual === "espalda") {
-    contenidoEspalda();
-    }else if(seccionActual === "cuestionario"){
-    contenidoCuestionario();
-    }
-
-    });
-
-    function contenidoFrente() {
-    const usuarioDiv = document.getElementById('main');
-    const idPaciente = usuarioDiv.getAttribute('data-paciente');
-    const idRol = usuarioDiv.getAttribute('data-rol');
-    const idSexo = usuarioDiv.getAttribute('data-sexo');
-
-    fetch(`/buscar/contenido-evaluacion-frente-modulo-9/${idPaciente}/${idRol}`)
-    .then(response => response.text())
-    .then(data => {
-    const contenedor = document.getElementById('conteFrente');
-    contenedor.innerHTML = data;
-    feather.replace();
-
-    // Ejecutar lógica de canvas solo cuando ya está en el DOM
-    const canvas = document.getElementById('painFrente');
-    const ctx = canvas.getContext('2d');
-    const colorPicker = document.getElementById('colorFrente');
-
-    const img = new Image();
-    img.src = '<?=RUTA_IMAGES?>evaluacion-dolor/frente/Frente_<?=$data['sexo']?>_<?=$data['idPaciente']?>.png?' + Math.random();
-    img.onload = () => {
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    };
-
-    let painting = false;
-
-    function startPosition(e) {
-    painting = true;
-    draw(e);
-    }
-
-    function endPosition() {
-    if (painting) {
-    painting = false;
-    ctx.beginPath();
-    cambioFrenteImg(idPaciente, idRol, idSexo);
-    }
-    }
-
-    function draw(e) {
-    if (!painting) return;
-
-    ctx.lineWidth = 25;
-    ctx.lineCap = 'round';
-
-    // 1) Buscamos el input radio seleccionado
-    const selectedColorInput = document.querySelector('input[name="colorFrente"]:checked');
-    // 2) Si hay uno, usamos su value; si no, un fallback (negro)
-    ctx.strokeStyle = selectedColorInput
-        ? selectedColorInput.value
-        : '#ffffff';
-
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width  / rect.width;
-    const scaleY = canvas.height / rect.height;
-
-    const x = (e.clientX - rect.left) * scaleX;
-    const y = (e.clientY - rect.top ) * scaleY;
-
-    ctx.lineTo(x, y);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    }
-
-    function cambioFrenteImg(idPaciente, idRol, idSexo) {
-    const imgFrente = canvas.toDataURL();
-    gestionarEvaluacionDolor(`/${idRol === "Paciente" ? "historia-clinica" : "clinica"}/paciente/editar-img-frente-modulo9`, {
-    idPaciente,
-    idSexo, 
-    idRol,
-    imgFrente
-    },  () => cargaImagenFrente(0));
-    }
-
-    canvas.addEventListener('mousedown', startPosition);
-    canvas.addEventListener('mouseup', endPosition);
-    canvas.addEventListener('mousemove', draw);
-    });
-    }
-
-    function cleanFrenteImg() {
-    const usuarioDiv = document.getElementById('main');
-    const idPaciente = usuarioDiv.getAttribute('data-paciente');
-    const idRol = usuarioDiv.getAttribute('data-rol');
-    const idSexo = usuarioDiv.getAttribute('data-sexo');
-
-    gestionarEvaluacionDolor(`/${idRol === "Paciente" ? "historia-clinica" : "clinica"}/paciente/eliminar-img-frente-modulo9`, {
-    idPaciente,
-    idSexo, 
-    idRol
-    },  () => cargaImagenFrente(1),
-    1);
-    }
-
-    function cargaImagenFrente(tipo = 0) {
-    const canvas = document.getElementById('painFrente');
-    const ctx = canvas.getContext('2d');
-    const usuarioDiv = document.getElementById('main');
-    const idSexo = usuarioDiv.getAttribute('data-sexo');
-    const img = new Image();
-
-    // Guardar el estado actual del canvas
-    const canvasState = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-    if(tipo == 1){
-    img.src = '<?=RUTA_IMAGES?>evaluacion-dolor/frente/Frente_' + idSexo + '.png';
-    img.onload = () => {
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    };
-    
-    }else{
-
-    imagen = '<?=RUTA_IMAGES?>evaluacion-dolor/frente/Frente_<?=$data['sexo']?>_<?=$data['idPaciente']?>.png';
-    img.src = imagen + '?' + Math.random(); // Usar "?" antes del random para no alterar la ruta original
-    img.onload = () => {
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    // Restaurar el estado del canvas (las ediciones)
-    ctx.putImageData(canvasState, 0, 0);
-    };
-    }
-    }
-
-    //-------------------- SECCION DE LA ESPALDA --------------------
-    function contenidoEspalda() {
-    const usuarioDiv = document.getElementById('main');
-    const idPaciente = usuarioDiv.getAttribute('data-paciente');
-    const idRol = usuarioDiv.getAttribute('data-rol');
-    const idSexo = usuarioDiv.getAttribute('data-sexo');
-
-    fetch(`/buscar/contenido-evaluacion-espalda-modulo-9/${idPaciente}/${idRol}`)
-    .then(response => response.text())
-    .then(data => {
-    const contenedor = document.getElementById('conteEspalda');
-    contenedor.innerHTML = data;
-    feather.replace();
-
-    // Ejecutar lógica de canvas solo cuando ya está en el DOM
-    const canvasEspalda  = document.getElementById('painEspalda');
-    const ctxEspalda  = canvasEspalda .getContext('2d');
-    const colorPicker = document.getElementById('colorEspalda');
-
-    const img = new Image();
-    img.src = '<?=RUTA_IMAGES?>evaluacion-dolor/espalda/Espalda_<?=$data['sexo']?>_<?=$data['idPaciente']?>.png?' + Math.random();
-    img.onload = () => {
-    ctxEspalda.drawImage(img, 0, 0, canvasEspalda .width, canvasEspalda.height);
-    };
-
-    let painting2 = false;
-
-    function startPosition2(e) {
-    painting2 = true;
-    draw2(e);
-    }
-
-    function endPosition2() {
-    if (painting2) {
-    painting2 = false;
-    ctxEspalda.beginPath();
-    cambioEspaldaImg(idPaciente, idRol, idSexo);
-    }
-    }
-
-    function draw2(e) {
-    if (!painting2) return;
-
-    ctxEspalda.lineWidth = 25;
-    ctxEspalda.lineCap = 'round';
-
-    // 1) Buscamos el input radio seleccionado
-    const selectedColorInput = document.querySelector('input[name="colorEspalda"]:checked');
-    // 2) Si hay uno, usamos su value; si no, un fallback (negro)
-    ctxEspalda.strokeStyle = selectedColorInput
-        ? selectedColorInput.value
-        : '#ffffff';
-
-    const rect = canvasEspalda.getBoundingClientRect();
-    const scaleX = canvasEspalda.width  / rect.width;
-    const scaleY = canvasEspalda.height / rect.height;
-
-    const x = (e.clientX - rect.left) * scaleX;
-    const y = (e.clientY - rect.top ) * scaleY;
-
-    ctxEspalda.lineTo(x, y);
-    ctxEspalda.stroke();
-    ctxEspalda.beginPath();
-    ctxEspalda.moveTo(x, y);
-    }
-
-    function cambioEspaldaImg(idPaciente, idRol, idSexo) {
-    const imgEspalda = canvasEspalda.toDataURL();
-    gestionarEvaluacionDolor(`/${idRol === "Paciente" ? "historia-clinica" : "clinica"}/paciente/editar-img-espalda-modulo9`, {
-    idPaciente,
-    idSexo, 
-    idRol,
-    imgEspalda
-    },  () => cargaImagenEspalda(0));
-    }
-
-    canvasEspalda.addEventListener('mousedown', startPosition2);
-    canvasEspalda.addEventListener('mouseup', endPosition2);
-    canvasEspalda.addEventListener('mousemove', draw2);
-    });
-    
-    }
-
-    function cleanEspaldaImg() {
-    const usuarioDiv = document.getElementById('main');
-    const idPaciente = usuarioDiv.getAttribute('data-paciente');
-    const idRol = usuarioDiv.getAttribute('data-rol');
-    const idSexo = usuarioDiv.getAttribute('data-sexo');
-
-    gestionarEvaluacionDolor(`/${idRol === "Paciente" ? "historia-clinica" : "clinica"}/paciente/eliminar-img-espalda-modulo9`, {
-    idPaciente,
-    idSexo, 
-    idRol
-    },  () => cargaImagenEspalda(1),
-    1);
-    }
-
-    function cargaImagenEspalda(tipo = 0) {
-    const canvasEspalda = document.getElementById('painEspalda');
-    const ctxEspalda  = canvasEspalda.getContext('2d');
-    const usuarioDiv = document.getElementById('main');
-    const idSexo = usuarioDiv.getAttribute('data-sexo');
-    const img = new Image();
-
-    // Guardar el estado actual del canvas
-    const canvasState2 = ctxEspalda.getImageData(0, 0, canvasEspalda.width, canvasEspalda.height);
-
-    if(tipo == 1){
-    img.src = '<?=RUTA_IMAGES?>evaluacion-dolor/espalda/Espalda_' + idSexo + '.png';
-    img.onload = () => {
-    ctxEspalda.drawImage(img, 0, 0, canvasEspalda.width, canvasEspalda.height);
-    };
-    
-    }else{
-
-    imagen = '<?=RUTA_IMAGES?>evaluacion-dolor/espalda/Espalda_<?=$data['sexo']?>_<?=$data['idPaciente']?>.png';
-    img.src = imagen + '?' + Math.random(); // Usar "?" antes del random para no alterar la ruta original
-    img.onload = () => {
-    ctxEspalda.drawImage(img, 0, 0, canvasEspalda.width, canvasEspalda.height);
-    // Restaurar el estado del canvas (las ediciones)
-    ctxEspalda.putImageData(canvasState2, 0, 0);
-    };
-    }
-    }
-
-    //-------------------- SECCION DE LA ESPALDA --------------------
-    function contenidoCuestionario(){
-    const usuarioDiv = document.getElementById('main');
-    const idPaciente = usuarioDiv.getAttribute('data-paciente');
-    const idRol = usuarioDiv.getAttribute('data-rol');
-
-    fetch(`/buscar/contenido-preguntas-modulo-9/${idPaciente}/${idRol}`)
-    .then(response => response.text())
-    .then(data => {
-
-    const contenedor = document.getElementById('contePreguntas');
-    contenedor.innerHTML = data;
-    feather.replace();
-
-    // Reactivar el IntersectionObserver para las nuevas secciones
-    document.querySelectorAll('.sectionQuestion').forEach(section => {
-    observer.observe(section);
-    });
-
-    });
-
-    }
-
-    //---------- ESPALDA ----------
-    function seccionEspalda(){
-    $(".LoaderPage").show();
-    $(".LoaderPage").fadeOut(1000);
-    document.getElementById("conteFrente").style.display = "none";
-    document.getElementById("conteEspalda").style.display = "block";
-    document.getElementById("preguntas-container").style.display = "none";
-    localStorage.setItem("seccionActual", "espalda");
-    contenidoEspalda();
-    }
-
-    //---------- ESPALDA ----------
-    function seccionFrente(){
-    $(".LoaderPage").show();
-    $(".LoaderPage").fadeOut(1000);
-    document.getElementById("conteFrente").style.display = "block";
-    document.getElementById("conteEspalda").style.display = "none";
-    document.getElementById("preguntas-container").style.display = "none";
-    localStorage.setItem("seccionActual", "frente");
-    contenidoFrente();
-    }
-
-    //---------- ESPALDA ----------
-    function seccionCuestionario(){
-    $(".LoaderPage").show();
-    $(".LoaderPage").fadeOut(1000);
-    document.getElementById("conteFrente").style.display = "none";
-    document.getElementById("conteEspalda").style.display = "none";
-    document.getElementById("preguntas-container").style.display = "block";
-    localStorage.setItem("seccionActual", "cuestionario");
-    contenidoCuestionario();
-    }
-
-    //---------- CONTROL SERVER ----------
-    function gestionarEvaluacionDolor(url, parametros, callback, idUpdate = 0) {
-    if(idUpdate == 1){
-    $(".LoaderPage").show();
-    }
-    fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(parametros)
-    }).then(res => res.json()).then(data => {
- 
-    if(idUpdate == 1){
-    $(".LoaderPage").fadeOut(1000);
-    }
-    if (data.resultado) callback();
-    else document.getElementById('mensaje').textContent = 'Error: ' + data.mensaje;
-    });
-    }
-
-    //---------- EDITAR PROCEDIMIENTO DEL PACIENTE ----------
-    function editarEvaluacionDolor(idEvaluacion, elemento, parametro, idRol, idUpdate = 0) {
-    gestionarEvaluacionDolor(`/${idRol === "Paciente" ? "historia-clinica" : "clinica"}/paciente/editar-evaluacion-dolor-modulo9`, {
-    idEvaluacion,
-    detalle: elemento.value,
-    edicion: parametro,
-    idRol
-    },  () => contenidoCuestionario(),
-    idUpdate);
-    } 
-    //---------- FINALIZAR MODULO DEL PACIENTE----------
-    function finalizarModuloPAC(idModulo, idPaciente) {
-    gestionarEvaluacionDolor('/historia-clinica/paciente/finalizar-modulo-paciente', { idModulo, idPaciente }, () => window.location.href = '/historia-clinica');
-    }
-
-    </script>
-    </head>
-
-<body class="app-shell-body app-shell-patient patient-clinical-form">
-    <div class="LoaderPage"></div>
-    <div id="app">
-           
-    <!---------- SIDEBAR ---------->
+    <link rel="stylesheet" href="<?=$appCssUrl;?>">
+    <script src="<?=$loaderJsUrl;?>"></script>
+</head>
+<body class="app-shell-body app-shell-patient patient-clinical-form p11-pain-evaluation-page">
+<div class="LoaderPage"></div>
+<div id="app">
     <?=$data['sidebar'];?>
-          
-    <div id="main" data-rol="<?=$data['idRol'];?>" data-paciente="<?=$data['idPaciente'];?>" data-sexo="<?=$data['sexo'];?>">
-    <nav class="navbar navbar-header navbar-expand navbar-light">
-    <a class="sidebar-toggler"><span class="navbar-toggler-icon"></span></a>
-    <button class="btn navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-    <span class="navbar-toggler-icon"></span>
-    </button>
-                
-    <div class="collapse navbar-collapse" id="navbarSupportedContent">
-    <ul class="navbar-nav d-flex align-items-center navbar-light ms-auto">
-    </ul>
-    </div>
-    </nav>
+    <div id="main" data-rol="Paciente" data-paciente="<?=$patientId;?>" data-sexo="<?=$escape($patientSex);?>">
+        <nav class="navbar navbar-header navbar-expand navbar-light portal-topbar" aria-label="Barra de herramientas del portal del paciente">
+            <button type="button" class="sidebar-toggler border-0 bg-transparent" aria-label="Abrir menú principal" aria-controls="sidebar" aria-expanded="true"><span class="navbar-toggler-icon"></span></button>
+            <button class="btn navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Mostrar navegación"><span class="navbar-toggler-icon"></span></button>
+            <div class="collapse navbar-collapse" id="navbarSupportedContent"><ul class="navbar-nav d-flex align-items-center navbar-light ms-auto"></ul></div>
+        </nav>
 
-    <!---------- CONTENIDO DE LA PAGINA ---------->
-    <div class="main-content container-fluid">
+        <main class="main-content container-fluid p11-content">
+            <header class="page-title portal-page-title p11-hero mb-4">
+                <div class="p11-hero-copy">
+                    <p class="dashboard-eyebrow">MI HISTORIA CLÍNICA</p>
+                    <h1>Evaluación del dolor</h1>
+                    <p>Indica las zonas donde sientes dolor o molestias y responde las preguntas de evaluación.</p>
+                    <span class="p11-patient-context">Paciente: <?=$escape($patientName);?></span>
+                </div>
+                <div class="p11-hero-actions">
+                    <button type="button" id="p11HelpButton" class="btn p11-help" aria-label="¿Cómo llenar esta sección?" aria-haspopup="dialog" aria-controls="p11InstructionsModal" data-p11-action="open-help"><i data-feather="help-circle" aria-hidden="true"></i><span>¿Cómo llenar esta sección?</span></button>
+                    <a class="btn p11-back" href="<?=$serverUrl;?>historia-clinica"><i data-feather="arrow-left" aria-hidden="true"></i><span>Volver a mi Historia Clínica</span></a>
+                </div>
+            </header>
 
-    <div class="page-title mb-4">     
-    <h8>
-        
-    <?=$data['nombre'];?></h8>
-    <h3><?=$data['title'];?></h3>
-    </div>
-    
-    <section class="section">
-    <div class="card">
+            <div id="p11-message" class="p11-message" role="status" aria-live="polite"></div>
+            <section class="p11-workspace" aria-label="Evaluación del dolor">
+                <article id="p11-front-panel" class="card p11-card" hidden><div id="conteFrente"></div></article>
+                <article id="p11-back-panel" class="card p11-card" hidden><div id="conteEspalda"></div></article>
+                <article id="p11-question-panel" class="card p11-card" hidden><div id="conteCuestionario"></div></article>
+            </section>
+        </main>
 
-    <div id="conteFrente"></div>
-    <div id="conteEspalda"></div>
+        <div id="p11InstructionsModal" class="modal fade patient-family-history-modal patient-instructions-modal" tabindex="-1" role="dialog" aria-labelledby="p11InstructionsTitle" aria-describedby="p11InstructionsText" aria-modal="true" aria-hidden="true" style="display: none;">
+            <div class="modal-dialog modal-dialog-centered patient-instructions-dialog">
+                <div class="modal-content patient-family-history-modal-content patient-instructions-modal-content">
+                    <div class="modal-header patient-instructions-modal-header">
+                        <h2 id="p11InstructionsTitle" class="modal-title patient-instructions-modal-title">Antes de comenzar: Evaluación del dolor</h2>
+                        <button type="button" class="btn-close" aria-label="Cerrar instrucciones" data-p11-action="close-help"></button>
+                    </div>
+                    <div class="modal-body patient-instructions-modal-body">
+                        <p id="p11InstructionsText" data-narration-instructions>En esta sección vamos a conocer en qué partes de tu cuerpo sientes dolor o alguna otra molestia. Primero verás una imagen del cuerpo de frente y después una imagen de la espalda. Selecciona un color y marca la zona correspondiente. Finalmente responderás algunas preguntas sobre tu dolor. Puedes regresar para revisar o corregir tus respuestas antes de finalizar.</p>
+                        <p id="p11VoicePrompt" class="patient-family-history-voice-prompt patient-instructions-voice-prompt" role="status" aria-live="polite">Para escuchar las instrucciones, presiona este botón.</p>
+                        <p class="patient-family-history-modal-note patient-instructions-modal-note">Tus respuestas y mapas se guardan mientras avanzas. Puedes cerrar esta ventana sin perder tu progreso.</p>
+                    </div>
+                    <div class="modal-footer patient-family-history-modal-actions patient-instructions-modal-actions">
+                        <button id="p11ReadInstructionsButton" type="button" class="btn patient-family-history-secondary patient-instructions-secondary p04-voice-speak" data-p11-action="read-help"><i data-feather="volume-2" aria-hidden="true"></i><span>Escuchar</span></button>
+                        <button id="p11StopInstructionsButton" type="button" class="btn patient-family-history-secondary patient-instructions-secondary" data-p11-action="stop-voice"><i data-feather="square" aria-hidden="true"></i><span>Detener</span></button>
+                        <button type="button" class="btn btn-primary" data-p11-action="close-help">Entendido, comenzar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php include_once __DIR__ . '/../components/footer-doctor.php';?>
+</div>
+<script src="<?=RUTA_JS;?>patient-instructions-modal.js"></script>
+<script src="<?=RUTA_JS;?>patient-narration-highlight.js"></script>
+<script src="<?=$voiceUtilitiesJsUrl;?>"></script>
+<script src="<?=$featherJsUrl;?>"></script>
+<script src="<?=RUTA_PUBLIC;?>libs/perfect-scrollbar/perfect-scrollbar.min.js"></script>
+<script src="<?=$appJsUrl;?>"></script>
+<script src="<?=$mainJsUrl;?>"></script>
+<script>
+(function () {
+    'use strict';
+    const root = document.getElementById('main');
+    const patientId = Number(root.dataset.paciente || 0);
+    const server = <?=json_encode($serverUrl, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);?>;
+    const progressKey = 'p11:' + patientId + ':section';
+    const imageBase = server + 'historia-clinica/paciente/imagen-evaluacion-dolor/';
+    const sections = { frente: 'p11-front-panel', espalda: 'p11-back-panel', cuestionario: 'p11-question-panel' };
+    const state = { active: null, mapSaving: Promise.resolve(), modalOpen: false, lastFocus: null };
+    const message = document.getElementById('p11-message');
 
-    <div id="preguntas-container">
-        <div id="contePreguntas"></div>
-    </div>
-
-    </div>
-    </section>
- 
-    </div>
-    <!----- FOOTER ---------->
-<?php include_once __DIR__ . '/../components/footer-doctor.php';?>
-    </div>
-    </div>
-
-    <script src="<?=RUTA_JS;?>voice-utilities.js"></script>
-    <script src="<?=RUTA_JS;?>/feather-icons/feather.min.js"></script>
-    <script src="<?=RUTA_PUBLIC;?>libs/perfect-scrollbar/perfect-scrollbar.min.js"></script>
-    <script src="<?=RUTA_JS;?>app.js"></script>    
-    <script src="<?=RUTA_PUBLIC;?>libs/simple-datatables/simple-datatables.js"></script>
-    <script src="<?=RUTA_JS;?>main.js"></script>
-    
-    </body>
-    </html>
+    function setMessage(text, type) { message.textContent = text || ''; message.className = 'p11-message' + (type ? ' is-' + type : ''); }
+    function requestJson(path, payload) {
+        return fetch(server + path.replace(/^\//, ''), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+            .then(async response => { const data = await response.json().catch(() => null); if (!response.ok || !data || !data.resultado) throw new Error((data && data.mensaje) || 'No se pudo completar la operación.'); return data; });
+    }
+    function refreshIcons() { if (window.feather) window.feather.replace(); }
+    function panelFor(section) { return document.getElementById(sections[section]); }
+    function loadSection(section) {
+        if (!sections[section]) return Promise.resolve();
+        state.active = section;
+        Object.keys(sections).forEach(key => { const panel = panelFor(key); if (panel) panel.hidden = key !== section; });
+        localStorage.setItem(progressKey, section);
+        const target = section === 'frente' ? 'conteFrente' : (section === 'espalda' ? 'conteEspalda' : 'conteCuestionario');
+        const route = section === 'frente' ? 'buscar/contenido-evaluacion-frente-modulo-9/' : (section === 'espalda' ? 'buscar/contenido-evaluacion-espalda-modulo-9/' : 'buscar/contenido-preguntas-modulo-9/');
+        return fetch(server + route + patientId + '/Paciente', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(response => { if (!response.ok) throw new Error('No se pudo cargar la sección.'); return response.text(); })
+            .then(html => { const container = document.getElementById(target); container.innerHTML = html; refreshIcons(); if (section === 'frente' || section === 'espalda') initMap(container.querySelector('canvas')); if (section === 'cuestionario') syncQuestionnaire(); })
+            .catch(error => { setMessage(error.message || 'No se pudo cargar la sección. Inténtalo nuevamente.', 'error'); throw error; });
+    }
+    function initMap(canvas) {
+        if (!canvas || canvas.dataset.p11Bound === 'true') return;
+        canvas.dataset.p11Bound = 'true';
+        const orientation = canvas.dataset.p11Orientation;
+        const ctx = canvas.getContext('2d');
+        const image = new Image();
+        let loaded = false, drawing = false, last = null;
+        image.onload = function () { ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(image, 0, 0, canvas.width, canvas.height); loaded = true; };
+        image.onerror = () => setMessage('No se pudo cargar la imagen base. Inténtalo nuevamente.', 'error');
+        image.src = imageBase + orientation + '/' + patientId + '?v=' + Date.now();
+        function point(event) { const rect = canvas.getBoundingClientRect(); return { x: Math.max(0, Math.min(canvas.width, (event.clientX - rect.left) * canvas.width / rect.width)), y: Math.max(0, Math.min(canvas.height, (event.clientY - rect.top) * canvas.height / rect.height)) }; }
+        function selectedColor() { const selected = document.querySelector('input[name="color' + (orientation === 'frente' ? 'Frente' : 'Espalda') + '"]:checked'); return selected ? selected.value : ''; }
+        function draw(pointValue) { const color = selectedColor(); if (!color || !loaded) return; ctx.strokeStyle = color; ctx.lineWidth = Math.max(18, canvas.width / 48); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.beginPath(); if (last) ctx.moveTo(last.x, last.y); else ctx.moveTo(pointValue.x, pointValue.y); ctx.lineTo(pointValue.x + (last ? 0 : .1), pointValue.y + (last ? 0 : .1)); ctx.stroke(); last = pointValue; }
+        canvas.addEventListener('pointerdown', event => { if (!selectedColor() || !loaded) { setMessage('Selecciona un color antes de marcar.', 'error'); return; } event.preventDefault(); drawing = true; last = null; canvas.setPointerCapture?.(event.pointerId); draw(point(event)); });
+        canvas.addEventListener('pointermove', event => { if (!drawing) return; event.preventDefault(); draw(point(event)); });
+        const finish = event => { if (!drawing) return; event.preventDefault(); drawing = false; last = null; const data = canvas.toDataURL('image/png'); const endpoint = orientation === 'frente' ? 'historia-clinica/paciente/editar-img-frente-modulo9' : 'historia-clinica/paciente/editar-img-espalda-modulo9'; state.mapSaving = state.mapSaving.then(() => requestJson(endpoint, { idPaciente: patientId, [orientation === 'frente' ? 'imgFrente' : 'imgEspalda']: data })).then(() => setMessage('Mapa guardado.', 'success')).catch(() => setMessage('No se pudo guardar el mapa. Tus marcas se conservaron; puedes reintentar.', 'error')); };
+        canvas.addEventListener('pointerup', finish); canvas.addEventListener('pointercancel', finish); canvas.addEventListener('pointerleave', event => { if (drawing && event.buttons === 0) finish(event); });
+        const container = canvas.closest('.p11-map-content');
+        if (!container || container.dataset.p11ActionsBound === 'true') return;
+        container.dataset.p11ActionsBound = 'true';
+        container.addEventListener('click', event => { const nav = event.target.closest('[data-p11-nav]'); if (nav) { event.preventDefault(); loadSection(nav.dataset.p11Nav); return; } const clear = event.target.closest('[data-p11-action^="clear-"]'); if (!clear) return; const target = clear.dataset.p11Action.replace('clear-', ''); if (!window.confirm('¿Deseas limpiar el mapa de ' + target + '?')) return; requestJson('historia-clinica/paciente/eliminar-img-' + target + '-modulo9', { idPaciente: patientId }).then(() => { setMessage('Mapa limpio.', 'success'); return loadSection(target); }).catch(() => setMessage('No se pudo limpiar el mapa. Inténtalo nuevamente.', 'error')); });
+    }
+    function syncQuestionnaire() {
+        const container = document.getElementById('conteCuestionario');
+        if (!container || container.dataset.p11ActionsBound === 'true') return;
+        container.dataset.p11ActionsBound = 'true';
+        container.addEventListener('change', event => { if (event.target.name === 'p11Dolor') { const dependent = container.querySelector('.p11-dependent-fields'); if (dependent) dependent.hidden = event.target.value !== 'Si'; } });
+        container.addEventListener('click', event => { const nav = event.target.closest('[data-p11-nav]'); if (nav) { event.preventDefault(); loadSection(nav.dataset.p11Nav); return; } const action = event.target.closest('[data-p11-action]'); if (!action) return; if (action.dataset.p11Action === 'save-question') saveQuestion(false); if (action.dataset.p11Action === 'finish') saveQuestion(true); });
+    }
+    function saveQuestion(finishAfter) {
+        const container = document.getElementById('conteCuestionario'); const selected = container.querySelector('input[name="p11Dolor"]:checked');
+        if (!selected) { setMessage('Selecciona Sí o No para continuar.', 'error'); return; }
+        const changes = { 1: selected.value };
+        if (selected.value === 'Si') { ['tiempo_dolor', 'descripcion', 'incremento'].forEach((name, index) => { const field = container.querySelector('[name="' + name + '"]'); changes[index + 2] = field ? field.value.trim() : ''; }); if (Object.keys(changes).some(key => Number(key) > 1 && !changes[key])) { setMessage('Completa las respuestas sobre tu dolor antes de continuar.', 'error'); return; } }
+        const buttons = container.querySelectorAll('button'); buttons.forEach(button => { button.disabled = true; });
+        requestJson('historia-clinica/paciente/editar-evaluacion-dolor-modulo9', { idPaciente: patientId, changes }).then(() => { setMessage('Respuesta guardada.', 'success'); if (finishAfter) return finish(); }).catch(error => setMessage(error.message || 'No se pudo guardar la evaluación.', 'error')).finally(() => buttons.forEach(button => { button.disabled = false; }));
+    }
+    function finish() { return requestJson('historia-clinica/paciente/finalizar-modulo-paciente', { idPaciente: patientId, idModulo: 9 }).then(data => { setMessage('Módulo finalizado.', 'success'); const next = data.next_url || (server + 'historia-clinica'); window.setTimeout(() => { window.location.href = next; }, 350); }); }
+    function speak() { if (!('speechSynthesis' in window)) { setMessage('La narración no está disponible en este navegador.', 'error'); return; } window.speechSynthesis.cancel(); const utterance = new SpeechSynthesisUtterance(document.getElementById('p11InstructionsText').textContent); utterance.lang = 'es-MX'; utterance.onstart = () => { document.getElementById('p11VoicePrompt').textContent = 'Reproduciendo instrucciones. Puedes detenerlas o repetirlas.'; }; utterance.onend = () => { document.getElementById('p11VoicePrompt').textContent = 'La narración terminó.'; }; window.speechSynthesis.speak(utterance); }
+    function stopVoice() { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); document.getElementById('p11VoicePrompt').textContent = 'Narración detenida.'; }
+    function openHelp() { const modal = document.getElementById('p11InstructionsModal'); state.lastFocus = PatientInstructionsModal.capture(modal, document.activeElement, '[data-p11-action="open-help"]'); state.modalOpen = true; PatientInstructionsModal.open(modal, { opener: state.lastFocus, focusSelector: '[data-p11-action="close-help"]' }); speak(); }
+    function closeHelp() { const modal = document.getElementById('p11InstructionsModal'); stopVoice(); state.modalOpen = false; PatientInstructionsModal.close(modal, { returnFocus: state.lastFocus, fallbackSelector: '[data-p11-action="open-help"]' }); state.lastFocus = null; }
+    document.addEventListener('click', event => { const action = event.target.closest('[data-p11-action]'); if (action) { const name = action.dataset.p11Action; if (name === 'open-help') openHelp(); if (name === 'close-help') closeHelp(); if (name === 'read-help') speak(); if (name === 'stop-voice') stopVoice(); } const modal = document.getElementById('p11InstructionsModal'); if (state.modalOpen && event.target === modal) closeHelp(); });
+    document.addEventListener('keydown', event => { if (!state.modalOpen) return; PatientInstructionsModal.handleKeydown(event, document.getElementById('p11InstructionsModal'), closeHelp); });
+    document.addEventListener('DOMContentLoaded', () => { refreshIcons(); loadSection(localStorage.getItem(progressKey) || 'frente').catch(() => {}); window.setTimeout(openHelp, 120); });
+})();
+</script>
+</body>
+</html>

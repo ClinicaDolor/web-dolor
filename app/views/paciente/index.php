@@ -94,7 +94,7 @@ foreach ($moduleCards as $card) {
     <div id="main">
             
     <nav class="navbar navbar-header navbar-expand navbar-light portal-topbar" aria-label="Barra de herramientas del portal del paciente">
-    <button type="button" class="sidebar-toggler border-0 bg-transparent" aria-label="Abrir menú principal"><span class="navbar-toggler-icon"></span></button>
+    <button type="button" class="sidebar-toggler border-0 bg-transparent" aria-label="Abrir menú principal" aria-controls="sidebar" aria-expanded="true"><span class="navbar-toggler-icon"></span></button>
     <button class="btn navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
     <span class="navbar-toggler-icon"></span>
     </button>
@@ -124,46 +124,82 @@ foreach ($moduleCards as $card) {
     -->
 
     <header class="page-title portal-page-title patient-dashboard-hero mb-4">
-    <div>
-    <p class="dashboard-eyebrow">MI ATENCIÓN</p>
-    <h3>Hola, <?=$escape($patientName);?></h3>
-    <p class="text-muted mb-0">Completa cada sección con calma. Tu información se guarda en tu expediente.</p>
+    <div class="patient-dashboard-hero-copy">
+    <p class="dashboard-eyebrow">MI HISTORIA CLÍNICA</p>
+    <h1>Mi Historia Clínica</h1>
+    <p class="text-muted mb-0">Completa tu información, paso a paso y a tu ritmo.</p>
     </div>
-    <span class="badge rounded-pill portal-status-badge align-self-center">Información protegida</span>
+    <span class="patient-dashboard-patient-name">Paciente: <?=$escape($patientName);?></span>
     </header>
 
-    <section class="patient-dashboard-overview" aria-labelledby="patient-overview-title">
-    <h4 id="patient-overview-title" class="visually-hidden">Resumen de tu historia clínica</h4>
-    <article class="patient-overview-card">
-    <span class="patient-overview-icon" aria-hidden="true"><i data-feather="layers"></i></span>
-    <span class="patient-overview-label">Secciones clínicas</span>
-    <strong><?=$moduleCount;?></strong>
-    <small>Disponibles en tu historia.</small>
+    <?php
+    $nextModuleHref = $nextModule
+        ? SERVIDOR.'historia-clinica/'.rawurlencode((string)$nextModule['data']['url']).'/paciente/'.(int)$id_paciente
+        : null;
+    $nextActionLabel = $nextModule && $nextModule['percentage'] > 0 ? 'Continuar' : 'Comenzar';
+    ?>
+    <section class="patient-progress-panel" aria-labelledby="patient-progress-title">
+    <div class="patient-progress-main">
+    <div>
+    <p class="dashboard-eyebrow">TU PROGRESO</p>
+    <h2 id="patient-progress-title">Avance de tu Historia Clínica</h2>
+    <p class="patient-progress-help">Consulta cuánto has completado y continúa con la siguiente sección disponible.</p>
+    </div>
+    <strong class="patient-progress-percentage"><?=$overallProgress;?>%</strong>
+    </div>
+    <div class="progress patient-progress-bar" role="progressbar" aria-label="Progreso general de tu Historia Clínica" aria-valuenow="<?=$overallProgress;?>" aria-valuemin="0" aria-valuemax="100">
+    <div class="progress-bar rounded-pill" style="width: <?=$overallProgress;?>%;"></div>
+    </div>
+    <div class="patient-progress-details">
+    <div>
+    <strong><?=$completedCount;?> <span>/ <?=$moduleCount;?></span></strong>
+    <span>Secciones completadas</span>
+    </div>
+    <div>
+    <strong><?=$nextModule ? $escape($nextModule['data']['nombre']) : 'Historia completa';?></strong>
+    <span><?=$nextModule ? 'Siguiente sección' : 'Todas las secciones finalizadas';?></span>
+    </div>
+    </div>
+    <?php if ($nextModule && $nextModuleHref): ?>
+    <a class="btn btn-primary patient-progress-action" href="<?=$nextModuleHref;?>">
+    <span><?=$nextActionLabel;?> mi siguiente sección</span><i data-feather="arrow-right" aria-hidden="true"></i>
+    </a>
+    <?php else: ?>
+    <span class="patient-progress-complete"><i data-feather="check-circle" aria-hidden="true"></i> Historia Clínica completada</span>
+    <?php endif; ?>
+    </section>
+
+    <section class="section patient-interview-entry" aria-labelledby="patient-experience-title">
+    <div class="patient-modules-heading">
+    <div>
+    <p class="dashboard-eyebrow">ELIGE CÓMO CONTINUAR</p>
+    <h2 id="patient-experience-title">Dos formas de completar tu Historia Clínica</h2>
+    <p class="patient-modules-help mb-0">Ambas opciones utilizan el mismo expediente y tus respuestas guardadas.</p>
+    </div>
+    </div>
+    <div class="patient-module-grid patient-experience-grid">
+    <a class="patient-module-link" href="#patient-modules-title" aria-label="Abrir Historia Clínica Tradicional">
+    <article class="card border-0 rounded-4 position-relative dashboard-card dashboard-module-card patient-module-card">
+    <div class="patient-module-card-content"><div class="patient-module-copy"><h5>Historia Clínica Tradicional</h5><p>Continúa con los formularios actuales M01–M09.</p></div></div>
+    <div class="patient-module-card-footer"><span>Abrir formularios</span><i data-feather="arrow-down" aria-hidden="true"></i></div>
     </article>
-    <article class="patient-overview-card patient-overview-card-accent">
-    <span class="patient-overview-icon" aria-hidden="true"><i data-feather="activity"></i></span>
-    <span class="patient-overview-label">Progreso general</span>
-    <strong><?=$overallProgress;?>%</strong>
-    <small>Promedio de avance registrado.</small>
+    </a>
+    <a class="patient-module-link" href="<?=SERVIDOR;?>historia-clinica/entrevista" aria-label="Abrir Entrevista Conversacional">
+    <article class="card border-0 rounded-4 position-relative dashboard-card dashboard-module-card patient-module-card">
+    <div class="patient-module-card-content"><div class="patient-module-copy"><h5>Entrevista Conversacional</h5><p>Prueba el piloto determinista de M03/Tabaquismo.</p></div></div>
+    <div class="patient-module-card-footer"><span>Iniciar entrevista</span><i data-feather="message-circle" aria-hidden="true"></i></div>
     </article>
-    <article class="patient-overview-card">
-    <span class="patient-overview-icon" aria-hidden="true"><i data-feather="check-circle"></i></span>
-    <span class="patient-overview-label">Secciones completadas</span>
-    <strong><?=$completedCount;?> <span class="patient-overview-total">/ <?=$moduleCount;?></span></strong>
-    <small><?= $nextModule ? 'Continúa con tu siguiente sección.' : 'Tu historia está completa.'; ?></small>
-    </article>
+    </a>
+    </div>
     </section>
     
     <section class="section patient-modules-section" aria-labelledby="patient-modules-title">
     <div class="patient-modules-heading">
     <div>
-    <p class="dashboard-eyebrow">TU HISTORIA</p>
-    <h4 id="patient-modules-title">Secciones de tu expediente</h4>
-    <p class="patient-modules-help mb-0">Selecciona una sección disponible para continuar.</p>
+    <p class="dashboard-eyebrow">HISTORIA CLÍNICA</p>
+    <h2 id="patient-modules-title">Tus secciones</h2>
+    <p class="patient-modules-help mb-0">Selecciona una sección para consultar o continuar.</p>
     </div>
-    <?php if ($nextModule): ?>
-    <span class="patient-next-step"><i data-feather="arrow-right-circle" aria-hidden="true"></i> Siguiente: <?=$escape($nextModule['data']['nombre']);?></span>
-    <?php endif; ?>
     </div>
 
     <div class="patient-module-grid">

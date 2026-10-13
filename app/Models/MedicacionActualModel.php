@@ -310,14 +310,104 @@ $result.= '</tbody>
 return $result;
 }
 
+    /**
+     * Patient-facing renderer for module 6. The legacy Doctor renderer is
+     * intentionally left untouched; this method is scoped to P08.
+     */
+    public function mostrarPreguntasM6Paciente(int $idPaciente): string
+    {
+        $statement = $this->bd->prepare(
+            'SELECT id, medicamento, descripcion, tiempo_uso, dosis, medico
+             FROM pac_medicacion_actual_modulo_6
+             WHERE id_paciente = :id_paciente
+             ORDER BY id ASC'
+        );
+        $statement->execute([':id_paciente' => $idPaciente]);
+        $records = $statement->fetchAll(\PDO::FETCH_ASSOC);
+        $escape = static fn ($value): string => htmlspecialchars((string)($value ?? ''), ENT_QUOTES, 'UTF-8');
+        $finalizedStatement = $this->bd->prepare(
+            'SELECT 1 FROM pac_historia_clinica_finalizar
+             WHERE id_paciente = :id_paciente AND id_modulo = 6 LIMIT 1'
+        );
+        $finalizedStatement->execute([':id_paciente' => $idPaciente]);
+        $finalized = (bool)$finalizedStatement->fetchColumn();
+        $instruction = 'Ingresa el nombre del medicamento, para qué lo utilizas, el tiempo de tratamiento, la dosis actual y el nombre del médico que lo recetó.';
+        $result = '<div class="p08-instruction" id="p08QuestionText">' . $escape($instruction) . '</div>';
+        $result .= '<div class="p08-message" id="mensaje" role="status" aria-live="polite"></div>';
+        $result .= '<div class="p08-toolbar">'
+            . '<button type="button" class="btn p08-voice-button" data-action="read-question" aria-label="Escuchar instrucciones">'
+            . '<i data-feather="volume-2" aria-hidden="true"></i><span>Escuchar</span></button>'
+            . '<button type="button" class="btn p08-voice-button" data-action="stop-voice" hidden aria-label="Detener lectura">'
+            . '<i data-feather="square" aria-hidden="true"></i><span>Detener</span></button>'
+            . '</div>';
+
+        if (!$records) {
+            $result .= '<section class="p08-empty-state" aria-labelledby="p08EmptyTitle">'
+                . '<i data-feather="clipboard" class="p08-empty-icon" aria-hidden="true"></i>'
+                . '<h3 id="p08EmptyTitle">No hay medicamentos registrados</h3>'
+                . '<p>Si utilizas medicamentos actualmente, agrega un registro para completar esta sección.</p>'
+                . '<div class="p08-empty-actions"><button type="button" class="btn btn-primary p08-add-button" data-action="add">'
+                . '<i data-feather="plus" aria-hidden="true"></i><span>Agregar medicamento</span></button>'
+                . ($finalized ? '<span class="p08-finalized" role="status">Módulo finalizado</span>'
+                    : '<button type="button" class="btn p08-secondary-button" data-action="finalize">Finalizar módulo</button>')
+                . '</div></section>';
+            return $result;
+        }
+
+        $result .= '<div class="p08-list-toolbar"><p class="p08-list-summary">'
+            . $escape(count($records)) . ' ' . (count($records) === 1 ? 'medicamento registrado' : 'medicamentos registrados')
+            . '</p><button type="button" class="btn btn-primary p08-add-button" data-action="add">'
+            . '<i data-feather="plus" aria-hidden="true"></i><span>Agregar medicamento</span></button></div>';
+        $result .= '<div class="p08-records" data-record-count="' . $escape(count($records)) . '">';
+        foreach ($records as $index => $record) {
+            $id = (int)$record['id'];
+            $result .= '<article class="p08-record" data-index="' . $escape($index) . '" data-id="' . $escape($id) . '" aria-hidden="true">'
+                . '<div class="p08-record-heading"><div><p class="p08-record-eyebrow">MEDICACIÓN ACTUAL</p>'
+                . '<h3>Registro ' . $escape($index + 1) . '</h3></div><span class="p08-record-status">Por completar</span></div>'
+                . '<p class="p08-record-help">Completa los cinco datos del medicamento y guarda los cambios antes de continuar.</p>'
+                . '<div class="p08-fields">';
+            $fields = [
+                'descripcion' => ['Nombre del medicamento', 'Escribe el nombre del medicamento'],
+                'medicamento' => ['¿Para qué lo utiliza?', 'Escribe el motivo de uso'],
+                'tiempo_uso' => ['Tiempo en tratamiento', 'Escribe el tiempo de tratamiento'],
+                'dosis' => ['Dosis actual', 'Escribe la dosis actual'],
+                'medico' => ['Nombre del médico que lo recetó', 'Escribe el nombre del médico'],
+            ];
+            foreach ($fields as $field => [$label, $placeholder]) {
+                $result .= '<div class="p08-field"><label for="p08-' . $escape($id) . '-' . $escape($field) . '">' . $escape($label) . '</label>'
+                    . '<input id="p08-' . $escape($id) . '-' . $escape($field) . '" class="form-control" type="text" data-p08-field="' . $escape($field) . '" value="' . $escape($record[$field] ?? '') . '" placeholder="' . $escape($placeholder) . '"></div>';
+            }
+            $result .= '</div><div class="p08-record-actions">'
+                . '<button type="button" class="btn p08-danger-button" data-action="delete"><i data-feather="trash-2" aria-hidden="true"></i><span>Eliminar</span></button>'
+                . '<button type="button" class="btn btn-primary p08-save-button" data-action="save"><i data-feather="save" aria-hidden="true"></i><span>Guardar cambios</span></button>'
+                . '</div><div class="p08-navigation">'
+                . '<button type="button" class="btn p08-secondary-button" data-action="previous"><i data-feather="chevron-left" aria-hidden="true"></i><span>Anterior</span></button>'
+                . '<span class="p08-navigation-status">Registro ' . $escape($index + 1) . ' de ' . $escape(count($records)) . '</span>'
+                . '<button type="button" class="btn p08-secondary-button" data-action="next"><span>Siguiente</span><i data-feather="chevron-right" aria-hidden="true"></i></button>'
+                . '</div></article>';
+        }
+        $result .= '</div><div class="p08-finalization">';
+        if ($finalized) {
+            $result .= '<span class="p08-finalized" role="status">Módulo finalizado</span>';
+        } else {
+            $result .= '<button type="button" class="btn p08-secondary-button" data-action="finalize">Finalizar módulo</button>';
+        }
+        $result .= '</div>';
+        return $result;
+    }
+
 
 //----- AGREGAR MEDICACION PACIENTE ----------
 public function agregarMedicacionPaciente($data){
+$idPaciente = filter_var($data['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+if ($idPaciente === false) {
+return ['resultado' => 422, 'mensaje' => 'Datos de paciente no válidos.'];
+}
 $sql = "INSERT INTO pac_medicacion_actual_modulo_6 (id_paciente) VALUES (:id_paciente)"; 
 $stmt = $this->bd->prepare($sql);                    
         
 $datos = [
-':id_paciente' => $data['idPaciente']
+':id_paciente' => $idPaciente
 ];
     
 if ($stmt->execute($datos)) {
@@ -332,51 +422,80 @@ return array('resultado' => 401,'mensaje' => '¡Error al agregar la nueva cirugi
 //----- ELIMINAR MEDICACION PACIENTE ----------
 
 public function editarMedicamentoPaciente($data){
-$opcionEdicion = $data['edicion'];
+$idMedicamento = filter_var($data['idMedicamento'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+$idPaciente = filter_var($data['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+if ($idMedicamento === false || $idPaciente === false) {
+return ['resultado' => 422, 'mensaje' => 'Datos de medicación no válidos.'];
+}
+$owned = $this->bd->prepare('SELECT id, medicamento, descripcion, tiempo_uso, dosis, medico FROM pac_medicacion_actual_modulo_6 WHERE id = :id AND id_paciente = :id_paciente LIMIT 1');
+$owned->execute([':id' => $idMedicamento, ':id_paciente' => $idPaciente]);
+$current = $owned->fetch(\PDO::FETCH_ASSOC);
+if (!$current) return ['resultado' => 403, 'mensaje' => 'No tienes autorización para modificar este registro.'];
 
-if($opcionEdicion == 1){
-$consulta = "descripcion";
-}else if($opcionEdicion == 2){
-$consulta = "medicamento";
-}else if($opcionEdicion == 3){
-$consulta = "tiempo_uso";
-}else if($opcionEdicion == 4){
-$consulta = "dosis";
-}else if($opcionEdicion == 5){
-$consulta = "medico";
+$columns = ['descripcion', 'medicamento', 'tiempo_uso', 'dosis', 'medico'];
+$updates = [];
+if (isset($data['fields']) && is_array($data['fields'])) {
+    foreach ($columns as $column) {
+        if (array_key_exists($column, $data['fields'])) $updates[$column] = trim((string)$data['fields'][$column]);
+    }
+
+} elseif (isset($data['edicion'])) {
+    $legacyMap = [1 => 'descripcion', 2 => 'medicamento', 3 => 'tiempo_uso', 4 => 'dosis', 5 => 'medico'];
+    $option = filter_var($data['edicion'], FILTER_VALIDATE_INT);
+    if (!isset($legacyMap[$option])) return ['resultado' => 422, 'mensaje' => 'Campo de medicación no válido.'];
+    $updates[$legacyMap[$option]] = trim((string)($data['detalle'] ?? ''));
 }
-    
-$sql = "UPDATE pac_medicacion_actual_modulo_6 SET 
-$consulta = :detalle WHERE id = :idMedicamento";
-    
-$stmt = $this->bd->prepare($sql);                    
-                
-$datos = [
-':idMedicamento' => $data['idMedicamento'],
-':detalle' => $data['detalle']
-];
-            
-if ($stmt->execute($datos)) {
-return array('resultado' => 200,'mensaje' => '¡Se actualizo la informacion correctamente!');
-            
-} else {
-return array('resultado' => 401,'mensaje' => '¡Error al actualizar la cirugia de la lista!');
+if (!$updates) return ['resultado' => 422, 'mensaje' => 'No hay cambios de medicación para guardar.'];
+$changed = [];
+$values = [];
+foreach ($updates as $column => $value) {
+    if ((string)$current[$column] !== $value) {
+        $changed[$column] = $value;
+        $values[':'.$column] = $value;
+    }
 }
-            
+if (!$changed) return ['resultado' => 200, 'mensaje' => 'No hubo cambios que guardar.'];
+$set = implode(', ', array_map(static fn($column): string => $column . ' = :' . $column, array_keys($changed)));
+$values[':id'] = $idMedicamento;
+$values[':id_paciente'] = $idPaciente;
+$stmt = $this->bd->prepare("UPDATE pac_medicacion_actual_modulo_6 SET {$set} WHERE id = :id AND id_paciente = :id_paciente");
+$stmt->execute($values);
+return ['resultado' => 200, 'mensaje' => 'Información guardada correctamente.'];
 }
+
+    /** Idempotent finalization used only by the P08 patient flow. */
+    public function finalizarModuloPaciente(array $data): array
+    {
+        $idPaciente = filter_var($data['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if ($idPaciente === false) return ['resultado' => 422, 'mensaje' => 'Datos de paciente no válidos.'];
+        $existing = $this->bd->prepare(
+            'SELECT id FROM pac_historia_clinica_finalizar WHERE id_paciente = :id_paciente AND id_modulo = 6 LIMIT 1'
+        );
+        $existing->execute([':id_paciente' => $idPaciente]);
+        if ($existing->fetchColumn() !== false) return ['resultado' => 200, 'mensaje' => 'El módulo ya estaba finalizado.'];
+        $insert = $this->bd->prepare(
+            'INSERT INTO pac_historia_clinica_finalizar (id_modulo, id_paciente) VALUES (6, :id_paciente)'
+        );
+        $insert->execute([':id_paciente' => $idPaciente]);
+        return ['resultado' => 200, 'mensaje' => 'Módulo finalizado correctamente.'];
+    }
 
 //----- ELIMINAR MEDICACION PACIENTE ----------
 public function eliminarMedicamentoPaciente($data){
-
-$sql = "DELETE FROM pac_medicacion_actual_modulo_6 WHERE id = :idMedicamento";
+$idMedicamento = filter_var($data['idMedicamento'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+$idPaciente = filter_var($data['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+if ($idMedicamento === false || $idPaciente === false) return ['resultado' => 422, 'mensaje' => 'Datos de medicación no válidos.'];
+$sql = "DELETE FROM pac_medicacion_actual_modulo_6 WHERE id = :idMedicamento AND id_paciente = :id_paciente";
 $stmt = $this->bd->prepare($sql);                    
             
 $datos = [
-':idMedicamento' => $data['idMedicamento']
+':idMedicamento' => $idMedicamento,
+':id_paciente' => $idPaciente
 ];
         
 if ($stmt->execute($datos)) {
-return array('resultado' => 200,'mensaje' => '¡Se elimino el medicamento correctamente!');
+if ($stmt->rowCount() === 0) return ['resultado' => 403, 'mensaje' => 'No tienes autorización para eliminar este registro.'];
+return array('resultado' => 200,'mensaje' => 'Medicamento eliminado correctamente.');
         
 } else {
 return array('resultado' => 401,'mensaje' => '¡Error al eliminar el medicamento de la lista!');

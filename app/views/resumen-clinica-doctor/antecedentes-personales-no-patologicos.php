@@ -1,18 +1,8 @@
 <?php
-use App\Config\Database;
 use App\Models\PacienteModulosModelo;
 use App\Models\AntecedentesNoPatologicosModel;
 
-$bd = Database::getInstance();
 $model = new AntecedentesNoPatologicosModel();
-
-// Se conserva el contrato actual: el modelo prepara las respuestas faltantes
-// durante la carga. Este efecto secundario de GET queda documentado y no se
-// ejecuta contra datos reales en esta actividad visual.
-$preguntas_fijas = $model->obtenerPreguntasModulos();
-foreach ($preguntas_fijas as $preg) {
-    echo $model->antecedentesNoPatologicos($data['idPaciente'], $preg);
-}
 
 $contenidoAntescedentesNP1 = $model->editorTextoANP($data['idPaciente'], 1);
 $contenidoAntescedentesNP2 = $model->editorTextoANP($data['idPaciente'], 2);
