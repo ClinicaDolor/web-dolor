@@ -1,0 +1,34 @@
+name: th-sec-env-bootstrap-03r
+
+services:
+  db:
+    # Fixed candidate only. The owner must verify the local image ID before
+    # running Compose. pull_policy never permits an image download.
+    image: "mariadb:10.6"
+    pull_policy: never
+    container_name: th-sec-env-bootstrap-03r-db
+    restart: "no"
+    environment:
+      MARIADB_ROOT_PASSWORD_FILE: /run/secrets/mariadb_root_password
+      MARIADB_DATABASE: clinica_dolor_demo_20261010_final
+    secrets:
+      - mariadb_root_password
+    networks:
+      - synthetic_internal
+    volumes:
+      - th-sec-env-bootstrap-03r-db:/var/lib/mysql
+    security_opt:
+      - no-new-privileges:true
+
+secrets:
+  mariadb_root_password:
+    file: '${TH_SEC_SECRET_DIR:?Set TH_SEC_SECRET_DIR to a directory outside Git}/mariadb-root-password'
+
+networks:
+  synthetic_internal:
+    name: th-sec-env-bootstrap-03r-internal
+    internal: true
+
+volumes:
+  th-sec-env-bootstrap-03r-db:
+    name: th-sec-env-bootstrap-03r-db

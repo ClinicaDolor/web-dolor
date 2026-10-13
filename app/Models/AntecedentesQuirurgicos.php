@@ -1,358 +1,244 @@
 <?php
 namespace App\Models;
+
 use App\Config\Database;
 use App\Models\PacienteModulosModelo;
 
-class AntecedentesQuirurgicos{
-
+class AntecedentesQuirurgicos
+{
     private $bd;
 
-    public function __construct(){
-    $this->bd = Database::getInstance();
-    
+    public function __construct()
+    {
+        $this->bd = Database::getInstance();
     }
-  
+
+    private function escape($value): string
+    {
+        return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+    }
+
+    private function getCirugias(int $idPaciente, string $order = 'id ASC'): array
+    {
+        $allowedOrder = [
+            'id ASC' => 'id ASC',
+            'fecha DESC' => 'fecha DESC, id DESC',
+        ];
+        $orderBy = $allowedOrder[$order] ?? $allowedOrder['id ASC'];
+        $stmt = $this->bd->prepare(
+            "SELECT id, id_paciente, fecha, cirugia, observaciones
+             FROM pc_antecedentes_quirurgicos
+             WHERE id_paciente = :id_paciente
+             ORDER BY {$orderBy}"
+        );
+        $stmt->execute([':id_paciente' => $idPaciente]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
     //-------------------- EDITOR DE TEXTO WORD --------------------//
-    public function editorTextoAQ($idPaciente){
-    $result = '';
+    public function editorTextoAQ($idPaciente)
+    {
+        $idPaciente = filter_var($idPaciente, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if ($idPaciente === false) {
+            return '<p>No se encontró información.</p>';
+        }
 
-    $stmt = $this->bd->query("SELECT * FROM pc_antecedentes_quirurgicos WHERE id_paciente = '".$idPaciente."' ORDER BY id ASC");
-    $preguntas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-    
+        $preguntas = $this->getCirugias((int) $idPaciente);
+        $result = '<table class="table-bordered" border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;">
+        <tr>
+        <th class="text-center align-middle">Fecha</th>
+        <th class="text-center align-middle">Nombre de la cirugía</th>
+        <th class="text-center align-middle">Observaciones</th>
+        </tr>';
 
-    $result .= '<table class="table-bordered" border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;">
-    <tr>
-    <th class="text-center align-middle">Fecha</th>
-    <th class="text-center align-middle">Nombre de la cirugia</th>
-    <th class="text-center align-middle">Observaciones</th>
-    </tr>';
- 
-    if (!empty($preguntas)) {
-    $num = 1;
-    foreach ($preguntas as $pregunta): 
-    $fecha = $pregunta['fecha'];
-    $cirugia = $pregunta['cirugia'];
-    $observaciones = $pregunta['observaciones'];
+        if (!empty($preguntas)) {
+            foreach ($preguntas as $pregunta) {
+                $result .= '<tr>
+                <td class="text-center align-middle">' . $this->escape($pregunta['fecha'] ?? '') . '</td>
+                <td class="text-center align-middle">' . $this->escape($pregunta['cirugia'] ?? '') . '</td>
+                <td class="text-center align-middle">' . $this->escape($pregunta['observaciones'] ?? '') . '</td>
+                </tr>';
+            }
+        } else {
+            $result .= '<tr><td class="text-center align-middle" colspan="3">No se encontró información.</td></tr>';
+        }
 
-    $result .= '    
-    <tr>
-    <td class="text-center align-middle">'.$fecha.'</td>
-    <td class="text-center align-middle">'.$cirugia.'</td>
-    <td class="text-center align-middle">'.$observaciones.'</td>
-    </tr>';
-    
-    $num++;
-    endforeach;
-    }else{
-    $result .= '    
-    <tr>
-    <td class="text-center align-middle" colspan="3">No se encontro información</td>
-    </tr>';
-    }
-    $result .= '</table>';
-    
-    return $result;
+        return $result . '</table>';
     }
 
-
-    //---------- MOSTRAR PREGUNTAS DEL MODULO 4 ----------/
-    public function mostrarPreguntasM4($idPaciente,$idRol){
-    $result = "";
-
-    if($idRol == "Paciente"){
-    $stmt = $this->bd->query("SELECT * FROM pc_antecedentes_quirurgicos WHERE id_paciente = '".$idPaciente."' ORDER BY id ASC");
-    $preguntas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-
-    $model = new PacienteModulosModelo();
-    $botonFinalizar = $model->botonFinalizarModulo(4,$idPaciente,$idRol);
-    
-    if (!empty($preguntas)) {
-    
-    $result .= '
-    <div class="card-header pb-0">
-    <div class="row">
-
-    <div id="seccion101" data-autoplay="false" class="col-12 col-md-11 d-flex align-items-center sectionQuestion mb-3">
-    <img src="'.RUTA_IMAGES.'/iconos/audio.png" onclick="readQuestion()" class="img-fluid btnLeer pointer" style="max-height: 30px; margin-right: 10px;" data-target="seccion101">
-
-    <h8 class="text-primary fw-bold texto">
-    <b>A continuación, deberá ingresar la fecha en que se realizó la cirugía y proporcionar una breve descripción de la misma:</b>
-    </h8>
-    </div>
-
-    <div class="col-12 col-md-1 d-flex justify-content-end align-items-center">
-
-    </div> 
-
-    <div class="col-12">
-    <div id="mensaje" class="text-center text-danger mt-2"></div>
-    </div>
-
-    </div>
-    </div>';
-
-    $result .= '<div class="card-body">';
-
-    foreach ($preguntas as $index => $pregunta) :
-    $idCirugia = $pregunta['id'];
-    $fecha = $pregunta['fecha'];
-    $cirugia = $pregunta['cirugia'];
-    $observaciones = $pregunta['observaciones'];
-
-    $claseActiva = ($index == 0) ? 'active' : ''; // Se activará la pregunta guardada en localStorage
-    $result .= '<div class="pregunta-container '.$claseActiva.'" data-index="'.$index.'" data-id="'.$idCirugia.'" data-enfermedad="'.$cirugia.'" data-rol="'.$idRol.'">';
-
-    $result .= '
-    <div class="col-12">
-    <div class="text-secondary fw-bold mb-1">Nombre de la cirugía:</div>
-    <div class="row">
-    
-    <div class="col-12">
-    <input type="text" onchange="editarCirugia('.$idCirugia.', this, 2, \''.$idRol.'\')" class="form-control mb-3" value="'.$cirugia.'" placeholder="Escribe aquí el nombre de la cirugía...">
-    </div>
-
-    </div>
-    </div>
-
-    <div class="col-12">
-    <div class="text-secondary fw-bold mb-1">Fecha en que se realizo la cirugía:</div>
-    <input type="date" onchange="editarCirugia('.$idCirugia.', this, 1, \''.$idRol.'\')" class="form-control mb-3" value="'.$fecha.'">
-    </div>
-
-    <div class="col-12">
-    <div class="text-secondary fw-bold mb-1">Observaciones:</div>
-    <input type="text" onchange="editarCirugia('.$idCirugia.', this, 3, \''.$idRol.'\')" class="form-control " value="'.$observaciones.'" placeholder="Escribe aquí tus observaciones...">
-    </div>
-
-    <div class="col-12 mt-5">
-    <div class="row">
-
-    <div class="col-6 text-center">
-    <img src="'.RUTA_IMAGES.'/iconos/eliminar-icon.png" onclick="eliminarCirugiaPaciente('.$idCirugia.', \''.$idRol.'\')" class="img-fluid pointer mb-2" style="width: 35%;">
-    <div class="mt-2"><h5 class="text-danger fw-bold">Eliminar cirugía</h5></div>
-    </div>
-
-    <div class="col-6 text-center btnAgregarCirugia">
-    <img src="'.RUTA_IMAGES.'/iconos/agregar-icon.png" onclick="agregarCirugiaPaciente('.$idPaciente.',\''.$idRol.'\')" class="img-fluid pointer mb-2" style="width: 35%;" style="display: none;">
-    <div class="mt-2"><h5 class="text-success fw-bold">Agregar cirugía</h5></div>
-    </div>
-
-    </div>
-    </div>
-
-    <div class="col-12">
-    <div class="mt-3 d-flex justify-content-between">';
-
-    if ($index > 0) {
-    $result .= '<button class="btn btn-secondary" onclick="anteriorPregunta()"><i data-feather="chevron-left"></i> Anterior</button>';
-    } else {
-    $result .= '<div></div>';
+    private function patientInstructions(): string
+    {
+        return 'Registra el nombre de la cirugía, la fecha en que se realizó y cualquier observación que quieras conservar. Puedes agregar otra cirugía, regresar a un registro anterior o eliminarlo si fue agregado por error.';
     }
 
-    if ($index < count($preguntas) - 1) {
-    $result .= '<button class="btn btn-primary" onclick="siguientePregunta()">Siguiente <i data-feather="chevron-right"></i></button>';
-    } else {
-    $result .= $botonFinalizar;
+    private function renderPatientQuestions(int $idPaciente, array $preguntas, string $botonFinalizar): string
+    {
+        $result = '<div class="p06-instruction sectionQuestion" id="p06InstructionSection" data-autoplay="false">
+            <p class="p06-instruction-text texto">' . $this->escape($this->patientInstructions()) . '</p>
+        </div>';
+
+        if (empty($preguntas)) {
+            return $result . '<div class="p06-empty-state" role="status">
+                <div class="p06-empty-icon" aria-hidden="true"><i data-feather="clipboard"></i></div>
+                <h3>No hay cirugías registradas</h3>
+                <p>Si necesitas registrar una cirugía, agrega un registro. Si no corresponde, puedes finalizar esta sección sin crear datos clínicos.</p>
+                <button type="button" class="btn btn-primary p06-add-button" onclick="agregarCirugiaPaciente(' . $idPaciente . ', \'Paciente\')">
+                    <i data-feather="plus" aria-hidden="true"></i><span>Agregar cirugía</span>
+                </button>
+            </div>
+            <div class="p06-empty-actions">' . $botonFinalizar . '</div>';
+        }
+
+        $result .= '<div class="p06-record-list" data-p06-record-count="' . count($preguntas) . '">';
+        foreach ($preguntas as $index => $pregunta) {
+            $idCirugia = (int) ($pregunta['id'] ?? 0);
+            $fecha = $this->escape($pregunta['fecha'] ?? '');
+            $cirugia = $this->escape($pregunta['cirugia'] ?? '');
+            $observaciones = $this->escape($pregunta['observaciones'] ?? '');
+            $active = $index === 0 ? ' active' : '';
+            $result .= '<article class="p06-record pregunta-container' . $active . '" data-index="' . $index . '" data-id="' . $idCirugia . '">
+                <div class="p06-record-heading">
+                    <div>
+                        <p class="dashboard-eyebrow">REGISTRO ' . ($index + 1) . '</p>
+                        <h3>Antecedente quirúrgico</h3>
+                    </div>
+                    <span class="p06-record-status">Registro editable</span>
+                </div>
+                <p class="p06-record-instruction texto">Indica el nombre de la cirugía, su fecha de realización y las observaciones que quieras conservar.</p>
+                <div class="p06-fields">
+                    <div class="p06-field">
+                        <label for="p06-cirugia-' . $idCirugia . '">Nombre de la cirugía</label>
+                        <input id="p06-cirugia-' . $idCirugia . '" data-p06-field="cirugia" type="text" class="form-control" value="' . $cirugia . '" placeholder="Escribe aquí el nombre de la cirugía..." onchange="editarCirugia(' . $idCirugia . ', this, 2, \'Paciente\')">
+                    </div>
+                    <div class="p06-field">
+                        <label for="p06-fecha-' . $idCirugia . '">Fecha de realización</label>
+                        <input id="p06-fecha-' . $idCirugia . '" data-p06-field="fecha" type="date" class="form-control" value="' . $fecha . '" onchange="editarCirugia(' . $idCirugia . ', this, 1, \'Paciente\')">
+                    </div>
+                    <div class="p06-field p06-field-wide">
+                        <label for="p06-observaciones-' . $idCirugia . '">Observaciones</label>
+                        <textarea id="p06-observaciones-' . $idCirugia . '" data-p06-field="observaciones" class="form-control" rows="3" placeholder="Escribe aquí tus observaciones..." onchange="editarCirugia(' . $idCirugia . ', this, 3, \'Paciente\')">' . $observaciones . '</textarea>
+                    </div>
+                </div>
+                <div class="p06-record-actions">
+                    <button type="button" class="btn p06-danger-button" onclick="eliminarCirugiaPaciente(' . $idCirugia . ', \'Paciente\')">
+                        <i data-feather="trash-2" aria-hidden="true"></i><span>Eliminar cirugía</span>
+                    </button>
+                    <button type="button" class="btn p06-secondary-button" onclick="p06FocusCurrentRecord()">
+                        <i data-feather="save" aria-hidden="true"></i><span>Guardar cambios</span>
+                    </button>
+                </div>
+                <div class="p06-navigation" aria-label="Navegación de cirugías">
+                    ' . ($index > 0 ? '<button type="button" class="btn btn-secondary" onclick="anteriorPregunta()"><i data-feather="chevron-left" aria-hidden="true"></i><span>Anterior</span></button>' : '<span></span>') . '
+                    ' . ($index < count($preguntas) - 1 ? '<button type="button" class="btn btn-primary" onclick="siguientePregunta()"><span>Siguiente</span><i data-feather="chevron-right" aria-hidden="true"></i></button>' : $botonFinalizar) . '
+                </div>
+            </article>';
+        }
+        return $result . '</div>
+            <div class="p06-list-actions">
+                <button type="button" class="btn p06-secondary-button" onclick="agregarCirugiaPaciente(' . $idPaciente . ', \'Paciente\')"><i data-feather="plus" aria-hidden="true"></i><span>Agregar otra cirugía</span></button>
+            </div>';
     }
 
-    $result .= '</div>
-    </div>';
+    //---------- MOSTRAR PREGUNTAS DEL MODULO 4 ----------//
+    public function mostrarPreguntasM4($idPaciente, $idRol)
+    {
+        $idPaciente = filter_var($idPaciente, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if ($idPaciente === false) {
+            return '<p class="text-danger">No se pudo identificar al paciente.</p>';
+        }
 
-    $result .= '</div>';
-    endforeach;
+        $idPaciente = (int) $idPaciente;
+        if ($idRol === 'Paciente') {
+            $preguntas = $this->getCirugias($idPaciente);
+            $botonFinalizar = (new PacienteModulosModelo())->botonFinalizarModulo(4, $idPaciente, 'Paciente');
+            return $this->renderPatientQuestions($idPaciente, $preguntas, $botonFinalizar);
+        }
 
-    $result .= '</div>';
+        $preguntas = $this->getCirugias($idPaciente, 'fecha DESC');
+        $result = '<div class="p06-doctor-instruction sectionQuestion" id="p06DoctorInstruction" data-autoplay="false">
+            <p class="p06-instruction-text texto">A continuación, indica si a tu paciente se le han realizado una o más cirugías.</p>
+        </div>
+        <div class="p06-doctor-toolbar">
+            <button id="btnAgregarCirugia" type="button" onclick="agregarCirugiaPaciente(' . $idPaciente . ', \'Doctor\')" class="btn btn-success"><i data-feather="plus" aria-hidden="true"></i><span>Agregar cirugía</span></button>
+        </div>
+        <div class="table-responsive p06-doctor-table-wrap"><table class="table table-striped" id="table_cirugia">
+            <thead><tr><th>Fecha</th><th>Nombre de la cirugía</th><th>Observaciones</th><th aria-label="Acciones"><i data-feather="trash-2" aria-hidden="true"></i></th></tr></thead><tbody>';
 
-    }else{
-  
-    $result .= '
-    <div class="card-header pb-0">
-    <div class="row">
-
-    <div id="seccion100" data-autoplay="false" class="col-12 col-md-11 d-flex align-items-center sectionQuestion mb-2">
-    <img src="'.RUTA_IMAGES.'/iconos/audio.png" onclick="readQuestion()" class="img-fluid btnLeer pointer" style="max-height: 30px; margin-right: 10px;" data-target="seccion100">
-
-    <h8 class="text-primary fw-bold texto">
-    <b>Si usted ha tenido alguna cirugía, presione el botón verde para agregarla. Si no ha sido sometido a ninguna intervención quirúrgica, seleccione el boton de "Finalizar":</b>
-    </h8>
-    </div>
-
-    <div class="col-12">
-    <div id="mensaje" class="text-center text-danger mt-2"></div>
-    </div>
-
-    </div>
-    </div>
-
-    <div class="card-body">
-    <div class="row">
-    <div class="col-12 text-center pb-0">
-    <img src="'.RUTA_IMAGES.'/iconos/agregar-icon.png" onclick="agregarCirugiaPaciente('.$idPaciente.',\''.$idRol.'\')"class="img-fluid btnLeer pointer" style="max-height: 90%;"></div>
-    </div> 
-    <div class="col-12 text-end">
-    '.$botonFinalizar.'
-    </div>
-    
-    </div>';
-    
+        if (empty($preguntas)) {
+            $result .= '<tr><td colspan="4" class="p06-doctor-empty">No hay cirugías registradas.</td></tr>';
+        } else {
+            foreach ($preguntas as $pregunta) {
+                $idCirugia = (int) ($pregunta['id'] ?? 0);
+                $fecha = $this->escape($pregunta['fecha'] ?? '');
+                $cirugia = $this->escape($pregunta['cirugia'] ?? '');
+                $observaciones = $this->escape($pregunta['observaciones'] ?? '');
+                $result .= '<tr>
+                    <td><input class="form-control" type="date" onchange="editarCirugia(' . $idCirugia . ', this, 1, \'Doctor\')" value="' . $fecha . '"></td>
+                    <td><input class="form-control" type="text" onchange="editarCirugia(' . $idCirugia . ', this, 2, \'Doctor\')" value="' . $cirugia . '" placeholder="Nombre de la cirugía"></td>
+                    <td><input class="form-control" type="text" onchange="editarCirugia(' . $idCirugia . ', this, 3, \'Doctor\')" value="' . $observaciones . '" placeholder="Observaciones"></td>
+                    <td class="text-center"><button type="button" class="btn p06-icon-button" aria-label="Eliminar cirugía" onclick="eliminarCirugiaPaciente(' . $idCirugia . ', \'Doctor\')"><i data-feather="trash-2" aria-hidden="true"></i></button></td>
+                </tr>';
+            }
+        }
+        return $result . '</tbody></table></div>';
     }
 
-    }else{
-    $stmt = $this->bd->query("SELECT * FROM pc_antecedentes_quirurgicos WHERE id_paciente = '".$idPaciente."' ORDER BY fecha DESC");
-    $preguntas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    public function agregarCirugiaPaciente($data)
+    {
+        $idPaciente = filter_var($data['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if ($idPaciente === false) {
+            return ['resultado' => 422, 'mensaje' => 'Paciente no válido.'];
+        }
 
-
-    $result .= '
-    <div class="card-header pb-0">
-    <div class="row">
-
-    <div class="col-11">
-    <h8 class="text-primary fw-bold texto">
-    <b>A continuación, indique si a su paciente se le han realizado una o más cirugías:</b>
-    </h8>
-    </div>
-
-    <div class="col-1">
-    <button id="btnAgregarCirugia" onclick="agregarCirugiaPaciente('.$idPaciente.', \''.$idRol.'\')" class="btn icon btn-success float-end">
-    <i data-feather="plus" width="20"></i>
-    </button>
-    </div>
-
-    <div class="col-12">
-    <div id="mensaje" class="text-center text-danger mt-2"></div>
-    </div>
-
-    </div>
-    </div> 
-
-    <div class="card-body pb-0">
-    <div class="col-12">
-    <div class="table-responsive">
-    <table class="table table-striped" id="table_cirugia">
-    <thead>
-    <tr>
-    <th class="text-center align-middle" width="60px">Fecha</th>
-    <th class="text-start align-middle">Nombre de la cirugía</th>
-    <th class="text-start align-middle">Observaciónes</th>
-    <th class="text-center align-middle" width="30px"><i data-feather="trash-2"></i></th>
-    </tr>
-    </thead>
-    <tbody>'; 
-
-    foreach ($preguntas as $index => $pregunta) :
-    $idCirugia = $pregunta['id'];
-    $fecha = $pregunta['fecha'];
-    $cirugia = $pregunta['cirugia'];
-    $observaciones = $pregunta['observaciones'];
-
-    $result.= '<tr>';
-    $result .= '<td class="text-center align-middle p-2">
-    <span class="d-none search-value">'.$fecha.'</span>
-    <input class="form-control text-center date-input" type="date" onchange="editarCirugia('.$idCirugia.', this, 1, \''.$idRol.'\')" value="'.($fecha ?? '').'" >
-    </td>';
-
-
-    $result .= '<td class="text-center align-middle p-2">
-    <input class="form-control text-start" type="text" onchange="editarCirugia('.$idCirugia.', this, 2, \''.$idRol.'\')" value="'.($cirugia ?? '').'" placeholder="Escribe aquí el nombre de la cirugía...">
-    </td>';
-
-    $result .= '<td class="text-center align-middle p-2">
-    <input class="form-control text-start" type="text" placeholder="Escribe aquí tus observaciones..." onchange="editarCirugia('.$idCirugia.', this, 3, \''.$idRol.'\')" value="'.($observaciones ?? '').'">
-    </td>';
-
-    $result.= '<td class="text-center align-middle p-2">
-    <i data-feather="trash-2" class="pointer" onclick="eliminarCirugiaPaciente('.$idCirugia.', \''.$idRol.'\')"></i>
-    </td>';
-
-    $result.= '</tr>';
-
-    endforeach;
-
-    $result.= '</tbody>
-    </table>
-    </div>
-    </div>
-    </div>';
-
+        $stmt = $this->bd->prepare('INSERT INTO pc_antecedentes_quirurgicos (id_paciente) VALUES (:id_paciente)');
+        if ($stmt->execute([':id_paciente' => $idPaciente])) {
+            return ['resultado' => 200, 'mensaje' => 'Se habilitó una nueva cirugía correctamente.'];
+        }
+        return ['resultado' => 422, 'mensaje' => 'No se pudo agregar la cirugía.'];
     }
 
-    return $result;
+    public function editarCirugiaPaciente($data)
+    {
+        $idPaciente = filter_var($data['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $idCirugia = filter_var($data['idCirugia'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $opcionEdicion = filter_var($data['edicion'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 3]]);
+        if ($idPaciente === false || $idCirugia === false || $opcionEdicion === false || !array_key_exists('detalle', $data)) {
+            return ['resultado' => 422, 'mensaje' => 'Datos de actualización no válidos.'];
+        }
+
+        $columns = [1 => 'fecha', 2 => 'cirugia', 3 => 'observaciones'];
+        $column = $columns[$opcionEdicion];
+        $exists = $this->bd->prepare('SELECT id FROM pc_antecedentes_quirurgicos WHERE id = :id AND id_paciente = :id_paciente LIMIT 1');
+        $exists->execute([':id' => $idCirugia, ':id_paciente' => $idPaciente]);
+        if (!$exists->fetchColumn()) {
+            return ['resultado' => 403, 'mensaje' => 'Registro no autorizado.'];
+        }
+
+        $stmt = $this->bd->prepare("UPDATE pc_antecedentes_quirurgicos SET {$column} = :detalle WHERE id = :id AND id_paciente = :id_paciente");
+        if ($stmt->execute([':detalle' => (string) $data['detalle'], ':id' => $idCirugia, ':id_paciente' => $idPaciente])) {
+            return ['resultado' => 200, 'mensaje' => 'La información se actualizó correctamente.'];
+        }
+        return ['resultado' => 422, 'mensaje' => 'No se pudo actualizar la cirugía.'];
     }
 
-    public function agregarCirugiaPaciente($data){
+    public function eliminarCirugiaPaciente($data)
+    {
+        $idPaciente = filter_var($data['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $idQuirurgico = filter_var($data['idQuirurgico'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if ($idPaciente === false || $idQuirurgico === false) {
+            return ['resultado' => 422, 'mensaje' => 'Datos de eliminación no válidos.'];
+        }
 
-    $sql = "INSERT INTO pc_antecedentes_quirurgicos (
-    id_paciente
-    ) VALUES (
-    :id_paciente
-    )";
-    
-    $stmt = $this->bd->prepare($sql);                    
-        
-    $datos = [
-    ':id_paciente' => $data['idPaciente']
-    ];
-    
-    if ($stmt->execute($datos)) {
-    return array('resultado' => 200,'mensaje' => '¡Se habilito una nueva cirugia correctamente!');
-    
-    } else {
-    return array('resultado' => 401,'mensaje' => '¡Error al agregar la nueva cirugia a la lista!');
+        $exists = $this->bd->prepare('SELECT id FROM pc_antecedentes_quirurgicos WHERE id = :id AND id_paciente = :id_paciente LIMIT 1');
+        $exists->execute([':id' => $idQuirurgico, ':id_paciente' => $idPaciente]);
+        if (!$exists->fetchColumn()) {
+            return ['resultado' => 403, 'mensaje' => 'Registro no autorizado.'];
+        }
+
+        $stmt = $this->bd->prepare('DELETE FROM pc_antecedentes_quirurgicos WHERE id = :id AND id_paciente = :id_paciente');
+        if ($stmt->execute([':id' => $idQuirurgico, ':id_paciente' => $idPaciente])) {
+            return ['resultado' => 200, 'mensaje' => 'La cirugía se eliminó correctamente.'];
+        }
+        return ['resultado' => 422, 'mensaje' => 'No se pudo eliminar la cirugía.'];
     }
-    
-    }
-
-
-    public function editarCirugiaPaciente($data){
-    $opcionEdicion = $data['edicion'];
-
-    if($opcionEdicion == 1){
-    $consulta = "fecha";
-    }else if($opcionEdicion == 2){
-    $consulta = "cirugia";
-    }else if($opcionEdicion == 3){
-    $consulta = "observaciones";
-    }
-    
-    
-    $sql = "UPDATE pc_antecedentes_quirurgicos SET 
-    $consulta = :detalle WHERE id = :id_cirugia";
-    
-    $stmt = $this->bd->prepare($sql);                    
-                
-    $datos = [
-    ':id_cirugia' => $data['idCirugia'],
-    ':detalle' => $data['detalle']
-    ];
-            
-    if ($stmt->execute($datos)) {
-    return array('resultado' => 200,'mensaje' => '¡Se actualizo la informacion correctamente!');
-            
-    } else {
-    return array('resultado' => 401,'mensaje' => '¡Error al actualizar la cirugia de la lista!');
-    }
-            
-    }
-
-
-    public function eliminarCirugiaPaciente($data){
-
-    $sql = "DELETE FROM pc_antecedentes_quirurgicos WHERE id = :idQuirurgico";
-    $stmt = $this->bd->prepare($sql);                    
-            
-    $datos = [
-    ':idQuirurgico' => $data['idQuirurgico']
-    ];
-        
-    if ($stmt->execute($datos)) {
-    return array('resultado' => 200,'mensaje' => '¡Se elimino la cirugia correctamente!');
-        
-    } else {
-    return array('resultado' => 401,'mensaje' => '¡Error al eliminar la cirugia de la lista!');
-    }
-        
-    }
-
-
 }
-

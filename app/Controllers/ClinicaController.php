@@ -12,6 +12,7 @@ use App\Controllers\SidebarController;
 use App\Models\LaboratorioModel;
 use App\Models\RecetaModel;
 use App\Models\CofeprisModel;
+use App\Services\ClinicalSupplementService;
 
 class ClinicaController extends BaseController{
 
@@ -473,6 +474,48 @@ if (is_null($fechaAlta)) {
 $this->view('/errors/404.php');
 }else{
 $this->view('/clinica/pacientes-detalle.php', $data);
+}
+
+}
+
+public function resumenClinico($idPaciente){
+
+$authMiddleware = new AuthMiddleware('clinica');
+$paciente = new PacienteModel($idPaciente);
+$sidebar = new Sidebar();
+$sidebarController = new SidebarController();
+
+$auth = $authMiddleware->authPermisos();
+$authMiddleware->assertPatientAccess($idPaciente, $auth);
+
+$fechaAlta = $paciente->getFechaAlta();
+$nombreCompleto = $paciente->getNombreCompleto();
+$fechaNacimiento = $paciente->getFechaNacimiento();
+$sexo = $paciente->getSexo();
+$edad = CalculadoraEdad::calcularEdad($fechaNacimiento);
+
+$sidebarController->configureSidebar('DOCTOR', 'clinica-paciente-detalle', $sidebar, $idPaciente);
+$sidebar->setActivarItem('Expediente');
+$sidebarHtml = $sidebar->render();
+$clinicalSupplement = (new ClinicalSupplementService())->forPatient((int)$idPaciente);
+
+$data = [
+    'title' => 'Resumen clínico integral',
+    'idPaciente' => (int)$idPaciente,
+    'datos' => $auth,
+    'fecha_alta' => $fechaAlta,
+    'nombre_paciente' => $nombreCompleto,
+    'fecha_nacimiento' => $fechaNacimiento,
+    'edad' => $edad,
+    'sexo' => $sexo,
+    'sidebar' => $sidebarHtml,
+    'clinical_supplement' => $clinicalSupplement,
+];
+
+if (is_null($fechaAlta)) {
+    $this->view('/errors/404.php');
+} else {
+    $this->view('/clinica/resumen-clinico.php', $data);
 }
 
 }

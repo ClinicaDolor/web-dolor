@@ -1,19 +1,9 @@
 <?php
-use App\Config\Database;
 use App\Models\PacienteModulosModelo;
 use App\Models\MedicacionDolorModel;
 
-$bd = Database::getInstance();
 $model2 = new PacienteModulosModelo();
 $model = new MedicacionDolorModel();
-
-// Se conserva el contrato actual: el modelo prepara respuestas faltantes
-// durante la carga. Este efecto secundario de GET queda documentado y no se
-// ejecuta contra datos reales en esta actividad visual.
-$preguntasFijas = $model->obtenerPreguntasModulos();
-foreach ($preguntasFijas as $pregunta) {
-    $model->medicacionDolorQuest($data['idPaciente'], $pregunta);
-}
 
 $summaryTables = [
     $model->editorTextoMD($data['idPaciente'], 1),

@@ -1,16 +1,10 @@
 <?php
-use App\Config\Database;
 use App\Models\PacienteModulosModelo;
 use App\Models\EvaluacionDolorModel;
 
-$bd = Database::getInstance();
 $model = new EvaluacionDolorModel();
 $model2 = new PacienteModulosModelo();
 
-// Se conserva el contrato actual: el modelo prepara la respuesta inicial
-// durante la carga. Este efecto secundario de GET queda documentado y no se
-// ejecuta contra datos reales en esta actividad visual.
-$model->cuestionarioModulo9($data['idPaciente']);
 $contenidoEvaluacionDolor = $model->editorTextoED($data['idPaciente']);
 
 $escape = static function ($value) {
@@ -29,17 +23,9 @@ $pdfRoute = json_encode(RUTA_IMAGES, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUO
 $pdfName = json_encode($patientNameRaw, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
 $pdfTitle = json_encode($titleRaw, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
 
-$sexRaw = (string) ($data['sexo'] ?? '');
-$frontPath = RUTA_IMAGES . "evaluacion-dolor/frente/Frente_{$sexRaw}_{$patientId}.png";
-$frontFile = $_SERVER['DOCUMENT_ROOT'] . parse_url($frontPath, PHP_URL_PATH);
-$frontSrc = file_exists($frontFile)
-    ? $frontPath
-    : RUTA_IMAGES . "evaluacion-dolor/frente/Frente_{$sexRaw}.png";
-$backPath = RUTA_IMAGES . "evaluacion-dolor/espalda/Espalda{$sexRaw}_{$patientId}.png";
-$backFile = $_SERVER['DOCUMENT_ROOT'] . parse_url($backPath, PHP_URL_PATH);
-$backSrc = file_exists($backFile)
-    ? $backPath
-    : RUTA_IMAGES . "evaluacion-dolor/espalda/Espalda_{$sexRaw}.png";
+$imageEndpoint = SERVIDOR . 'clinica/paciente/imagen-evaluacion-dolor/';
+$frontSrc = $imageEndpoint . 'frente/' . $patientId;
+$backSrc = $imageEndpoint . 'espalda/' . $patientId;
 $frontSrcEscaped = $escape($frontSrc);
 $backSrcEscaped = $escape($backSrc);
 ?>

@@ -1,4 +1,328 @@
 # Registro de cambios
+
+## 2026-10-11 — P11-COMPLETE-01: evaluación del dolor y mapa corporal
+
+- Se modernizó exclusivamente P11 con el shell del Portal Paciente y la
+  jerarquía visual del modal P04. El flujo conserva frente, espalda y
+  cuestionario, con ayuda automática, controles Escuchar/Detener, voz `es-MX`,
+  Escape, foco y ARIA.
+- Se eliminó la inicialización de filas e imágenes durante GET en las vistas
+  Paciente y Doctor. Los fragmentos AJAX derivan el rol desde la sesión. Los
+  mapas usan Pointer Events y transformación de coordenadas; los POST validan
+  PNG y tamaño, guardan atómicamente en `app/storage/evaluacion-dolor` y se
+  sirven mediante endpoint autorizado. Limpiar frente y espalda es
+  independiente.
+- El cuestionario conserva `dolor`, `tiempo_dolor`, `descripcion` e
+  `incremento`, actualiza sólo columnas permitidas y restringe la operación a
+  `id_paciente`. La finalización del módulo 9 comprueba completitud, es
+  idempotente y mantiene `next_url`.
+- PASS estático: PHP lint focal y contratos de rutas/campos. PASS real sobre la
+  base allowlisted `clinica_dolor_demo_20261010_final`: login, GET sin
+  escrituras, AJAX, persistencia de mapas/cuestionario, limpieza independiente,
+  autorización cruzada 403, finalización idempotente, `next_url` y restauración
+  exacta de la línea base.
+- PASS de navegador sintético a 1280×720: modal P04, Escape, estado de
+  narración Escuchar/Detener, navegación frente/espalda/cuestionario, Pointer
+  Event con guardado y consola sin errores. NO VERIFICADO: conteo de sentencias
+  SQL del no-op, audio audible humano, stylus/táctil independiente, viewports
+  1440×900/768×1024/375×667 y capturas exportadas.
+- La base quedó restaurada a su línea base; el archivo privado sintético que ya
+  existía para 9301 se restauró byte a byte y no se dejaron archivos nuevos de
+  la prueba.
+- Los mapas heredados que aún existen bajo `public/assets/images/evaluacion-dolor`
+  conservan un riesgo de acceso directo; no se declara remediación documental
+  completa. La semántica histórica azul/amarillo queda pendiente de decisión
+  clínica. No se modificaron P01–P10, no se inició P12, ni hubo commits o
+  despliegues.
+
+## 2026-10-11 — P07-MODAL-AUDIO-FIX-01: modal y narración de instrucciones
+
+- Se restauró exclusivamente en P07 el botón de ayuda y el modal automático de
+  instrucciones, con título específico de Antecedentes Personales Patológicos,
+  botones Escuchar/Detener/Entendido, ARIA, foco, Escape, click fuera y retorno
+  de foco al cerrar.
+- La narración usa `SpeechSynthesisUtterance`, prioriza `es-MX`, informa el
+  estado sólo después de `onstart`, maneja error o falta de voces y cancela la
+  lectura anterior al cerrar, repetir o cambiar de pregunta. V1 lee el tema y
+  la pregunta; V2 lee la enfermedad, la pregunta y sólo dependencias visibles.
+- Se retiraron únicamente los iconos `.btnLeer` estáticos de P07 para evitar
+  doble narración con `voice-utilities.js`; el utilitario compartido no se
+  modificó. No se alteraron guardado, avance, autorización, finalización,
+  endpoints, modelos, P04, P05, P06 ni P08.
+- PASS: contrato de modal/voz y sintaxis contractual. NO VERIFICADO: audio
+  audible humano, consola y capturas responsive autenticadas. P07 permanece en
+  `VALIDACIÓN`; no hubo commits, despliegues ni escrituras reales.
+
+## 2026-10-11 — P08-COMPLETE-01: Medicación Actual
+
+- Se completó exclusivamente P08 con una vista compatible con el patrón visual
+  de P04: hero institucional, estado vacío, tarjetas de medicación, controles
+  accesibles, modal de instrucciones y navegación responsive. Se conservaron
+  los cinco campos heredados y su semántica (`descripcion`, `medicamento`,
+  `tiempo_uso`, `dosis`, `medico`).
+- Se implementaron eventos delegados, guardas contra doble envío, persistencia
+  del contexto en `localStorage` por paciente, confirmación de guardado antes de
+  recargar/continuar y voz `es-MX` cancelable sin narraciones superpuestas.
+- Las operaciones P08 derivan el ámbito desde la ruta, exigen autorización del
+  paciente y restringen el CRUD con consultas preparadas por `id` +
+  `id_paciente`. La finalización del módulo 6 es idempotente y devuelve sólo
+  `next_url` relativa.
+- Se añadieron pruebas sintéticas fail-closed en `tests/p08/`: preflight,
+  runner HTTP de CRUD/autorización, contrato estático, limpieza y servidor
+  aislado reutilizable. PASS: aislamiento, lint, contrato, acceso propio/
+  cruzado/anónimo, CRUD, no-op, finalización y limpieza. Capturas, viewports,
+  consola y reproducción audible real quedan NO VERIFICADOS por limitación del
+  navegador. `bd_clinica` no se modificó.
+- P08 permanece en `VALIDACIÓN`; no hubo commits ni despliegues.
+
+## 2026-10-11 — P07-COMPLETE-01 + adendum P05-FLOW-SPEED-01
+
+- Se completó exclusivamente la navegación interactiva de P07 para V1 y V2:
+  guardado confirmado antes de avanzar, avance automático para respuestas No y
+  Sí sin dependencias, permanencia hasta completar dependencias, guardado de
+  texto con un solo Siguiente y prevención de UPDATE cuando el valor ya está
+  persistido.
+- Se sustituyeron los manejadores inline del flujo Paciente por eventos
+  delegados y controles con etiquetas accesibles. La carga de dependencias V2
+  ocurre sólo después de confirmar el guardado y se cancela la narración activa
+  durante transiciones. El shell y footer reutilizan el patrón aprobado de P04.
+- Los endpoints V1/V2 validan el paciente autorizado y la pertenencia de la
+  respuesta al paciente, tema o enfermedad correspondiente; el rol efectivo se
+  deriva de la ruta y no del payload del cliente.
+- Se añadió el catálogo sintético allowlisted y el runner HTTP con pruebas de
+  persistencia propia, bloqueo anónimo y aislamiento cruzado para clínicas
+  9101/9102. La base sintética quedó limpia después de la ejecución.
+- PASS: contrato estático, lint, clicks efectivos en navegador sintético,
+  persistencia V1/V2, autorización cruzada y responsive renderizado 1440×900 /
+  375×667. NO VERIFICADO: audio audible humano, finalización y redirección al
+  siguiente módulo, y viewports P07 1280×720 / 768×1024. P07 permanece en
+  VALIDACIÓN. No se modificaron P04, P05 ni P06; no hubo commits ni despliegues.
+
+## 2026-10-11 — P05-FLOW-SPEED-01: avance sin doble clic
+
+- Se centralizó en P05 el guardado y avance del paciente mediante eventos
+  delegados y una única transición asíncrona. Un `Siguiente` sobre un input
+  modificado espera la confirmación y avanza una sola pregunta; si el guardado
+  iniciado por `change` ya está en curso, el clic queda encolado una vez.
+- Las respuestas Sí/No guardan y avanzan automáticamente cuando corresponde;
+  `No` conserva la limpieza de dependencias y `Sí` no omite sus campos. Los dos
+  inputs de Grupo Sanguíneo avanzan sin doble clic. No se modificaron CSS,
+  P04, P06–P11, modelos de negocio ni esquema de base de datos.
+- PASS sintético: catálogo 7/25, Tabaquismo→Alcoholismo con `No`, dependencia
+  con `Sí`, input con un clic, Grupo Sanguíneo, persistencia y consola sin
+  errores. Persisten NO VERIFICADOS fallo forzado de red, latencia/doble clic
+  instrumentados, audio audible, viewports/capturas y finalización.
+- Se añadió `tests/p05/flow-speed-contract.mjs`; la base sintética
+  `clinica_dolor_demo_20261010_final` quedó limpia al finalizar. P05 permanece
+  en VALIDACIÓN y no se realizaron commits ni despliegues.
+
+## 2026-10-11 — P05-RESTORE-REAL-01: catálogo original y validación real
+
+- Se extrajeron de forma limitada los datos de los SQL originales suministrados
+  para P05 a `tests/fixtures/p05-catalog.php`: 7 temas y 25 preguntas, sin
+  respuestas ni datos personales; la carga sólo admite la base sintética
+  `clinica_dolor_demo_20261010_final`, es idempotente y rechaza conflictos.
+- Se reparó la validación real de P05 con sesión sintética: AJAX, dependencias,
+  recuperación, siete temas, Grupo Sanguineo, comentarios, finalización y
+  `next_url` a P06 quedaron PASS; el acceso GET y POST cruzado fue rechazado.
+- Se corrigieron dos defectos visuales demostrados por el catálogo real: el
+  override de `.pregunta-container` que mostraba todas las preguntas y el
+  overflow causado por `.p05-navigation-hint`. No se modificó P04 ni P06.
+- Se añadieron `tests/p05/http-crud.php` y `tests/p05/cleanup-synthetic.php`.
+  La limpieza elimina sólo respuestas, comentarios y finalización de 9301/9302
+  en la base sintética, conservando el catálogo. Reproducción audible humana,
+  viewports 1280/768 y fallo forzado de red permanecen NO VERIFICADOS.
+- P05 permanece en VALIDACIÓN; no se realizaron commits, despliegues ni acceso
+  a `bd_clinica`.
+
+
+## 2026-10-11 — UI-PARITY-GATE-01: paridad visual y audio de P05
+
+- Se corrigió exclusivamente P05 para reproducir la composición de P04: los
+  controles de voz ahora están en el cuerpo de la tarjeta, la pregunta ocupa
+  una sola columna, Sí/No son horizontales en escritorio y la navegación usa
+  todo el ancho disponible; en móvil las opciones se apilan.
+- Se fijó el modal P05 al mismo máximo computado de P04 (540 px), se eliminó
+  el riesgo de estado «Intentando iniciar» indefinido con un timeout de 1500 ms
+  y se sincronizó el elemento activo del sidebar con `aria-current`.
+- Se añadieron el gate reutilizable
+  `tests/patient-module-parity-gate.mjs` y el fixture visual aislado
+  `tests/p05/visual-fixture.html`. P06 sólo fue verificado y no modificado.
+- PASS: PHP/JS/CSS, contratos P05, mock de audio, gate estático, consola
+  sintética, geometría 1440×900 y responsive 375×667 del fixture. P05 real
+  no tiene preguntas porque el catálogo sintético allowlisted está vacío;
+  audio audible humano, persistencia y navegación clínica permanecen
+  NO VERIFICADOS. P05 sigue en VALIDACIÓN y P07 no fue iniciado.
+
+## 2026-10-11 — P06-COMPLETE-01: modernización integral de Antecedentes Personales Quirúrgicos
+
+- Se modernizó exclusivamente P06 con el patrón visual local de P04/P05:
+  hero institucional blanco a menta, contexto del paciente, tarjeta clínica
+  de altura natural, estado vacío, campos legibles y acciones responsive.
+- Se conservaron los tres campos existentes de `pc_antecedentes_quirurgicos`
+  (cirugía, fecha y observaciones), junto con agregar, editar, eliminar,
+  confirmación, navegación, finalización y continuidad mediante `next_url`.
+- Se incorporó modal accesible de instrucciones y narración específica de P06
+  con Escuchar/Detener, cancelación de utterances anteriores y fallback seguro.
+- Se reforzó el aislamiento de las operaciones P06: sesión y ruta determinan
+  el contexto, el registro debe pertenecer al paciente autorizado y UPDATE/
+  DELETE utilizan filtros de paciente y consultas preparadas. El listado y
+  el endpoint de contenido no confían en `idRol` enviado por el cliente.
+- Se añadieron `tests/p06/contract-check.mjs`, `audio-mock.mjs`,
+  `verify-isolation.php`, `http-crud.php` y su README. PHP/JS/CSS, CRUD HTTP
+  sintético, rechazo cruzado y regresiones focales P04/P05 quedaron PASS.
+- Se verificaron capturas reales en navegador sintético a 1440×900 y 375×667;
+  1280×720 y 768×1024, así como reproducción audible real, quedan
+  NO VERIFICADOS. No se usaron datos reales, no se tocó `bd_clinica` y no se
+  inició P07.
+
+## 2026-10-11 — P05-FIX-UI-NAV-01: composición vertical y navegación
+
+- Se alineó la composición de P05 con P04: el contenido dinámico ocupa una
+  sola columna, el encabezado de instrucciones mantiene el control de voz a
+  la derecha y el cuestionario conserva el ancho principal de 1040 px.
+- Se corrigió el modelo para que las preguntas `select` sin respuesta sigan
+  renderizando «Siguiente» en el DOM, deshabilitado y acompañado de un
+  mensaje accesible; ya no se omite el footer de navegación.
+- Se restauró el tratamiento visual del nombre del hábito: etiqueta oscura y
+  nombre en `var(--clinic-accent)`. Se conservaron temas, AJAX, dependencias,
+  guardas, persistencia, finalización y `next_url`.
+- No se modificaron P04 ni otros módulos. El catálogo P05 sintético continúa
+  vacío, por lo que el recorrido clínico real permanece NO VERIFICADO.
+
+## 2026-10-11 — P05-COMPLETE-01: experiencia guiada y audio del módulo paciente
+
+- Se completó P05 reutilizando la experiencia aprobada de P04: modal de
+  instrucciones con narración automática, controles explícitos «Escuchar» y
+  «Detener», lectura de la pregunta activa y cancelación de audio al cambiar
+  de pregunta, sección o página.
+- Se retiraron los dos controles de audio heredados `btnLeer` de P05 para
+  evitar controles duplicados; la lectura ahora usa funciones y eventos
+  exclusivos `p05*`, con voz `es-MX` preferente, fallback textual y guardas
+  contra narraciones superpuestas.
+- Se conservaron los siete temas dinámicos, preguntas, dependencias, AJAX,
+  persistencia, autorización, comentario, finalización y `next_url`. No se
+  modificaron P04, P06–P11, Doctor ni el catálogo clínico.
+- La base sintética allowlisted sigue sin catálogo P05 aprobado; por ello la
+  navegación y persistencia real de los siete temas, capturas autenticadas y
+  reproducción audible quedan NO VERIFICADAS.
+
+## 2026-10-11 — P05-UI-01: modernización visual del módulo paciente
+
+- Se modernizó exclusivamente la vista P05 con el patrón visual local de P04:
+  hero institucional blanco/lavanda con acento menta, contexto del paciente,
+  acciones de instrucciones/regreso, tarjetas clínicas de altura natural,
+  navegación y sección de comentarios.
+- Se añadieron tarjetas Sí/No grandes y clicables mediante sus labels, foco
+  visible, controles de navegación consistentes y estilos responsive scoped a
+  `patient-nonpathological-page`.
+- Se incorporó un modal de instrucciones accesible, sin narración ni nuevos
+  manejadores clínicos; conserva foco, Escape, cierre por fondo y retorno al
+  control originario.
+- Se versionó la carga de `app.css` mediante `filemtime()` en P05. No se
+  modificaron modelos, controladores, rutas, AJAX, persistencia, P04 ni otros
+  módulos. P05 permanece en VALIDACIÓN; las capturas autenticadas y la
+  validación funcional real siguen bloqueadas por el catálogo sintético vacío.
+
+## 2026-10-11 — P05-TEST-DATA-01: diagnóstico de catálogo sintético
+
+- Se revisaron las fuentes versionadas del proyecto y no existe un catálogo
+  aprobado con los siete temas y preguntas reales de P05; no se inventaron
+  textos clínicos ni se consultó `bd_clinica`.
+- Se añadió `tests/p05/prepare-synthetic.php`, con guarda fail-closed,
+  allowlist exacta y reparación explícita del esquema únicamente en
+  `clinica_dolor_demo_20261010_final`.
+- La base sintética quedó con la columna `pregunta` contractual verificada;
+  los conteos de temas y preguntas permanecen en cero hasta disponer de una
+  fuente aprobada.
+- Las pruebas autenticadas A–O de P05 quedan NO VERIFICADAS/BLOQUEADAS por la
+  ausencia del catálogo. La regresión focal existente de P04 pasó y no se
+  modificó P04, `bd_clinica`, CSS, audio, otros módulos, commits ni despliegues.
+
+## 2026-10-11 — P05-FUNC-01: funcionamiento y seguridad
+
+- Se corrigió el aislamiento de navegación de P05 con claves
+  p05:{idPaciente}:modulo-3:*, selección exclusiva Sí/No, bloqueo de
+  navegación durante un guardado pendiente y prevención de doble finalización.
+- La finalización conserva la secuencia comentario→finalización y consume
+  next_url; los errores de red/HTTP muestran mensajes genéricos sin continuar
+  el flujo.
+- El modelo de P05 ya no actualiza por idRespuesta aislado: comprueba
+  paciente, pregunta y tema, y el controlador deriva el ámbito desde la ruta
+  y la cookie, no desde idRol enviado por el navegador. El GET de preguntas
+  usa el rol efectivo de la sesión.
+- Se agregaron preflight y checks reproducibles en tests/p05/; la base
+  sintética confirmó aislamiento, pero su catálogo P05 está vacío, por lo que
+  las pruebas autenticadas A–O quedan NO VERIFICADAS. El fixture sólo recibió
+  la columna pregunta requerida por el contrato SQL; no se inventaron
+  preguntas clínicas.
+- Se conserva explícitamente el efecto secundario preexistente de siembra en
+  GET. No se modificaron CSS, audio, P01–P04, P06–P11, Doctor, esquema real,
+  base bd_clinica, commits ni despliegues.
+
+## 2026-10-11 — P04-NEXT-01: continuación al siguiente módulo
+
+- Se añadió `PacienteModulosModelo::siguienteModuloPendiente()` como resolvedor
+  central basado en el catálogo `historia_clinica_modulos` y las finalizaciones
+  formales del paciente.
+- Se añadió el campo aditivo `next_url` a la respuesta exitosa de
+  `ModulosController::pacienteFinalizarModulo()`. Los slugs se validan contra
+  la allowlist canónica y los destinos no permitidos usan el dashboard como
+  fallback; no se aceptan URLs del navegador.
+- P04 consume `next_url` después de la secuencia ya corregida de comentario y
+  finalización. P03 y P05–P11 conservan sus callbacks y no fueron modificados.
+- Se añadieron pruebas sintéticas de resolución y se validaron los recorridos
+  P04→P05, salto P04→P06 y fallback al dashboard, además de autorización
+  cruzada.
+- No se modificaron CSS, audio, modal, preguntas, guardado clínico, esquemas,
+  área Doctor, commits ni despliegues.
+
+## 2026-10-11 — P04-FIX-FINALIZAR-01: desbloqueo de comentario y finalización
+
+- Se confirmó que el callback del guardado de comentario intentaba finalizar
+  mientras `p04PendingRequest` seguía activo; ese orden provocaba el mensaje de
+  bloqueo y evitaba la redirección.
+- Se implementó en la vista P04 un orquestador secuencial con una única guarda
+  de flujo, `finally` común para recuperar loader/botón y reintento de
+  finalización sin duplicar el comentario ya guardado.
+- Se añadió `tests/p04/finalization-flow.mjs` para probar errores de comentario,
+  finalización, red, doble envío y comentario vacío sin tocar una base real.
+- Se validó el recorrido real A/B/E/G contra la base sintética allowlisted y se
+  restauró su línea base; el paciente sintético 9302 no recibió cambios.
+- No se modificaron CSS, audio, modal, preguntas, otros módulos, modelos,
+  controladores, rutas ni base `bd_clinica`. No hubo commits ni despliegues.
+
+## 2026-10-11 — UI-PATIENT-TITLES-01: títulos P03–P11
+
+- Se unificó el color de los títulos principales de los nueve módulos de
+  Historia Clínica del Portal Paciente mediante `var(--clinic-accent)`
+  (`#35a78f`), con alcance exclusivo a `patient-clinical-form`.
+- Se conservaron el morado de eyebrow, navegación, enlaces, botones y modales,
+  además de los fondos, dimensiones y composición existentes.
+- No se modificaron P02, el área Doctor, JavaScript, rutas, controladores,
+  modelos, persistencia ni funcionalidades clínicas.
+- La verificación visual autenticada queda NO VERIFICADA fuera del entorno
+  sintético; P03–P11 no se marcan como cerradas ni funcionalmente validadas.
+- El contraste medido de `#35a78f` es 2.97:1 sobre blanco y menor sobre los
+  fondos institucionales; se conserva sin sustitución automática y queda
+  pendiente una decisión común de accesibilidad.
+
+## 2026-10-11 — P04-TEST-ENV-01: entorno sintético reutilizable
+
+- Se añadió `tests/p04/verify-isolation.php`, guarda fail-closed y de solo
+  lectura para `clinica_dolor_demo_20261010_final`.
+- Se añadió el arranque/detención de un servidor local aislado y un router de
+  pruebas que conserva el front controller y la autenticación reales.
+- Se añadió un mock reproducible del contrato de voz; no se modificaron CSS,
+  JavaScript clínico, controladores, modelos, rutas ni la base `bd_clinica`.
+- Se completó el fixture de comentarios con `pac_historia_clinica_comentario`,
+  dependiente del panel P04; la tabla se creó sólo en la base sintética
+  allowlisted y el endpoint pasó de HTTP 500 por tabla ausente a HTTP 200.
+- Se validó el login sintético y el acceso cruzado rechazado para P04. La
+  reproducción audible real y la finalización del módulo quedan separadas como
+  NO VERIFICADAS cuando el navegador no expone Speech Synthesis.
+- No se realizaron commits ni despliegues.
+
 ## 2026-10-10 — UI-04: inventario maestro de cierre visual
 
 - Se creó docs/UI_DESIGN_CLOSURE_MASTER.md con el inventario verificable de
@@ -745,3 +1069,94 @@ despliegues.
 - Se verificaron 1440×900, 1280×720, 768×1024 y 375×667, HTTP 422 sintético,
   teclado, consola sin errores y ausencia de overflow. No hubo commits ni
   despliegues.
+
+## 2026-10-11 — P05-EXACT-PARITY-01: paridad visual real con P04
+
+- Se corrigió exclusivamente P05 (`app/views/historia-clinica-paciente/antecedentes-personales-no-patologicos.php`, `AntecedentesNoPatologicosModel.php` y su CSS scoped).
+- El HTML real mostró dos cierres faltantes que anidaban el `card-body` dentro del `card-header`, reduciendo el ancho útil; se restableció la misma estructura directa de P04.
+- Se hizo visible el prompt clínico que quedaba oculto por el selector de paridad, y se separaron la etiqueta del hábito y su nombre para conservar el orden visual de P04.
+- Se eliminó el `p05-navigation-hint` permanente del estado vacío. El botón Siguiente continúa visible y bloqueado con `disabled`, `aria-disabled` y `title`; el mensaje de avance sólo aparece de forma contextual al intentar avanzar.
+- El navegador sintético confirmó a 1280×720 que P04/P05 comparten 925.14 px de tarjeta exterior, 884.00 px de contenido y la misma alineación derecha de navegación; la pregunta de tabaquismo llegó por AJAX real, sin overflow ni errores de consola.
+- PASS: PHP lint, contratos P05/P04/P06, audio mock, HTTP de aislamiento/CRUD sintético y `git diff --check`. NO VERIFICADO: 1440×900 y 375×667 en esta ejecución por falta de control reproducible de viewport, reproducción audible humana, fallo forzado de red y dashboard posterior. No se realizaron commits ni despliegues.
+
+## 2026-10-11 — P09-COMPLETE-01
+
+- Se modernizó exclusivamente el Portal Paciente P09 (medicamentos usados para
+  controlar el dolor) con el patrón visual y de voz de P04/P05.
+- Se incorporaron controles exclusivos, dependencias de dosis/resultados/
+  consumo, guardado confirmado sin doble UPDATE, avance posterior al guardado
+  y finalización de módulo 7 mediante `next_url` validado.
+- El endpoint y el modelo dejaron de confiar en el rol enviado por el navegador
+  y acotaron el UPDATE a paciente, respuesta, pregunta y tema con valores
+  permitidos.
+- Se añadieron contratos y preparación fail-closed en `tests/p09/`. Los
+  contratos estáticos pasan; las pruebas autenticadas, responsive y de audio
+  real permanecen NO VERIFICADAS por falta de confirmación del entorno/navegador.
+- No se realizaron commits ni despliegues.
+
+## 2026-10-11 — P09-RESTORE-REAL-01
+
+- Se verificó `P09_CATALOGOS_SEGUROS.zip` mediante SHA-256
+  `7054DA65AC77BB5DEE9763E109E21FD01AFEBB93FE59D71A9874CF91CFE43986` y se
+  procesaron únicamente sus catálogos allowlisted: 6 temas y 46 preguntas.
+- La importación quedó restringida a `clinica_dolor_demo_20261010_final`, fue
+  idempotente y no ejecutó volcados completos. Se añadió sólo la estructura
+  sintética faltante; no se importaron respuestas ni se tocó `bd_clinica`.
+- Las pruebas HTTP reales confirmaron login, GET/AJAX, persistencia,
+  aislamiento propio/cruzado, modal, navegación, avance automático,
+  finalización e idempotencia. Se corrigieron exclusivamente la pérdida de
+  dosis al redibujar tras elegir resultado y la duplicación de finalización.
+- Se generaron capturas inline del modal, primera pregunta y último tema en la
+  dimensión disponible del navegador (~1280×720). Responsive en otros tamaños,
+  consola DevTools y reproducción audible humana permanecen NO VERIFICADOS.
+- Se ejecutó limpieza sintética; el catálogo se conservó. P09 permanece en
+  VALIDACIÓN. No se inició P10 y no hubo commits ni despliegues.
+
+## 2026-10-11 — P10-CATALOG-UNBLOCK-02
+
+- Se verificó `P10_CATALOGO_SEGURO.zip` y se añadió `tests/p10/import-catalog.php`,
+  que valida el SQL autorizado, no ejecuta el dump completo y carga de forma
+  transaccional/idempotente sólo en `clinica_dolor_demo_20261010_final`.
+- La tabla sintética estaba vacía pero tenía el nombre heredado `tratamiento`;
+  se corrigió a `procedimiento` y se añadió `comentarios` a la tabla sintética
+  de respuestas. El catálogo final contiene exactamente 10/10 registros y no
+  se modificó `bd_clinica`.
+- Se amplió `tests/p10/http-crud.php` para validar AJAX, No/Sí, dependencias,
+  efectos adversos, descripción, comentarios, recuperación, autorización
+  cruzada, finalización, `next_url` e idempotencia. El frontend conserva las
+  rutas relativas del mismo origen, el mensaje genérico con «Reintentar» y el
+  modal centrado con `display:grid`.
+- El controlador deriva el acceso de la sesión y la ruta, no confía en el rol
+  enviado por el navegador, bloquea el acceso cruzado y responde con mensajes
+  genéricos ante fallos técnicos. La finalización de módulo 8 quedó idempotente
+  y rechaza catálogo inexistente o respuestas incompletas.
+- La línea base `tests/p10/` quedó restringida a
+  `clinica_dolor_demo_20261010_final`. PASS: preflight, login, GET/AJAX propio,
+  302 sin sesión, 403 cruzado, CRUD persistente de procedimientos, no-op
+  repetido, rechazo de tratamiento inexistente y limpieza. No se utilizó
+  `bd_clinica`.
+- PASS: catálogo 10/10, flujo HTTP sintético completo y limpieza de respuestas
+  y finalización; el catálogo se conserva.
+- NO VERIFICADO: no-op SQL medido a nivel de sentencia, NetworkError observado
+  en navegador, centrado del modal observado en navegador, responsive,
+  capturas, consola DevTools, teclado visual y reproducción audible humana.
+- Se mantiene P10 en VALIDACIÓN, no se inició P11 y no se realizaron commits ni
+  despliegues. Las vulnerabilidades documentales ACT-05C-02 y el renderer
+  legado con siembra durante GET permanecen documentados como riesgos abiertos.
+
+## 2026-10-11 — P10-MODAL-EXACT-PARITY-01
+
+- Se identificó que el encabezado verde y la distribución distinta de botones
+  provenían del bloque scoped `patient-procedures-modal` exclusivo de P10.
+- P10 ahora reutiliza la estructura visual canónica de P04: modal Bootstrap
+  centrado, encabezado blanco/lavanda, título y bordes institucionales, footer
+  con Escuchar/Detener/Entendido y botones secundarios morados equivalentes.
+- Se preservaron la lógica P10, los IDs de voz, las funciones de apertura y
+  cierre, `SpeechSynthesis`, foco, Escape, clic fuera, audio es-MX y la guarda
+  contra reapertura. No se modificaron catálogos, CRUD, persistencia,
+  autorización, finalización, `next_url` ni otras vistas.
+- PASS estático: contrato de modal, mock de audio, PHP lint, sintaxis JS y
+  `git diff --check`. NO VERIFICADO: comparación visual renderizada, capturas,
+  consola DevTools, foco observado y audio audible humano por falta de una
+  sesión sintética reproducible en navegador.
+- P10 permanece en VALIDACIÓN; no hubo commits ni despliegues.

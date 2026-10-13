@@ -136,30 +136,153 @@ class PacienteModulosModelo{
     }
 
     //---------- FINALIZAR MODULO ----------
-    public function finalizarModulos($data){
-
-    $sql = "INSERT INTO pac_historia_clinica_finalizar (
-    id_modulo,
-    id_paciente
-    ) VALUES (
-    :id_modulo,
-    :id_paciente
-    )";
-        
-    $stmt = $this->bd->prepare($sql);                    
-            
-    $datos = [
-    ':id_modulo' => $data['idModulo'],
-    ':id_paciente' => $data['idPaciente']
-    ];
-        
-    if ($stmt->execute($datos)) {
-    return array('resultado' => 200,'mensaje' => '¡Se finalizo el modulo correctamente!');
-        
-    } else {
-    return array('resultado' => 401,'mensaje' => '¡Error al finalizar el modulo!');
+    /**
+     * Finaliza P06 de forma idempotente sin cambiar el esquema existente.
+     *
+     * La tabla histórica no tiene una clave única para (id_modulo, id_paciente),
+     * por lo que el GET_LOCK por paciente serializa la comprobación y el INSERT
+     * entre solicitudes concurrentes de la aplicación.
+     */
+    public function finalizarModuloP06($data){
+    $idModulo = (int) ($data['idModulo'] ?? 0);
+    $idPaciente = (int) ($data['idPaciente'] ?? 0);
+    if ($idModulo !== 4 || $idPaciente < 1) {
+    return array('resultado' => 422,'mensaje' => 'Datos de finalización no válidos.');
     }
-        
+
+    $lockName = 'clinica_p06_finalizacion_' . $idPaciente;
+    $lockStatement = $this->bd->prepare('SELECT GET_LOCK(:lock_name, 5)');
+    $lockStatement->execute([':lock_name' => $lockName]);
+    $lockAcquired = (int) $lockStatement->fetchColumn() === 1;
+    if (!$lockAcquired) {
+    return array('resultado' => 409,'mensaje' => 'No fue posible confirmar la finalización.');
+    }
+
+    try {
+    $existingStatement = $this->bd->prepare(
+        'SELECT id FROM pac_historia_clinica_finalizar
+         WHERE id_modulo = :id_modulo AND id_paciente = :id_paciente
+         ORDER BY id ASC LIMIT 1'
+    );
+    $existingStatement->execute([
+        ':id_modulo' => $idModulo,
+        ':id_paciente' => $idPaciente,
+    ]);
+    if ($existingStatement->fetchColumn() !== false) {
+    return array('resultado' => 200,'mensaje' => '¡El módulo ya estaba finalizado!');
+    }
+
+    $insertStatement = $this->bd->prepare(
+        'INSERT INTO pac_historia_clinica_finalizar (id_modulo, id_paciente)
+         VALUES (:id_modulo, :id_paciente)'
+    );
+    $insertStatement->execute([
+        ':id_modulo' => $idModulo,
+        ':id_paciente' => $idPaciente,
+    ]);
+    return array('resultado' => 200,'mensaje' => '¡Se finalizo el modulo correctamente!');
+    } finally {
+    $releaseStatement = $this->bd->prepare('SELECT RELEASE_LOCK(:lock_name)');
+    $releaseStatement->execute([':lock_name' => $lockName]);
+    }
+    }
+
+    //---------- FINALIZAR MODULO ----------
+    public function finalizarModulos($data){
+    $idModulo = (int) ($data['idModulo'] ?? 0);
+    $idPaciente = (int) ($data['idPaciente'] ?? 0);
+    if ($idModulo < 1 || $idPaciente < 1) {
+    return array('resultado' => 422,'mensaje' => 'Datos de finalización no válidos.');
+    }
+
+    $lockName = 'clinica_modulo_finalizacion_' . $idModulo . '_' . $idPaciente;
+    $lockStatement = $this->bd->prepare('SELECT GET_LOCK(:lock_name, 5)');
+    $lockStatement->execute([':lock_name' => $lockName]);
+    if ((int) $lockStatement->fetchColumn() !== 1) {
+    return array('resultado' => 409,'mensaje' => 'No fue posible confirmar la finalización.');
+    }
+
+    try {
+    $existingStatement = $this->bd->prepare(
+        'SELECT id FROM pac_historia_clinica_finalizar
+         WHERE id_modulo = :id_modulo AND id_paciente = :id_paciente
+         ORDER BY id ASC LIMIT 1'
+    );
+    $existingStatement->execute([
+        ':id_modulo' => $idModulo,
+        ':id_paciente' => $idPaciente,
+    ]);
+    if ($existingStatement->fetchColumn() !== false) {
+    return array('resultado' => 200,'mensaje' => '¡El módulo ya estaba finalizado!');
+    }
+
+    $insertStatement = $this->bd->prepare(
+        'INSERT INTO pac_historia_clinica_finalizar (id_modulo, id_paciente)
+         VALUES (:id_modulo, :id_paciente)'
+    );
+    $insertStatement->execute([
+        ':id_modulo' => $idModulo,
+        ':id_paciente' => $idPaciente,
+    ]);
+    return array('resultado' => 200,'mensaje' => '¡Se finalizo el modulo correctamente!');
+    } catch (\Throwable $exception) {
+    return array('resultado' => 500,'mensaje' => '¡Error al finalizar el modulo!');
+    } finally {
+    $releaseStatement = $this->bd->prepare('SELECT RELEASE_LOCK(:lock_name)');
+    $releaseStatement->execute([':lock_name' => $lockName]);
+    }
+    }
+
+    /**
+     * Resolve the next pending clinical module from the canonical catalog.
+     * The caller must authorize the patient before invoking this method.
+     */
+    public function siguienteModuloPendiente($idPaciente, $idModulo): ?string {
+    $catalogStatement = $this->bd->query(
+        'SELECT id, url FROM historia_clinica_modulos ORDER BY id ASC'
+    );
+    $catalog = $catalogStatement->fetchAll(\PDO::FETCH_ASSOC);
+
+    $finishedStatement = $this->bd->prepare(
+        'SELECT DISTINCT id_modulo FROM pac_historia_clinica_finalizar WHERE id_paciente = :id_paciente'
+    );
+    $finishedStatement->execute([':id_paciente' => $idPaciente]);
+    $finished = [];
+    foreach ($finishedStatement->fetchAll(\PDO::FETCH_COLUMN) as $finishedModule) {
+    $finished[(int) $finishedModule] = true;
+    }
+
+    $allowedSlugs = [
+    1 => 'ficha-identificiacion',
+    2 => 'antecedentes-familiares',
+    3 => 'antecedentes-personales-no-patologicos',
+    4 => 'antecedentes-personales-quirurgicos',
+    5 => 'antecedentes-personales-patologicos',
+    6 => 'medicacion-actual',
+    7 => 'medicacion-control-dolor',
+    8 => 'procedimientos-control-dolor',
+    9 => 'evaluacion-dolor',
+    ];
+
+    $currentModuleFound = false;
+    foreach ($catalog as $module) {
+    $moduleId = (int) $module['id'];
+    if (!$currentModuleFound) {
+    if ($moduleId === (int) $idModulo) $currentModuleFound = true;
+    continue;
+    }
+
+    if (isset($finished[$moduleId])) continue;
+
+    $slug = trim((string) ($module['url'] ?? ''));
+    if (!isset($allowedSlugs[$moduleId]) || $allowedSlugs[$moduleId] !== $slug) {
+    return null;
+    }
+
+    return '/historia-clinica/' . rawurlencode($slug) . '/paciente/' . rawurlencode((string) $idPaciente);
+    }
+
+    return null;
     }
 
  

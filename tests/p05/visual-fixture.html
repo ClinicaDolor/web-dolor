@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fixture visual P05</title>
+  <link rel="stylesheet" href="/public/assets/css/bootstrap.css">
+  <link rel="stylesheet" href="/public/assets/css/app.css?v=ui-parity-gate-01">
+  <style>
+    /* El fixture reproduce únicamente el shell ya renderizado por P04. */
+    @media (min-width: 1200px) {
+      #main { width: calc(100% - 276px); margin-left: 276px; }
+      /* A 1280 px el shell real conserva el ancho bajo el scrollbar vertical. */
+      @media (min-width: 1200px) and (max-width: 1399.98px) {
+        #main { width: calc(100% - 260px); }
+      }
+      #sidebar { position: fixed; inset: 0 auto 0 0; width: 276px; height: 100vh; overflow: hidden; background: #fff; z-index: 10; }
+      #sidebar .sidebar-wrapper { min-height: 100%; }
+    }
+    @media (max-width: 1199.98px) {
+      #sidebar { display: none; }
+    }
+  </style>
+</head>
+<body class="app-shell-body app-shell-patient patient-clinical-form patient-nonpathological-page">
+  <div id="app">
+    <aside id="sidebar" class="active" aria-label="Navegación principal">
+      <div class="sidebar-wrapper active">
+        <div class="sidebar-header"><div class="logo"><span>Clínica del Dolor</span></div></div>
+        <div class="sidebar-menu"><p class="menu-title">MENU</p><ul class="menu">
+          <li class="sidebar-item"><a href="#" class="sidebar-link"><span>Inicio</span></a></li>
+          <li class="sidebar-item active"><a href="#" class="sidebar-link"><span>Antecedentes personales no patológicos</span></a></li>
+          <li class="sidebar-item"><a href="#" class="sidebar-link"><span>Cerrar Sesión</span></a></li>
+        </ul></div>
+      </div>
+    </aside>
+    <div id="main">
+      <nav class="navbar navbar-header navbar-expand navbar-light portal-topbar" aria-label="Barra de herramientas del portal del paciente">
+        <a class="sidebar-toggler" href="#" aria-label="Abrir menú principal">☰</a>
+      </nav>
+      <main class="main-content container-fluid patient-nonpathological-content">
+        <header class="page-title portal-page-title patient-nonpathological-hero mb-4">
+          <div class="patient-nonpathological-hero-copy">
+            <p class="dashboard-eyebrow">MI HISTORIA CLÍNICA</p>
+            <h1>Antecedentes Personales No Patológicos</h1>
+            <p>Responde las preguntas sobre tus hábitos y antecedentes personales no patológicos.</p>
+            <span class="patient-nonpathological-context">Paciente: Paciente sintético de prueba</span>
+          </div>
+          <div class="patient-nonpathological-hero-actions">
+            <button type="button" class="btn patient-nonpathological-help" onclick="toggleInstructions(true)">¿Cómo llenar esta sección?</button>
+            <a class="btn patient-nonpathological-back" href="#">← Volver a mi Historia Clínica</a>
+          </div>
+        </header>
+        <section class="section patient-nonpathological-workspace" aria-label="Antecedentes Personales No Patológicos">
+          <section id="preguntas-container" class="card patient-nonpathological-card" aria-labelledby="patient-nonpathological-questions-title">
+            <div class="card-header patient-nonpathological-card-header">
+              <div class="patient-nonpathological-card-heading">
+                <div class="sectionQuestion patient-nonpathological-instruction-heading">
+                  <div>
+                    <p class="dashboard-eyebrow">ANTECEDENTES PERSONALES NO PATOLÓGICOS</p>
+                    <h2 id="patient-nonpathological-questions-title">Responde una pregunta a la vez</h2>
+                    <p class="patient-nonpathological-instruction texto">A continuación, responde las preguntas indicando si presentas alguna de estas conductas o hábitos.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="card-body patient-nonpathological-card-body">
+              <div class="patient-nonpathological-question-tools" aria-label="Controles de lectura de la pregunta">
+                <button type="button" class="btn patient-nonpathological-voice-button">🔊 Escuchar</button>
+                <button type="button" class="btn patient-nonpathological-voice-button">□ Detener</button>
+              </div>
+              <div class="patient-nonpathological-generated">
+                <div class="pregunta-container active" data-index="0">
+                  <h4 class="p05-question-habit"><span class="p05-question-habit-label">Nombre de la conducta o hábito:</span> <span class="p05-question-habit-name">Conducta sintética de prueba</span></h4>
+                  <div class="p05-question-prompt sectionQuestion mt-3 mb-1"><h8 class="texto"><b>¿Presenta esta conducta o hábito?</b></h8></div>
+                  <div class="d-flex flex-wrap gap-2">
+                    <div class="text-center d-flex flex-column align-items-center"><input type="radio" class="form-check-input custom-checkbox" name="fixture_answer" aria-label="Sí"><label><h5>Sí</h5></label></div>
+                    <div class="text-center d-flex flex-column align-items-center"><input type="radio" class="form-check-input custom-checkbox" name="fixture_answer" aria-label="No"><label><h5>No</h5></label></div>
+                  </div>
+                  <div class="mt-3 d-flex justify-content-between">
+                    <div></div><button type="button" class="btn btn-primary patient-nonpathological-next">Siguiente →</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+  </div>
+  <div id="p05InstructionsModal" class="modal fade patient-nonpathological-modal" tabindex="-1" role="dialog" aria-labelledby="p05InstructionsTitle" aria-modal="true" aria-hidden="true" style="display:none">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content patient-nonpathological-modal-content">
+      <div class="modal-header"><h2 id="p05InstructionsTitle" class="modal-title">Antes de comenzar: Antecedentes Personales No Patológicos</h2><button type="button" class="btn-close" aria-label="Cerrar instrucciones" onclick="toggleInstructions(false)"></button></div>
+      <div class="modal-body"><p id="p05InstructionsText">En esta sección responderás preguntas sobre tus hábitos y antecedentes personales no patológicos. Lee cada pregunta, elige la respuesta disponible y completa los campos adicionales cuando aparezcan. Usa Anterior y Siguiente para avanzar o revisar tus respuestas.</p><p class="patient-nonpathological-voice-prompt">Presiona Escuchar para oír las instrucciones.</p><p class="patient-nonpathological-modal-note">Tus respuestas se guardan mientras avanzas. Puedes cerrar esta ventana sin perder tu progreso.</p></div>
+      <div class="modal-footer patient-nonpathological-modal-actions"><button type="button" class="btn patient-nonpathological-secondary">🔊 Escuchar</button><button type="button" class="btn patient-nonpathological-secondary">□ Detener</button><button type="button" class="btn btn-primary" onclick="toggleInstructions(false)">Entendido, comenzar</button></div>
+    </div></div>
+  </div>
+  <script>
+    function toggleInstructions(open) {
+      const modal = document.getElementById('p05InstructionsModal');
+      modal.style.display = open ? 'block' : 'none';
+      modal.classList.toggle('show', open);
+      modal.setAttribute('aria-hidden', open ? 'false' : 'true');
+      document.body.classList.toggle('modal-open', open);
+    }
+  </script>
+</body>
+</html>

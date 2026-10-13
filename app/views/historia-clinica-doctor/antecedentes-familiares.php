@@ -1,13 +1,7 @@
 <?php 
-use App\Config\Database;
 use App\Models\AntecedenteFamiliarModel;
-$bd = Database::getInstance();
 
 $model = new AntecedenteFamiliarModel();
-$enfermedades_fijas = $model->enfermedadesFijas(); 
-foreach ($enfermedades_fijas as $enf) {
-echo $model->antecedentesFamiliares($data['idPaciente'], $enf);
-}
  
 $escape = static function ($value): string {
     return htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
@@ -166,8 +160,10 @@ $patientUrl = htmlspecialchars(SERVIDOR . 'clinica/paciente/' . $patientId, ENT_
 
     //---------- EDITAR ENFERMEDADES DEL PACIENTE ----------
     function editarEnfermedad(idEnfermedad, elemento, parametro, idRol, idUpdate = 0) {
+    const usuarioDiv = document.getElementById('main');
+    const idPaciente = usuarioDiv ? usuarioDiv.getAttribute('data-paciente') : '';
     gestionarEnfermedadPaciente(`/${idRol === "Paciente" ? "historia-clinica" : "clinica"}/paciente/editar-enfermedad-antecedentes`, {
-        idEnfermedad, detalle: elemento.value, edicion: parametro, idRol
+        idPaciente, idEnfermedad, detalle: elemento.value, edicion: parametro, idRol
     }, () => contenidoPreguntas(0),
     idUpdate);
     }

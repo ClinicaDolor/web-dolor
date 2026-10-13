@@ -1,0 +1,36 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+
+const read = (path) => fs.readFileSync(path, 'utf8');
+const view = read('app/views/historia-clinica-paciente/evaluacion-dolor.php');
+const doctorView = read('app/views/historia-clinica-doctor/evaluacion-dolor.php');
+const model = read('app/Models/EvaluacionDolorModel.php');
+const controller = read('app/Controllers/ModulosController.php');
+const searches = read('app/Controllers/BusquedasController.php');
+const routes = read('app/Config/routes.php');
+const css = read('public/assets/css/app.css');
+
+assert.match(view, /p11-pain-evaluation-page/);
+assert.match(view, /p11InstructionsModal[\s\S]*modal-dialog modal-dialog-centered/);
+assert.match(view, /SpeechSynthesisUtterance/);
+assert.match(view, /utterance\.lang = 'es-MX'/);
+assert.match(view, /pointerdown/);
+assert.match(view, /pointermove/);
+assert.match(view, /pointerup/);
+assert.match(view, /pointercancel/);
+assert.match(view, /const progressKey = 'p11:'/);
+assert.match(view, /idModulo: 9/);
+assert.match(view, /editar-img-frente-modulo9/);
+assert.match(view, /editar-img-espalda-modulo9/);
+assert.doesNotMatch(view, /cuestionarioModulo9\s*\(/);
+assert.doesNotMatch(doctorView, /imagenFrenteModulo9\s*\(/);
+assert.doesNotMatch(doctorView, /cuestionarioModulo9\s*\(/);
+assert.match(model, /function p11GuardarImagen/);
+assert.match(model, /function p11ActualizarEvaluacion/);
+assert.match(model, /WHERE id = :id AND id_paciente = :id_paciente/);
+assert.match(model, /function p11FinalizarModulo/);
+assert.match(controller, /function pacienteImagenEvaluacionDolor/);
+assert.match(searches, /p11MostrarMapa/);
+assert.match(routes, /imagen-evaluacion-dolor\/\{orientacion\}\/\{idPaciente\}/);
+assert.match(css, /p11-pain-evaluation-page/);
+console.log('P11 contract PASS');

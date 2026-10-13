@@ -1,24 +1,9 @@
 <?php
-use App\Config\Database;
 use App\Models\PacienteModulosModelo;
 use App\Models\AntecedentesPatologicosModel;
 
-$bd = Database::getInstance();
 $model2 = new PacienteModulosModelo();
 $model = new AntecedentesPatologicosModel();
-
-// Se conserva el contrato actual: ambos catálogos preparan respuestas faltantes
-// durante la carga. Estos efectos secundarios de GET quedan documentados y no
-// se ejecutan contra datos reales en esta actividad visual.
-$preguntas_fijas = $model->obtenerPreguntasModulos();
-foreach ($preguntas_fijas as $preg) {
-    echo $model->antecedentesPatologicos($data['idPaciente'], $preg);
-}
-
-$preguntas_enfermedad = $model->obtenerPreguntasModulosV2();
-foreach ($preguntas_enfermedad as $preg_enfermedad) {
-    echo $model->antecedentesPatologicosV2($data['idPaciente'], $preg_enfermedad);
-}
 
 $contenidoAntescedentesP1 = $model->editorTextoAP($data['idPaciente'], 1);
 $contenidoAntescedentesP2 = $model->editorTextoAP($data['idPaciente'], 2);

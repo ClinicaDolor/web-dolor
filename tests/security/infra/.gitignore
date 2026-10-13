@@ -1,0 +1,10 @@
+# Secrets must be supplied outside this repository.
+secrets/
+*.password
+*.secret
+*.key
+*.pem
+*.env
+mariadb-root-password
+*.pass
+*.passwd

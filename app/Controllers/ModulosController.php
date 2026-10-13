@@ -15,6 +15,7 @@ use App\Models\PacienteModel;
 use App\Helpers\Sidebar;
 use App\Controllers\SidebarController;
 use App\Core\HttpMethod;
+use App\Services\ClinicalSummarySecurity;
 
 class ModulosController extends BaseController {
 
@@ -303,26 +304,54 @@ class ModulosController extends BaseController {
 
     public function pacienteEditEnfermedad(){
     $data = json_decode(file_get_contents('php://input'), true);
-    $idRol = $data['idRol'];  // Obtener el idRol
-    $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
-            
-    $authMiddleware = new AuthMiddleware($view);
-    $auth = $authMiddleware->authPermisos();
-    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
-        
+
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo HttpMethod::jsonResponse(405, false, "Método no permitido. Usa POST.");
     return;
     }
+
+    if (!is_array($data)) {
+    echo HttpMethod::jsonResponse(422, false, 'Datos de actualización no válidos.');
+    return;
+    }
+
+    $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '';
+    if (strpos($requestPath, '/historia-clinica/paciente/') !== false) {
+    $view = 'historia-clinica';
+    } elseif (strpos($requestPath, '/clinica/paciente/') !== false) {
+    $view = 'clinica';
+    } else {
+    echo HttpMethod::jsonResponse(400, false, 'Contexto de actualización no válido.');
+    return;
+    }
+
+    $idPaciente = filter_var($data['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    $idEnfermedad = filter_var($data['idEnfermedad'] ?? 0, FILTER_VALIDATE_INT);
+    $edicion = filter_var($data['edicion'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 4]]);
+    if ($idPaciente === false || $idEnfermedad === false || $idEnfermedad < 0 || $edicion === false || !array_key_exists('detalle', $data)) {
+    echo HttpMethod::jsonResponse(422, false, 'Datos de actualización no válidos.');
+    return;
+    }
+
+    $data['idPaciente'] = $idPaciente;
+    $data['idEnfermedad'] = $idEnfermedad;
+    $data['enfermedad'] = is_scalar($data['enfermedad'] ?? null) ? (string)$data['enfermedad'] : '';
+    $data['edicion'] = $edicion;
+
+    $authMiddleware = new AuthMiddleware($view);
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($idPaciente, $auth);
             
     $model = new AntecedenteFamiliarModel();
     $resultModel = $model->editarEnfermedadPaciente($data);
         
     if ($resultModel['resultado'] == 200) {
     echo HttpMethod::jsonResponse(200,true,$resultModel['mensaje']);
+    } elseif ($resultModel['resultado'] == 403) {
+    echo HttpMethod::jsonResponse(403, false, 'No tienes autorización para actualizar esta respuesta.');
     } else {
-    echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
+    echo HttpMethod::jsonResponse(422, false, 'No se pudo actualizar la respuesta.');
     }
             
     }
@@ -356,158 +385,283 @@ class ModulosController extends BaseController {
    //----- 3. ANTECEDENTES NO PATOLOGICOS ----------
    public function pacienteEditarCuestionarioM3(){
     $data = json_decode(file_get_contents('php://input'), true);
-    $idRol = $data['idRol'];  // Obtener el idRol
-    $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
-            
-    $authMiddleware = new AuthMiddleware($view);
-    $auth = $authMiddleware->authPermisos();
-    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
-        
+
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo HttpMethod::jsonResponse(405, false, "Método no permitido. Usa POST.");
     return;
     }
-            
+
+    if (!is_array($data)) {
+    echo HttpMethod::jsonResponse(422, false, 'Datos de respuesta no válidos.');
+    return;
+    }
+
+    $idPaciente = filter_var($data['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    $idRespuesta = filter_var($data['idRespuesta'] ?? 0, FILTER_VALIDATE_INT);
+    $idPregunta = filter_var($data['idPregunta'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    $idTema = filter_var($data['idTema'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    $idTipo = $data['idTipo'] ?? null;
+    if ($idPaciente === false || $idRespuesta === false || $idRespuesta < 0 || $idPregunta === false || $idTema === false
+        || !in_array($idTipo, ['input', 'select'], true)
+        || !array_key_exists('detalle', $data)) {
+    echo HttpMethod::jsonResponse(422, false, 'Datos de respuesta no válidos.');
+    return;
+    }
+
+    $data['idPaciente'] = $idPaciente;
+    $data['idRespuesta'] = $idRespuesta;
+    $data['idPregunta'] = $idPregunta;
+    $data['idTema'] = $idTema;
+    $data['idTipo'] = $idTipo;
+    if (array_key_exists('expectedRespuesta', $data) && !is_scalar($data['expectedRespuesta'])) {
+    echo HttpMethod::jsonResponse(422, false, 'Valor previo no válido.');
+    return;
+    }
+
+    $csrfToken = $_SERVER['HTTP_X_M03_CSRF'] ?? ($data['csrf_token'] ?? null);
+    if (!ClinicalSummarySecurity::validCaptureCsrf((int)$idPaciente, is_scalar($csrfToken) ? (string)$csrfToken : null)) {
+    echo HttpMethod::jsonResponse(403, false, 'Token de seguridad inválido o ausente.');
+    return;
+    }
+
+    // El ámbito se resuelve por la ruta y la cookie autenticada; idRol del
+    // navegador sólo conserva compatibilidad con el contrato existente.
+    $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '';
+    if (strpos($requestPath, '/historia-clinica/paciente/') !== false) {
+    $view = 'historia-clinica';
+    } elseif (strpos($requestPath, '/clinica/paciente/') !== false) {
+    $view = 'clinica';
+    } else {
+    echo HttpMethod::jsonResponse(400, false, 'Contexto de actualización no válido.');
+    return;
+    }
+    $authMiddleware = new AuthMiddleware($view);
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($idPaciente, $auth);
+
     $model = new AntecedentesNoPatologicosModel();
     $resultModel = $model->editarCuestionarioModulo($data);
-        
+
     if ($resultModel['resultado'] == 200) {
     echo HttpMethod::jsonResponse(200,true,$resultModel['mensaje']);
+    } elseif ($resultModel['resultado'] == 403) {
+    echo HttpMethod::jsonResponse(403, false, 'No tienes autorización para actualizar esta respuesta.');
+    } elseif ($resultModel['resultado'] == 409) {
+    echo HttpMethod::jsonResponse(409, false, $resultModel['mensaje']);
     } else {
-    echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
+    echo HttpMethod::jsonResponse(422, false, $resultModel['mensaje']);
     }
-            
+
     }
     
     //---------- 4. ANTECEDENTES PERSONALES QUIRURGICOS ----------
     public function pacienteInsertCirugia(){
-    $data = json_decode(file_get_contents('php://input'), true);
-    $idRol = $data['idRol'];  // Obtener el idRol
-    $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
-                            
-    $authMiddleware = new AuthMiddleware($view);
-    $auth = $authMiddleware->authPermisos();
-    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
-    
+
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo HttpMethod::jsonResponse(405, false, "Método no permitido. Usa POST.");
     return;
     }
-    
+
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($data)) {
+    echo HttpMethod::jsonResponse(422, false, 'Datos de cirugía no válidos.');
+    return;
+    }
+
+    $idPaciente = filter_var($data['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    if ($idPaciente === false) {
+    echo HttpMethod::jsonResponse(422, false, 'Paciente no válido.');
+    return;
+    }
+
+    $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '';
+    $view = strpos($requestPath, '/historia-clinica/') !== false ? 'historia-clinica' : (strpos($requestPath, '/clinica/') !== false ? 'clinica' : null);
+    if ($view === null) {
+    echo HttpMethod::jsonResponse(400, false, 'Contexto de actualización no válido.');
+    return;
+    }
+
+    $authMiddleware = new AuthMiddleware($view);
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($idPaciente, $auth);
+    $data['idPaciente'] = $idPaciente;
+
     $model = new AntecedentesQuirurgicos();
     $resultModel = $model->agregarCirugiaPaciente($data);
-    
+
     if ($resultModel['resultado'] == 200) {
     echo HttpMethod::jsonResponse(200,true,$resultModel['mensaje']);
     } else {
-    echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
+    echo HttpMethod::jsonResponse(422, false, 'No se pudo agregar la cirugía.');
     }
-    
     }
 
     public function pacienteEditCirugia(){
-    $data = json_decode(file_get_contents('php://input'), true);
-    $idRol = $data['idRol'];  // Obtener el idRol
-    $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
-                        
-    $authMiddleware = new AuthMiddleware($view);
-    $auth = $authMiddleware->authPermisos();
-    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
-            
+
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo HttpMethod::jsonResponse(405, false, "Método no permitido. Usa POST.");
     return;
     }
-            
+
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($data)) {
+    echo HttpMethod::jsonResponse(422, false, 'Datos de actualización no válidos.');
+    return;
+    }
+
+    $idPaciente = filter_var($data['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    $idCirugia = filter_var($data['idCirugia'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    $edicion = filter_var($data['edicion'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 3]]);
+    if ($idPaciente === false || $idCirugia === false || $edicion === false || !array_key_exists('detalle', $data)) {
+    echo HttpMethod::jsonResponse(422, false, 'Datos de actualización no válidos.');
+    return;
+    }
+
+    $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '';
+    $view = strpos($requestPath, '/historia-clinica/') !== false ? 'historia-clinica' : (strpos($requestPath, '/clinica/') !== false ? 'clinica' : null);
+    if ($view === null) {
+    echo HttpMethod::jsonResponse(400, false, 'Contexto de actualización no válido.');
+    return;
+    }
+
+    $authMiddleware = new AuthMiddleware($view);
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($idPaciente, $auth);
+    $data['idPaciente'] = $idPaciente;
+    $data['idCirugia'] = $idCirugia;
+    $data['edicion'] = $edicion;
+
     $model = new AntecedentesQuirurgicos();
     $resultModel = $model->editarCirugiaPaciente($data);
-            
+
     if ($resultModel['resultado'] == 200) {
     echo HttpMethod::jsonResponse(200,true,$resultModel['mensaje']);
+    } elseif ($resultModel['resultado'] == 403) {
+    echo HttpMethod::jsonResponse(403, false, 'No tienes autorización para actualizar esta cirugía.');
     } else {
-    echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
+    echo HttpMethod::jsonResponse(422, false, 'No se pudo actualizar la cirugía.');
     }
-            
     }
  
     public function pacienteDeleteCirugia(){
-    $data = json_decode(file_get_contents('php://input'), true);
-    $idRol = $data['idRol'];  // Obtener el idRol
-    $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
-                    
-    $authMiddleware = new AuthMiddleware($view);
-    $auth = $authMiddleware->authPermisos();
-    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
-        
+
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo HttpMethod::jsonResponse(405, false, "Método no permitido. Usa POST.");
     return;
     }
-        
+
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($data)) {
+    echo HttpMethod::jsonResponse(422, false, 'Datos de eliminación no válidos.');
+    return;
+    }
+
+    $idPaciente = filter_var($data['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    $idQuirurgico = filter_var($data['idQuirurgico'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    if ($idPaciente === false || $idQuirurgico === false) {
+    echo HttpMethod::jsonResponse(422, false, 'Datos de eliminación no válidos.');
+    return;
+    }
+
+    $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '';
+    $view = strpos($requestPath, '/historia-clinica/') !== false ? 'historia-clinica' : (strpos($requestPath, '/clinica/') !== false ? 'clinica' : null);
+    if ($view === null) {
+    echo HttpMethod::jsonResponse(400, false, 'Contexto de eliminación no válido.');
+    return;
+    }
+
+    $authMiddleware = new AuthMiddleware($view);
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($idPaciente, $auth);
+    $data['idPaciente'] = $idPaciente;
+    $data['idQuirurgico'] = $idQuirurgico;
+
     $model = new AntecedentesQuirurgicos();
     $resultModel = $model->eliminarCirugiaPaciente($data);
-        
-     if ($resultModel['resultado'] == 200) {
+
+    if ($resultModel['resultado'] == 200) {
     echo HttpMethod::jsonResponse(200,true,$resultModel['mensaje']);
+    } elseif ($resultModel['resultado'] == 403) {
+    echo HttpMethod::jsonResponse(403, false, 'No tienes autorización para eliminar esta cirugía.');
     } else {
-    echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
+    echo HttpMethod::jsonResponse(422, false, 'No se pudo eliminar la cirugía.');
     }
-        
     }
     
    //----- 5. ANTECEDENTES PATOLOGICOS ----------
    public function pacienteEditarCuestionarioV1M5(){
     $data = json_decode(file_get_contents('php://input'), true);
-    $idRol = $data['idRol'];  // Obtener el idRol
-    $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
+     if (!is_array($data) || ($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+     header('Content-Type: application/json');
+     echo HttpMethod::jsonResponse(405, false, "Método no permitido. Usa POST.");
+     return;
+     }
+     $idPaciente = filter_var($data['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+     if ($idPaciente === false) {
+     header('Content-Type: application/json');
+     echo HttpMethod::jsonResponse(422, false, 'Datos de paciente no válidos.');
+     return;
+     }
+     $path = (string)parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
+     $view = str_starts_with($path, '/historia-clinica/') ? 'historia-clinica' : 'clinica';
+     $data['idPaciente'] = $idPaciente;
+    $data['idPregunta'] = (int)($data['idPregunta'] ?? 0);
+     $data['idRol'] = $view === 'historia-clinica' ? 'Paciente' : 'Doctor';
             
     $authMiddleware = new AuthMiddleware($view);
     $auth = $authMiddleware->authPermisos();
-    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
+     $authMiddleware->assertPatientAccess($idPaciente, $auth);
     header('Content-Type: application/json');
-        
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo HttpMethod::jsonResponse(405, false, "Método no permitido. Usa POST.");
-    return;
-    }
             
     $model = new AntecedentesPatologicosModel();
     $resultModel = $model->editarCuestionarioV1Modulo($data);
         
     if ($resultModel['resultado'] == 200) {
     echo HttpMethod::jsonResponse(200,true,$resultModel['mensaje']);
-    } else {
-    echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
+     } elseif (($resultModel['resultado'] ?? 0) == 403) {
+     echo HttpMethod::jsonResponse(403, false, 'No tienes autorización para actualizar esta respuesta.');
+     } else {
+     echo HttpMethod::jsonResponse(422, false, $resultModel['mensaje']);
     }
             
     }
 
    public function pacienteEditarCuestionarioV2M5(){
     $data = json_decode(file_get_contents('php://input'), true);
-    $idRol = $data['idRol'];  // Obtener el idRol
-    $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
+     if (!is_array($data) || ($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+     header('Content-Type: application/json');
+     echo HttpMethod::jsonResponse(405, false, "Método no permitido. Usa POST.");
+     return;
+     }
+     $idPaciente = filter_var($data['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+     if ($idPaciente === false) {
+     header('Content-Type: application/json');
+     echo HttpMethod::jsonResponse(422, false, 'Datos de paciente no válidos.');
+     return;
+     }
+     $path = (string)parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
+     $view = str_starts_with($path, '/historia-clinica/') ? 'historia-clinica' : 'clinica';
+     $data['idPaciente'] = $idPaciente;
+     $data['idRol'] = $view === 'historia-clinica' ? 'Paciente' : 'Doctor';
             
     $authMiddleware = new AuthMiddleware($view);
     $auth = $authMiddleware->authPermisos();
-    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
+     $authMiddleware->assertPatientAccess($idPaciente, $auth);
     header('Content-Type: application/json');
-        
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo HttpMethod::jsonResponse(405, false, "Método no permitido. Usa POST.");
-    return;
-    }
             
     $model = new AntecedentesPatologicosModel();
     $resultModel = $model->editarCuestionarioV2Modulo($data);
         
     if ($resultModel['resultado'] == 200) {
     echo HttpMethod::jsonResponse(200,true,$resultModel['mensaje']);
-    } else {
-    echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
+     } elseif (($resultModel['resultado'] ?? 0) == 403) {
+     echo HttpMethod::jsonResponse(403, false, 'No tienes autorización para actualizar esta enfermedad.');
+     } else {
+     echo HttpMethod::jsonResponse(422, false, $resultModel['mensaje']);
     }
             
     }
@@ -516,26 +670,33 @@ class ModulosController extends BaseController {
    public function pacienteInsertMedicamento(){
 
     $data = json_decode(file_get_contents('php://input'), true);
-    $idRol = $data['idRol'];  // Obtener el idRol
-    $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
-                    
-    $authMiddleware = new AuthMiddleware($view);
-    $auth = $authMiddleware->authPermisos();
-    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
-        
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo HttpMethod::jsonResponse(405, false, "Método no permitido. Usa POST.");
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !is_array($data)) {
+    echo HttpMethod::jsonResponse(422, false, 'Datos de medicación no válidos.');
     return;
     }
-          
-    $model = new MedicacionActualModel();
-    $resultModel = $model->agregarMedicacionPaciente($data);
-        
-     if ($resultModel['resultado'] == 200) {
-    echo HttpMethod::jsonResponse(200,true,$resultModel['mensaje']);
-    } else {
-    echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
+    $path = (string)parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
+    $view = str_starts_with($path, '/historia-clinica/') ? 'historia-clinica' : (str_starts_with($path, '/clinica/') ? 'clinica' : '');
+    if ($view === '') {
+    echo HttpMethod::jsonResponse(400, false, 'Contexto de medicación no válido.');
+    return;
+    }
+    $idPaciente = filter_var($data['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    if ($idPaciente === false) {
+    echo HttpMethod::jsonResponse(422, false, 'Datos de paciente no válidos.');
+    return;
+    }
+    $data['idPaciente'] = $idPaciente;
+    $authMiddleware = new AuthMiddleware($view);
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($idPaciente, $auth);
+    try {
+    $resultModel = (new MedicacionActualModel())->agregarMedicacionPaciente($data);
+    $status = (int)($resultModel['resultado'] ?? 500);
+    echo HttpMethod::jsonResponse($status === 200 ? 200 : ($status === 403 ? 403 : 422), $status === 200, $resultModel['mensaje'] ?? 'No se pudo agregar el medicamento.');
+    } catch (\Throwable $exception) {
+    http_response_code(500);
+    echo HttpMethod::jsonResponse(500, false, 'No se pudo agregar el medicamento. Inténtalo nuevamente.');
     }
 
    }
@@ -543,52 +704,72 @@ class ModulosController extends BaseController {
    
    public function pacienteEditMedicamento(){
     $data = json_decode(file_get_contents('php://input'), true);
-    $idRol = $data['idRol'];  // Obtener el idRol
-    $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
-                            
-    $authMiddleware = new AuthMiddleware($view);
-    $auth = $authMiddleware->authPermisos();
-    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
-                
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo HttpMethod::jsonResponse(405, false, "Método no permitido. Usa POST.");
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !is_array($data)) {
+    echo HttpMethod::jsonResponse(422, false, 'Datos de medicación no válidos.');
     return;
     }
-                
-    $model = new MedicacionActualModel();
-    $resultModel = $model->editarMedicamentoPaciente($data);
-                
-    if ($resultModel['resultado'] == 200) {
-    echo HttpMethod::jsonResponse(200,true,$resultModel['mensaje']);
-    } else {
-    echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
+    $path = (string)parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
+    $view = str_starts_with($path, '/historia-clinica/') ? 'historia-clinica' : (str_starts_with($path, '/clinica/') ? 'clinica' : '');
+    if ($view === '') {
+    echo HttpMethod::jsonResponse(400, false, 'Contexto de medicación no válido.');
+    return;
+    }
+    $idPaciente = filter_var($data['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    $idMedicamento = filter_var($data['idMedicamento'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    if ($idPaciente === false || $idMedicamento === false) {
+    echo HttpMethod::jsonResponse(422, false, 'Datos de medicación no válidos.');
+    return;
+    }
+    $data['idPaciente'] = $idPaciente;
+    $data['idMedicamento'] = $idMedicamento;
+    $authMiddleware = new AuthMiddleware($view);
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($idPaciente, $auth);
+    try {
+    $resultModel = (new MedicacionActualModel())->editarMedicamentoPaciente($data);
+    $status = (int)($resultModel['resultado'] ?? 500);
+    $httpStatus = $status === 200 ? 200 : ($status === 403 ? 403 : 422);
+    echo HttpMethod::jsonResponse($httpStatus, $status === 200, $resultModel['mensaje'] ?? 'No se pudo guardar la medicación.');
+    } catch (\Throwable $exception) {
+    http_response_code(500);
+    echo HttpMethod::jsonResponse(500, false, 'No se pudo guardar la medicación. Inténtalo nuevamente.');
     }
                 
     }
 
    public function pacienteDeleteMedicamento(){
     $data = json_decode(file_get_contents('php://input'), true);
-    $idRol = $data['idRol'];  // Obtener el idRol
-    $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
-                    
-    $authMiddleware = new AuthMiddleware($view);
-    $auth = $authMiddleware->authPermisos();
-    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
-        
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo HttpMethod::jsonResponse(405, false, "Método no permitido. Usa POST.");
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !is_array($data)) {
+    echo HttpMethod::jsonResponse(422, false, 'Datos de medicación no válidos.');
     return;
     }
-        
-    $model = new MedicacionActualModel();
-    $resultModel = $model->eliminarMedicamentoPaciente($data);
-        
-     if ($resultModel['resultado'] == 200) {
-    echo HttpMethod::jsonResponse(200,true,$resultModel['mensaje']);
-    } else {
-    echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
+    $path = (string)parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
+    $view = str_starts_with($path, '/historia-clinica/') ? 'historia-clinica' : (str_starts_with($path, '/clinica/') ? 'clinica' : '');
+    if ($view === '') {
+    echo HttpMethod::jsonResponse(400, false, 'Contexto de medicación no válido.');
+    return;
+    }
+    $idPaciente = filter_var($data['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    $idMedicamento = filter_var($data['idMedicamento'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    if ($idPaciente === false || $idMedicamento === false) {
+    echo HttpMethod::jsonResponse(422, false, 'Datos de medicación no válidos.');
+    return;
+    }
+    $data['idPaciente'] = $idPaciente;
+    $data['idMedicamento'] = $idMedicamento;
+    $authMiddleware = new AuthMiddleware($view);
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($idPaciente, $auth);
+    try {
+    $resultModel = (new MedicacionActualModel())->eliminarMedicamentoPaciente($data);
+    $status = (int)($resultModel['resultado'] ?? 500);
+    $httpStatus = $status === 200 ? 200 : ($status === 403 ? 403 : 422);
+    echo HttpMethod::jsonResponse($httpStatus, $status === 200, $resultModel['mensaje'] ?? 'No se pudo eliminar el medicamento.');
+    } catch (\Throwable $exception) {
+    http_response_code(500);
+    echo HttpMethod::jsonResponse(500, false, 'No se pudo eliminar el medicamento. Inténtalo nuevamente.');
     }
         
     }
@@ -596,271 +777,257 @@ class ModulosController extends BaseController {
 
     //----- 7. MEDICACION PARA CONTROLAR EL DOLOR  ----------
     public function pacienteEditarCuestionarioM7(){
-    $data = json_decode(file_get_contents('php://input'), true);
-    $idRol = $data['idRol'];  // Obtener el idRol
-    $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
-                                
-    $authMiddleware = new AuthMiddleware($view);
-    $auth = $authMiddleware->authPermisos();
-    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
-                    
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo HttpMethod::jsonResponse(405, false, "Método no permitido. Usa POST.");
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+    echo HttpMethod::jsonResponse(405, false, 'Método no permitido. Usa POST.');
     return;
     }
-                    
-    $model = new MedicacionDolorModel();
-    $resultModel = $model->editarCuestionarioM7Paciente($data);
-                    
-    if ($resultModel['resultado'] == 200) {
-    echo HttpMethod::jsonResponse(200,true,$resultModel['mensaje']);
-    } else {
-    echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
+
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($data)) {
+    echo HttpMethod::jsonResponse(422, false, 'Datos de respuesta no válidos.');
+    return;
     }
-                    
+    $idPaciente = filter_var($data['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    if ($idPaciente === false) {
+    echo HttpMethod::jsonResponse(422, false, 'Datos de paciente no válidos.');
+    return;
+    }
+    $path = (string)(parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '');
+    if (strpos($path, '/historia-clinica/') !== false) {
+    $view = 'historia-clinica';
+    $data['idRol'] = 'Paciente';
+    } elseif (strpos($path, '/clinica/') !== false) {
+    $view = 'clinica';
+    $data['idRol'] = 'Doctor';
+    } else {
+    echo HttpMethod::jsonResponse(400, false, 'Contexto de actualización no válido.');
+    return;
+    }
+    $data['idPaciente'] = $idPaciente;
+
+    try {
+    $authMiddleware = new AuthMiddleware($view);
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($idPaciente, $auth);
+    $resultModel = (new MedicacionDolorModel())->editarCuestionarioM7Paciente($data);
+    $status = (int)($resultModel['resultado'] ?? 422);
+    $httpStatus = $status === 200 ? 200 : ($status === 403 ? 403 : 422);
+    echo HttpMethod::jsonResponse($httpStatus, $status === 200, $resultModel['mensaje'] ?? 'No se pudo actualizar la respuesta.', '', ['idRespuesta' => (int)($resultModel['idRespuesta'] ?? 0), 'sin_cambios' => (bool)($resultModel['sin_cambios'] ?? false)]);
+    } catch (\Throwable $exception) {
+    http_response_code(500);
+    echo HttpMethod::jsonResponse(500, false, 'No se pudo actualizar la respuesta. Inténtalo nuevamente.');
+    }
     }
 
     //---------- 8. PROCEFIMIENTOS PARA CONTROLAR EL DOLOR ----------
-    public function pacienteInsertProcedimientos(){
+    private function p10Payload(): array
+    {
+        $payload = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($payload)) {
+            throw new \InvalidArgumentException('Datos no válidos.');
+        }
 
-    $data = json_decode(file_get_contents('php://input'), true);
-    $idRol = $data['idRol'];  // Obtener el idRol
-    $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
-                    
-    $authMiddleware = new AuthMiddleware($view);
-    $auth = $authMiddleware->authPermisos();
-    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
+        $idPaciente = filter_var($payload['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if ($idPaciente === false) {
+            throw new \InvalidArgumentException('Datos no válidos.');
+        }
+
+        // The session determines the role and clinic. idRol from the browser
+        // is intentionally ignored for authorization and rendering decisions.
+        $guard = new AuthMiddleware('');
+        $auth = $guard->authAny();
+        $guard->assertPatientAccess($idPaciente, $auth);
+        $payload['idPaciente'] = (int) $idPaciente;
+        $payload['idRolReal'] = (($auth['vista'] ?? '') === 'historia-clinica') ? 'Paciente' : 'Doctor';
+        return $payload;
+    }
+
+    private function p10HandleError(\Throwable $exception): void
+    {
+        // Technical details stay in the server log; the client receives only
+        // a stable, actionable message.
+        error_log('[P10] operación no completada: ' . get_class($exception));
+        echo HttpMethod::jsonResponse(500, false, 'No se pudo completar la operación. Inténtalo nuevamente.');
+    }
+
+    public function pacienteInsertProcedimientos(){
     header('Content-Type: application/json');
-        
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo HttpMethod::jsonResponse(405, false, "Método no permitido. Usa POST.");
-    return;
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') { echo HttpMethod::jsonResponse(405, false, 'Método no permitido.'); return; }
+    try {
+        $data = $this->p10Payload();
+        $resultModel = (new ProcedimientosDolorModel())->p10AgregarProcedimiento($data);
+        echo HttpMethod::jsonResponse($resultModel['resultado'] === 200 ? 200 : $resultModel['resultado'], $resultModel['resultado'] === 200, $resultModel['mensaje']);
+    } catch (\InvalidArgumentException $exception) {
+        echo HttpMethod::jsonResponse(422, false, 'Datos de procedimiento no válidos.');
+    } catch (\Throwable $exception) {
+        $this->p10HandleError($exception);
     }
-          
-    $model = new ProcedimientosDolorModel();
-    $resultModel = $model->agregarProcedimientosPaciente($data);
-        
-     if ($resultModel['resultado'] == 200) {
-    echo HttpMethod::jsonResponse(200,true,$resultModel['mensaje']);
-    } else {
-    echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
-    }
-       
     }
 
     
     public function pacienteEditProcedimiento(){
-    $data = json_decode(file_get_contents('php://input'), true);
-    $idRol = $data['idRol'];  // Obtener el idRol
-    $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
-                            
-    $authMiddleware = new AuthMiddleware($view);
-    $auth = $authMiddleware->authPermisos();
-    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
-                
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo HttpMethod::jsonResponse(405, false, "Método no permitido. Usa POST.");
-    return;
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') { echo HttpMethod::jsonResponse(405, false, 'Método no permitido.'); return; }
+    try {
+        $data = $this->p10Payload();
+        $resultModel = (new ProcedimientosDolorModel())->p10EditarProcedimiento($data);
+        $status = (int) $resultModel['resultado'];
+        echo HttpMethod::jsonResponse($status === 200 ? 200 : $status, $status === 200, $resultModel['mensaje']);
+    } catch (\InvalidArgumentException $exception) {
+        echo HttpMethod::jsonResponse(422, false, 'Datos de procedimiento no válidos.');
+    } catch (\Throwable $exception) {
+        $this->p10HandleError($exception);
     }
-                
-    $model = new ProcedimientosDolorModel();
-    $resultModel = $model->editarProcedimientoPaciente($data);
-                
-    if ($resultModel['resultado'] == 200) {
-    echo HttpMethod::jsonResponse(200,true,$resultModel['mensaje']);
-    } else {
-    echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
-    }
-                
     }
 
     public function pacienteDeleteProcedimiento(){
-    $data = json_decode(file_get_contents('php://input'), true);
-    $idRol = $data['idRol'];  // Obtener el idRol
-    $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
-                        
-    $authMiddleware = new AuthMiddleware($view);
-    $auth = $authMiddleware->authPermisos();
-    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
-            
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo HttpMethod::jsonResponse(405, false, "Método no permitido. Usa POST.");
-    return;
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') { echo HttpMethod::jsonResponse(405, false, 'Método no permitido.'); return; }
+    try {
+        $data = $this->p10Payload();
+        $resultModel = (new ProcedimientosDolorModel())->p10EliminarProcedimiento($data);
+        $status = (int) $resultModel['resultado'];
+        echo HttpMethod::jsonResponse($status === 200 ? 200 : $status, $status === 200, $resultModel['mensaje']);
+    } catch (\InvalidArgumentException $exception) {
+        echo HttpMethod::jsonResponse(422, false, 'Datos de procedimiento no válidos.');
+    } catch (\Throwable $exception) {
+        $this->p10HandleError($exception);
     }
-
-    $model = new ProcedimientosDolorModel();
-    $resultModel = $model->eliminarProcedimientoPaciente($data);
-            
-    if ($resultModel['resultado'] == 200) {
-    echo HttpMethod::jsonResponse(200,true,$resultModel['mensaje']);
-    } else {
-    echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
-    }
-            
     }
 
     
 
     public function pacienteEditTratamiento(){
-    $data = json_decode(file_get_contents('php://input'), true);
-    $idRol = $data['idRol'];  // Obtener el idRol
-    $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
-                                
-    $authMiddleware = new AuthMiddleware($view);
-    $auth = $authMiddleware->authPermisos();
-    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
-                    
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo HttpMethod::jsonResponse(405, false, "Método no permitido. Usa POST.");
-    return;
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') { echo HttpMethod::jsonResponse(405, false, 'Método no permitido.'); return; }
+    try {
+        $data = $this->p10Payload();
+        $resultModel = (new ProcedimientosDolorModel())->p10EditarTratamiento($data);
+        $status = (int) $resultModel['resultado'];
+        echo HttpMethod::jsonResponse($status === 200 ? 200 : $status, $status === 200, $resultModel['mensaje']);
+    } catch (\InvalidArgumentException $exception) {
+        echo HttpMethod::jsonResponse(422, false, 'Datos de tratamiento no válidos.');
+    } catch (\Throwable $exception) {
+        $this->p10HandleError($exception);
     }
-                    
-    $model = new ProcedimientosDolorModel();
-    $resultModel = $model->editarTratamientoPaciente($data);
-                    
-    if ($resultModel['resultado'] == 200) {
-    echo HttpMethod::jsonResponse(200,true,$resultModel['mensaje']);
-    } else {
-    echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
-    }
-                    
     }
 
     //---------- 9. EVALUACION DEL DOLOR ----------
-    public function pacienteEditImgED1(){
-    $data = json_decode(file_get_contents('php://input'), true);
-    $idRol = $data['idRol'];  // Obtener el idRol
-    $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
-                                    
-    $authMiddleware = new AuthMiddleware($view);
-    $auth = $authMiddleware->authPermisos();
-    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
-    header('Content-Type: application/json');
-                        
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo HttpMethod::jsonResponse(405, false, "Método no permitido. Usa POST.");
+    private function p11Payload(): array
+    {
+    $payload = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($payload)) {
+    throw new \InvalidArgumentException('Datos no válidos.');
+    }
+    $idPaciente = filter_var($payload['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    if ($idPaciente === false) {
+    throw new \InvalidArgumentException('Datos no válidos.');
+    }
+    $guard = new AuthMiddleware('');
+    $auth = $guard->authAny();
+    $guard->assertPatientAccess($idPaciente, $auth);
+    $payload['idPaciente'] = (int) $idPaciente;
+    $payload['idRolReal'] = (($auth['vista'] ?? '') === 'historia-clinica') ? 'Paciente' : 'Doctor';
+    return $payload;
+    }
+
+    private function p11Error(\Throwable $exception): void
+    {
+    error_log('[P11] operación no completada: ' . get_class($exception));
+    echo HttpMethod::jsonResponse(500, false, 'No se pudo completar la operación. Inténtalo nuevamente.');
+    }
+
+    public function pacienteImagenEvaluacionDolor($orientacion, $idPaciente): void
+    {
+    $guard = new AuthMiddleware('');
+    $auth = $guard->authAny();
+    $idPaciente = filter_var($idPaciente, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    if ($idPaciente === false || !in_array($orientacion, ['frente', 'espalda'], true)) {
+    http_response_code(404);
     return;
     }
-                        
-    $model = new EvaluacionDolorModel();
-    $resultModel = $model->editarImgFrente($data);
-                        
-    if ($resultModel['resultado'] == 200) {
-    echo HttpMethod::jsonResponse(200,true,$resultModel['mensaje']);
-    } else {
-    echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
+    $guard->assertPatientAccess($idPaciente, $auth);
+    $path = (new EvaluacionDolorModel())->p11ImagePath((int) $idPaciente, $orientacion);
+    if (!$path || !is_file($path)) {
+    http_response_code(404);
+    return;
     }
-                        
+    header('Content-Type: image/png');
+    header('Cache-Control: private, no-store, max-age=0');
+    header('X-Content-Type-Options: nosniff');
+    readfile($path);
+    }
+
+    public function pacienteEditImgED1(){
+    header('Content-Type: application/json');
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') { echo HttpMethod::jsonResponse(405, false, 'Método no permitido.'); return; }
+    try {
+    $data = $this->p11Payload();
+    $result = (new EvaluacionDolorModel())->p11GuardarImagen($data['idPaciente'], 'frente', (string) ($data['imgFrente'] ?? ''));
+    $status = (int) ($result['resultado'] ?? 422);
+    echo HttpMethod::jsonResponse($status === 200 ? 200 : $status, $status === 200, $result['mensaje']);
+    } catch (\InvalidArgumentException $exception) {
+    echo HttpMethod::jsonResponse(422, false, 'Datos de imagen no válidos.');
+    } catch (\Throwable $exception) { $this->p11Error($exception); }
     }
 
     public function pacienteDeleteImgED1(){
-    $data = json_decode(file_get_contents('php://input'), true);
-    $idRol = $data['idRol'];  // Obtener el idRol
-    $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
-                                        
-    $authMiddleware = new AuthMiddleware($view);
-    $auth = $authMiddleware->authPermisos();
-    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
-                            
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo HttpMethod::jsonResponse(405, false, "Método no permitido. Usa POST.");
-    return;
-    }
-                            
-    $model = new EvaluacionDolorModel();
-    $resultModel = $model->eliminarImgFrente($data);
-                            
-    if ($resultModel['resultado'] == 200) {
-    echo HttpMethod::jsonResponse(200,true,$resultModel['mensaje']);
-    } else {
-    echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
-    }
-                            
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') { echo HttpMethod::jsonResponse(405, false, 'Método no permitido.'); return; }
+    try {
+    $data = $this->p11Payload();
+    $result = (new EvaluacionDolorModel())->p11LimpiarImagen($data['idPaciente'], 'frente');
+    $status = (int) ($result['resultado'] ?? 422);
+    echo HttpMethod::jsonResponse($status === 200 ? 200 : $status, $status === 200, $result['mensaje']);
+    } catch (\InvalidArgumentException $exception) {
+    echo HttpMethod::jsonResponse(422, false, 'Datos de imagen no válidos.');
+    } catch (\Throwable $exception) { $this->p11Error($exception); }
     }
 
     public function pacienteEditImgED2(){
-        $data = json_decode(file_get_contents('php://input'), true);
-        $idRol = $data['idRol'];  // Obtener el idRol
-        $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
-                                        
-        $authMiddleware = new AuthMiddleware($view);
-        $auth = $authMiddleware->authPermisos();
-        $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
-        header('Content-Type: application/json');
-                            
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        echo HttpMethod::jsonResponse(405, false, "Método no permitido. Usa POST.");
-        return;
-        }
-                            
-        $model = new EvaluacionDolorModel();
-        $resultModel = $model->editarImgEspalda($data);
-                            
-        if ($resultModel['resultado'] == 200) {
-        echo HttpMethod::jsonResponse(200,true,$resultModel['mensaje']);
-        } else {
-        echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
-        }
-                            
-        }
-    
-        public function pacienteDeleteImgED2(){
-        $data = json_decode(file_get_contents('php://input'), true);
-        $idRol = $data['idRol'];  // Obtener el idRol
-        $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
-                                            
-        $authMiddleware = new AuthMiddleware($view);
-        $auth = $authMiddleware->authPermisos();
-        $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
-        header('Content-Type: application/json');
-                                
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        echo HttpMethod::jsonResponse(405, false, "Método no permitido. Usa POST.");
-        return;
-        }
-                                
-    $model = new EvaluacionDolorModel();
-    $resultModel = $model->eliminarImgEspalda($data);
-                                
-    if ($resultModel['resultado'] == 200) {
-    echo HttpMethod::jsonResponse(200,true,$resultModel['mensaje']);
-    } else {
-    echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
+    header('Content-Type: application/json');
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') { echo HttpMethod::jsonResponse(405, false, 'Método no permitido.'); return; }
+    try {
+    $data = $this->p11Payload();
+    $result = (new EvaluacionDolorModel())->p11GuardarImagen($data['idPaciente'], 'espalda', (string) ($data['imgEspalda'] ?? ''));
+    $status = (int) ($result['resultado'] ?? 422);
+    echo HttpMethod::jsonResponse($status === 200 ? 200 : $status, $status === 200, $result['mensaje']);
+    } catch (\InvalidArgumentException $exception) {
+    echo HttpMethod::jsonResponse(422, false, 'Datos de imagen no válidos.');
+    } catch (\Throwable $exception) { $this->p11Error($exception); }
     }
-                                
+
+    public function pacienteDeleteImgED2(){
+    header('Content-Type: application/json');
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') { echo HttpMethod::jsonResponse(405, false, 'Método no permitido.'); return; }
+    try {
+    $data = $this->p11Payload();
+    $result = (new EvaluacionDolorModel())->p11LimpiarImagen($data['idPaciente'], 'espalda');
+    $status = (int) ($result['resultado'] ?? 422);
+    echo HttpMethod::jsonResponse($status === 200 ? 200 : $status, $status === 200, $result['mensaje']);
+    } catch (\InvalidArgumentException $exception) {
+    echo HttpMethod::jsonResponse(422, false, 'Datos de imagen no válidos.');
+    } catch (\Throwable $exception) { $this->p11Error($exception); }
     }
 
 
 
     public function pacienteEditEvaluacion(){
-    $data = json_decode(file_get_contents('php://input'), true);
-    $idRol = $data['idRol'];  // Obtener el idRol
-    $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
-                                            
-    $authMiddleware = new AuthMiddleware($view);
-    $auth = $authMiddleware->authPermisos();
-    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
-                                
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo HttpMethod::jsonResponse(405, false, "Método no permitido. Usa POST.");
-    return;
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') { echo HttpMethod::jsonResponse(405, false, 'Método no permitido.'); return; }
+    try {
+    $data = $this->p11Payload();
+    $changes = $data['changes'] ?? [];
+    if (!is_array($changes) && isset($data['edicion'])) {
+    $changes = [(int) $data['edicion'] => $data['detalle'] ?? ''];
     }
-                                
-    $model = new EvaluacionDolorModel();
-    $resultModel = $model->editarEvaluacion($data);
-                                
-    if ($resultModel['resultado'] == 200) {
-    echo HttpMethod::jsonResponse(200,true,$resultModel['mensaje']);
-    } else {
-    echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
-    }
-                                
+    $result = (new EvaluacionDolorModel())->p11ActualizarEvaluacion($data['idPaciente'], $changes);
+    $status = (int) ($result['resultado'] ?? 422);
+    echo HttpMethod::jsonResponse($status === 200 ? 200 : $status, $status === 200, $result['mensaje']);
+    } catch (\InvalidArgumentException $exception) {
+    echo HttpMethod::jsonResponse(422, false, 'Datos de evaluación no válidos.');
+    } catch (\Throwable $exception) { $this->p11Error($exception); }
     }
 
 
@@ -894,19 +1061,42 @@ class ModulosController extends BaseController {
     //---------- COMENTARIOS MODULO ----------
     public function pacienteComentarioModulo(){
     $data = json_decode(file_get_contents('php://input'), true);
-    $idRol = $data['idRol'];  // Obtener el idRol
-    $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
-                
-    $authMiddleware = new AuthMiddleware($view);
-    $auth = $authMiddleware->authPermisos();
-    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
-        
+
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo HttpMethod::jsonResponse(405, false, "Método no permitido. Usa POST.");
     return;
     }
-        
+
+    if (!is_array($data)) {
+    echo HttpMethod::jsonResponse(422, false, 'Datos de comentario no válidos.');
+    return;
+    }
+
+    $idPaciente = filter_var($data['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    $idModulo = filter_var($data['idModulo'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    if ($idPaciente === false || $idModulo === false || !array_key_exists('comentarioModulos', $data)) {
+    echo HttpMethod::jsonResponse(422, false, 'Datos de comentario no válidos.');
+    return;
+    }
+
+    $data['idPaciente'] = $idPaciente;
+    $data['idModulo'] = $idModulo;
+    // El rol recibido se conserva para compatibilidad, pero nunca decide el
+    // ámbito de autorización de la petición.
+    $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '';
+    if (strpos($requestPath, '/historia-clinica/paciente/') !== false) {
+    $view = 'historia-clinica';
+    } elseif (strpos($requestPath, '/clinica/paciente/') !== false) {
+    $view = 'clinica';
+    } else {
+    echo HttpMethod::jsonResponse(400, false, 'Contexto de comentario no válido.');
+    return;
+    }
+    $authMiddleware = new AuthMiddleware($view);
+    $auth = $authMiddleware->authPermisos();
+    $authMiddleware->assertPatientAccess($idPaciente, $auth);
+
     $model = new PacienteModulosModelo();
     $resultModel = $model->agregarComentariosModulo($data);
         
@@ -959,13 +1149,50 @@ class ModulosController extends BaseController {
                 
     $model = new PacienteModulosModelo();
     $data = json_decode(file_get_contents('php://input'), true);
-    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
-    $resultModel = $model->finalizarModulos($data);
+    if (!is_array($data)) {
+    echo HttpMethod::jsonResponse(422, false, 'Datos de finalización no válidos.');
+    return;
+    }
+    $idPaciente = filter_var($data['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    $idModulo = filter_var($data['idModulo'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    if ($idPaciente === false || $idModulo === false) {
+    echo HttpMethod::jsonResponse(422, false, 'Datos de finalización no válidos.');
+    return;
+    }
+    if ($idModulo > 9) {
+    echo HttpMethod::jsonResponse(422, false, 'Datos de finalización no válidos.');
+    return;
+    }
+    $data['idPaciente'] = $idPaciente;
+    $data['idModulo'] = $idModulo;
+    $authMiddleware->assertPatientAccess($idPaciente, $auth);
+    $resultModel = $idModulo === 9
+        ? (new EvaluacionDolorModel())->p11FinalizarModulo($idPaciente)
+        : ($idModulo === 8
+        ? (new ProcedimientosDolorModel())->p10FinalizarModulo($idPaciente)
+        : ($idModulo === 7
+            ? (new MedicacionDolorModel())->finalizarModuloPaciente($idPaciente)
+            : ($idModulo === 6
+                ? (new MedicacionActualModel())->finalizarModuloPaciente($data)
+                : ($idModulo === 4
+                    ? $model->finalizarModuloP06($data)
+                    : $model->finalizarModulos($data)))));
                 
     if ($resultModel['resultado'] == 200) {
-    echo HttpMethod::jsonResponse(200,true,$resultModel['mensaje']);
+    $nextUrl = $model->siguienteModuloPendiente($data['idPaciente'], $data['idModulo']);
+    echo HttpMethod::jsonResponse(
+    200,
+    true,
+    $resultModel['mensaje'],
+    '',
+    ['next_url' => $nextUrl ?? '/historia-clinica']
+    );
     } else {
-    echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
+    $resultCode = (int) ($resultModel['resultado'] ?? 422);
+    $failureStatus = $idModulo === 8 && in_array($resultCode, [403, 404, 409, 422], true)
+        ? $resultCode
+        : 401;
+    echo HttpMethod::jsonResponse($failureStatus, false, $resultModel['mensaje']);
     } 
     
     }

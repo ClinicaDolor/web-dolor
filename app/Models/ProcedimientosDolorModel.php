@@ -747,5 +747,303 @@ class ProcedimientosDolorModel{
             
     }
 
+    /**
+     * P10 patient API. These methods deliberately do not use the legacy
+     * rendering/seed helpers above: opening the patient page must be read-only.
+     */
+    public function p10Procedimientos(int $idPaciente): array
+    {
+        $stmt = $this->bd->prepare(
+            'SELECT id, id_paciente, procedimiento, fecha, resultados, descripcion
+             FROM pac_procedimientos_dolor_modulo_8
+             WHERE id_paciente = :id_paciente ORDER BY id ASC'
+        );
+        $stmt->execute([':id_paciente' => $idPaciente]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    private function p10HasCommentsColumn(): bool
+    {
+        try {
+            $stmt = $this->bd->query('SHOW COLUMNS FROM pac_respuestas_paciente_modulo_8');
+            foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $column) {
+                if (($column['Field'] ?? '') === 'comentarios') {
+                    return true;
+                }
+            }
+        } catch (\Throwable $exception) {
+            return false;
+        }
+        return false;
+    }
+
+    public function p10Tratamientos(int $idPaciente): array
+    {
+        $commentsAvailable = $this->p10HasCommentsColumn();
+        $commentsSelect = $commentsAvailable ? 'r.comentarios' : 'NULL';
+        $stmt = $this->bd->prepare(
+            "SELECT t.id AS id_tratamiento, t.procedimiento AS tratamiento,
+                    r.id AS id_respuesta, r.utilizo, r.resultado, r.descripcion,
+                    {$commentsSelect} AS comentarios
+             FROM pac_tratamientos_dolor_modulo_8 t
+             LEFT JOIN pac_respuestas_paciente_modulo_8 r
+               ON r.id_tratamiento = t.id AND r.id_paciente = :id_paciente
+             ORDER BY t.id ASC"
+        );
+        $stmt->execute([':id_paciente' => $idPaciente]);
+        return [
+            'comments_available' => $commentsAvailable,
+            'items' => $stmt->fetchAll(\PDO::FETCH_ASSOC),
+        ];
+    }
+
+    private function p10Text($value, int $max = 2000): string
+    {
+        $value = trim((string) ($value ?? ''));
+        return function_exists('mb_substr') ? mb_substr($value, 0, $max) : substr($value, 0, $max);
+    }
+
+    private function p10Result(int $code, string $message): array
+    {
+        return ['resultado' => $code, 'mensaje' => $message];
+    }
+
+    public function p10AgregarProcedimiento(array $data): array
+    {
+        $idPaciente = (int) ($data['idPaciente'] ?? 0);
+        if ($idPaciente < 1) return $this->p10Result(422, 'Datos de procedimiento no válidos.');
+
+        $stmt = $this->bd->prepare(
+            'INSERT INTO pac_procedimientos_dolor_modulo_8 (id_paciente)
+             VALUES (:id_paciente)'
+        );
+        $stmt->execute([':id_paciente' => $idPaciente]);
+        return $this->p10Result(200, 'Procedimiento agregado.');
+    }
+
+    public function p10EditarProcedimiento(array $data): array
+    {
+        $idPaciente = (int) ($data['idPaciente'] ?? 0);
+        $idProcedimiento = (int) ($data['idProcedimiento'] ?? 0);
+        $edicion = (int) ($data['edicion'] ?? 0);
+        if ($idPaciente < 1 || $idProcedimiento < 1 || $edicion < 1 || $edicion > 4) {
+            return $this->p10Result(422, 'Datos de procedimiento no válidos.');
+        }
+
+        $lookup = $this->bd->prepare(
+            'SELECT procedimiento, fecha, resultados, descripcion
+             FROM pac_procedimientos_dolor_modulo_8
+             WHERE id = :id AND id_paciente = :id_paciente LIMIT 1'
+        );
+        $lookup->execute([':id' => $idProcedimiento, ':id_paciente' => $idPaciente]);
+        $current = $lookup->fetch(\PDO::FETCH_ASSOC);
+        if (!$current) return $this->p10Result(403, 'No autorizado.');
+
+        $detail = $data['detalle'] ?? '';
+        if ($edicion === 1) {
+            $column = 'procedimiento';
+            $detail = $this->p10Text($detail, 500);
+        } elseif ($edicion === 2) {
+            $column = 'fecha';
+            $detail = $this->p10Text($detail, 10);
+            if ($detail !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $detail)) {
+                return $this->p10Result(422, 'La fecha no es válida.');
+            }
+        } elseif ($edicion === 3) {
+            $column = 'resultados';
+            $detail = $this->p10Text($detail, 40);
+            if ($detail !== '' && !in_array($detail, ['Funciono', 'No funciono', 'Tuve efectos adversos'], true)) {
+                return $this->p10Result(422, 'El resultado no es válido.');
+            }
+        } else {
+            $column = 'descripcion';
+            $detail = $this->p10Text($detail, 2000);
+        }
+
+        $currentValue = (string) ($current[$column] ?? '');
+        $clearDescription = $edicion === 3 && in_array($detail, ['Funciono', 'No funciono'], true);
+        if ($currentValue === $detail && (!$clearDescription || (string) ($current['descripcion'] ?? '') === '')) {
+            return $this->p10Result(200, 'Sin cambios.');
+        }
+
+        if ($clearDescription) {
+            $stmt = $this->bd->prepare(
+                'UPDATE pac_procedimientos_dolor_modulo_8
+                 SET resultados = :detalle, descripcion = :descripcion
+                 WHERE id = :id AND id_paciente = :id_paciente'
+            );
+            $stmt->execute([
+                ':detalle' => $detail,
+                ':descripcion' => '',
+                ':id' => $idProcedimiento,
+                ':id_paciente' => $idPaciente,
+            ]);
+        } else {
+            $stmt = $this->bd->prepare(
+                "UPDATE pac_procedimientos_dolor_modulo_8
+                 SET {$column} = :detalle
+                 WHERE id = :id AND id_paciente = :id_paciente"
+            );
+            $stmt->execute([
+                ':detalle' => $detail,
+                ':id' => $idProcedimiento,
+                ':id_paciente' => $idPaciente,
+            ]);
+        }
+        return $this->p10Result(200, 'Procedimiento actualizado.');
+    }
+
+    public function p10EliminarProcedimiento(array $data): array
+    {
+        $idPaciente = (int) ($data['idPaciente'] ?? 0);
+        $idProcedimiento = (int) ($data['idProcedimiento'] ?? 0);
+        if ($idPaciente < 1 || $idProcedimiento < 1) return $this->p10Result(422, 'Datos de procedimiento no válidos.');
+
+        $stmt = $this->bd->prepare(
+            'DELETE FROM pac_procedimientos_dolor_modulo_8
+             WHERE id = :id AND id_paciente = :id_paciente'
+        );
+        $stmt->execute([':id' => $idProcedimiento, ':id_paciente' => $idPaciente]);
+        if ($stmt->rowCount() < 1) return $this->p10Result(403, 'No autorizado.');
+        return $this->p10Result(200, 'Procedimiento eliminado.');
+    }
+
+    public function p10EditarTratamiento(array $data): array
+    {
+        $idPaciente = (int) ($data['idPaciente'] ?? 0);
+        $idTratamiento = (int) ($data['idTratamiento'] ?? 0);
+        $edicion = (int) ($data['edicion'] ?? 0);
+        if ($idPaciente < 1 || $idTratamiento < 1 || $edicion < 1 || $edicion > 4) {
+            return $this->p10Result(422, 'Datos de tratamiento no válidos.');
+        }
+
+        $catalog = $this->bd->prepare('SELECT id FROM pac_tratamientos_dolor_modulo_8 WHERE id = :id LIMIT 1');
+        $catalog->execute([':id' => $idTratamiento]);
+        if (!$catalog->fetchColumn()) return $this->p10Result(404, 'Tratamiento no encontrado.');
+
+        $commentsAvailable = $this->p10HasCommentsColumn();
+        if ($edicion === 3 && !$commentsAvailable) {
+            return $this->p10Result(422, 'Los comentarios no están disponibles en este entorno.');
+        }
+
+        $lookup = $this->bd->prepare(
+            'SELECT id, utilizo, resultado, descripcion' . ($commentsAvailable ? ', comentarios' : '') . '
+             FROM pac_respuestas_paciente_modulo_8
+             WHERE id_tratamiento = :id_tratamiento AND id_paciente = :id_paciente LIMIT 1'
+        );
+        $lookup->execute([':id_tratamiento' => $idTratamiento, ':id_paciente' => $idPaciente]);
+        $current = $lookup->fetch(\PDO::FETCH_ASSOC) ?: null;
+
+        $detail = $data['detalle'] ?? '';
+        $column = null;
+        if ($edicion === 1) {
+            $column = 'utilizo';
+            $detail = $this->p10Text($detail, 20);
+            if (!in_array($detail, ['Si', 'No'], true)) return $this->p10Result(422, 'La respuesta no es válida.');
+        } elseif ($edicion === 2) {
+            $column = 'resultado';
+            $detail = $this->p10Text($detail, 40);
+            if (!in_array($detail, ['', 'Funciono', 'No funciono', 'Tuve efectos adversos'], true)) return $this->p10Result(422, 'El resultado no es válido.');
+        } elseif ($edicion === 3) {
+            $column = 'comentarios';
+            $detail = $this->p10Text($detail, 2000);
+        } else {
+            $column = 'descripcion';
+            $detail = $this->p10Text($detail, 2000);
+        }
+
+        if ($current && (string) ($current[$column] ?? '') === $detail) {
+            return $this->p10Result(200, 'Sin cambios.');
+        }
+
+        if (!$current) {
+            $values = ['id_tratamiento' => $idTratamiento, 'id_paciente' => $idPaciente, 'utilizo' => null, 'resultado' => null, 'descripcion' => null];
+            if ($commentsAvailable) $values['comentarios'] = null;
+            $values[$column] = $detail;
+            if ($column === 'utilizo' && $detail === 'No') {
+                $values['resultado'] = '';
+                $values['descripcion'] = '';
+                if ($commentsAvailable) $values['comentarios'] = '';
+            }
+            if ($column === 'resultado' && in_array($detail, ['Funciono', 'No funciono'], true)) $values['descripcion'] = '';
+            $columns = array_keys($values);
+            $placeholders = array_map(static fn($name) => ':' . $name, $columns);
+            $stmt = $this->bd->prepare(
+                'INSERT INTO pac_respuestas_paciente_modulo_8 (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $placeholders) . ')'
+            );
+            $params = [];
+            foreach ($values as $name => $value) $params[':' . $name] = $value;
+            $stmt->execute($params);
+            return $this->p10Result(200, 'Tratamiento actualizado.');
+        }
+
+        if ($column === 'utilizo' && $detail === 'No') {
+            $clear = $commentsAvailable ? ', comentarios = :comentarios' : '';
+            $stmt = $this->bd->prepare(
+                'UPDATE pac_respuestas_paciente_modulo_8
+                 SET utilizo = :detalle, resultado = :resultado, descripcion = :descripcion' . $clear . '
+                 WHERE id = :id AND id_paciente = :id_paciente'
+            );
+            $params = [':detalle' => 'No', ':resultado' => '', ':descripcion' => '', ':id' => $current['id'], ':id_paciente' => $idPaciente];
+            if ($commentsAvailable) $params[':comentarios'] = '';
+            $stmt->execute($params);
+        } elseif ($column === 'resultado' && in_array($detail, ['Funciono', 'No funciono'], true)) {
+            $stmt = $this->bd->prepare(
+                'UPDATE pac_respuestas_paciente_modulo_8
+                 SET resultado = :detalle, descripcion = :descripcion
+                 WHERE id = :id AND id_paciente = :id_paciente'
+            );
+            $stmt->execute([':detalle' => $detail, ':descripcion' => '', ':id' => $current['id'], ':id_paciente' => $idPaciente]);
+        } else {
+            $stmt = $this->bd->prepare(
+                "UPDATE pac_respuestas_paciente_modulo_8 SET {$column} = :detalle
+                 WHERE id = :id AND id_paciente = :id_paciente"
+            );
+            $stmt->execute([':detalle' => $detail, ':id' => $current['id'], ':id_paciente' => $idPaciente]);
+        }
+        return $this->p10Result(200, 'Tratamiento actualizado.');
+    }
+
+    public function p10FinalizarModulo(int $idPaciente): array
+    {
+        $catalogCount = (int) $this->bd
+            ->query('SELECT COUNT(*) FROM pac_tratamientos_dolor_modulo_8')
+            ->fetchColumn();
+        if ($catalogCount < 1) {
+            return $this->p10Result(422, 'El catálogo de tratamientos no está disponible.');
+        }
+
+        $incomplete = $this->bd->prepare(
+            'SELECT COUNT(*)
+             FROM pac_tratamientos_dolor_modulo_8 t
+             LEFT JOIN pac_respuestas_paciente_modulo_8 r
+               ON r.id_tratamiento = t.id AND r.id_paciente = :id_paciente
+             WHERE r.id IS NULL
+                OR r.utilizo IS NULL
+                OR r.utilizo NOT IN (\'Si\', \'No\')
+                OR (r.utilizo = \'Si\' AND (r.resultado IS NULL OR r.resultado = \'\'))
+                OR (r.utilizo = \'Si\' AND r.resultado = \'Tuve efectos adversos\'
+                    AND (r.descripcion IS NULL OR TRIM(r.descripcion) = \'\'))'
+        );
+        $incomplete->execute([':id_paciente' => $idPaciente]);
+        if ((int) $incomplete->fetchColumn() > 0) {
+            return $this->p10Result(422, 'Completa las respuestas de tratamientos antes de finalizar.');
+        }
+
+        $lookup = $this->bd->prepare(
+            'SELECT id FROM pac_historia_clinica_finalizar
+             WHERE id_modulo = 8 AND id_paciente = :id_paciente LIMIT 1'
+        );
+        $lookup->execute([':id_paciente' => $idPaciente]);
+        if ($lookup->fetchColumn()) return $this->p10Result(200, 'El módulo ya estaba finalizado.');
+
+        $stmt = $this->bd->prepare(
+            'INSERT INTO pac_historia_clinica_finalizar (id_modulo, id_paciente)
+             VALUES (8, :id_paciente)'
+        );
+        $stmt->execute([':id_paciente' => $idPaciente]);
+        return $this->p10Result(200, 'Módulo finalizado.');
+    }
+
 }
 

@@ -23,6 +23,28 @@ Definidos en `public/assets/css/app.css`:
 - Foco: `--clinic-focus`.
 - Radio estándar: `--clinic-radius`.
 
+## UI-PATIENT-TITLES-01 — Títulos de Historia Clínica del Portal Paciente
+
+Los títulos principales de los nueve módulos P03–P11 utilizan exclusivamente
+`var(--clinic-accent)` (`#35a78f` en `body.app-shell-body`). La regla está
+acotada a `body.app-shell-body.patient-clinical-form`: los módulos genéricos
+usan `.page-title h3`, mientras que P03 utiliza su encabezado específico
+`.patient-identification-hero h1`; P04 ya empleaba el mismo token.
+
+El eyebrow `MI HISTORIA CLÍNICA`, botones, enlaces, navegación y títulos de
+modal conservan el morado institucional. P02 y el área Doctor no forman parte
+de este patrón. La decisión unifica únicamente el color de los títulos y no
+modifica fondos, composición, tipografía, controles ni lógica clínica.
+
+La comprobación estática confirma el token común en P03–P11. La validación
+visual autenticada no se ejecutó contra la base real; cualquier evidencia de
+navegador requiere el entorno sintético aislado. La medición de contraste del
+token actual es 2.97:1 sobre blanco, 2.71:1 sobre `#f5f3ff` y 2.62:1 sobre
+`#e2f5ef`; no alcanza WCAG AA para texto normal ni el umbral de 3:1 de texto
+grande en esos fondos. No se sustituyó el color aprobado automáticamente; se
+deja como decisión común pendiente revisar un tono de acento más oscuro o un
+tratamiento de fondo que preserve la identidad.
+
 ## ACT-05B-01 — Encabezado del expediente
 
 La vista `app/views/clinica/pacientes-detalle.php` usa el shell médico

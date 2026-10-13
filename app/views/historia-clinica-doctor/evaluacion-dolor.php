@@ -1,12 +1,4 @@
-<?php 
-use App\Config\Database;
-use App\Models\EvaluacionDolorModel;
-$bd = Database::getInstance();
-
-$model = new EvaluacionDolorModel();
-echo $model->imagenFrenteModulo9($data['idPaciente'], $data['sexo']); 
-echo $model->imagenEspaldaModulo9($data['idPaciente'], $data['sexo']); 
-echo $model->cuestionarioModulo9($data['idPaciente']);
+<?php
 
 $escape = static function ($value): string {
     return htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
@@ -61,7 +53,7 @@ $patientUrl = $escape(SERVIDOR . 'clinica/paciente/' . $patientId);
     const colorPicker = document.getElementById('colorFrente');
 
     const img = new Image();
-    img.src = '<?=RUTA_IMAGES?>evaluacion-dolor/frente/Frente_<?=$patientSex;?>_<?=$patientId;?>.png?' + Math.random();
+    img.src = '<?=SERVIDOR;?>clinica/paciente/imagen-evaluacion-dolor/frente/<?=$patientId;?>?' + Math.random();
     img.onload = () => {
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     };
@@ -142,14 +134,14 @@ $patientUrl = $escape(SERVIDOR . 'clinica/paciente/' . $patientId);
     const canvasState = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
     if(tipo == 1){
-    img.src = '<?=RUTA_IMAGES?>evaluacion-dolor/frente/Frente_' + idSexo + '.png';
+    img.src = '<?=SERVIDOR;?>clinica/paciente/imagen-evaluacion-dolor/frente/<?=$patientId;?>?' + Math.random();
     img.onload = () => {
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     };
     
     }else{
 
-    imagen = '<?=RUTA_IMAGES?>evaluacion-dolor/frente/Frente_<?=$patientSex;?>_<?=$patientId;?>.png';
+    imagen = '<?=SERVIDOR;?>clinica/paciente/imagen-evaluacion-dolor/frente/<?=$patientId;?>';
     img.src = imagen + '?' + Math.random(); // Usar "?" antes del random para no alterar la ruta original
     img.onload = () => {
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
@@ -179,7 +171,7 @@ $patientUrl = $escape(SERVIDOR . 'clinica/paciente/' . $patientId);
     const colorPicker = document.getElementById('colorEspalda');
 
     const img = new Image();
-    img.src = '<?=RUTA_IMAGES?>evaluacion-dolor/espalda/Espalda_<?=$patientSex;?>_<?=$patientId;?>.png?' + Math.random();
+    img.src = '<?=SERVIDOR;?>clinica/paciente/imagen-evaluacion-dolor/espalda/<?=$patientId;?>?' + Math.random();
     img.onload = () => {
     ctxEspalda.drawImage(img, 0, 0, canvasEspalda .width, canvasEspalda.height);
     };
@@ -261,14 +253,14 @@ $patientUrl = $escape(SERVIDOR . 'clinica/paciente/' . $patientId);
     const canvasState2 = ctxEspalda.getImageData(0, 0, canvasEspalda.width, canvasEspalda.height);
 
     if(tipo == 1){
-    img.src = '<?=RUTA_IMAGES?>evaluacion-dolor/espalda/Espalda_' + idSexo + '.png';
+    img.src = '<?=SERVIDOR;?>clinica/paciente/imagen-evaluacion-dolor/espalda/<?=$patientId;?>?' + Math.random();
     img.onload = () => {
     ctxEspalda.drawImage(img, 0, 0, canvasEspalda.width, canvasEspalda.height);
     };
     
     }else{
 
-    imagen = '<?=RUTA_IMAGES?>evaluacion-dolor/espalda/Espalda_<?=$patientSex;?>_<?=$patientId;?>.png';
+    imagen = '<?=SERVIDOR;?>clinica/paciente/imagen-evaluacion-dolor/espalda/<?=$patientId;?>';
     img.src = imagen + '?' + Math.random(); // Usar "?" antes del random para no alterar la ruta original
     img.onload = () => {
     ctxEspalda.drawImage(img, 0, 0, canvasEspalda.width, canvasEspalda.height);

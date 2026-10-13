@@ -70,6 +70,7 @@ $r->addRoute('POST', '/paciente/eliminar-procedimiento-dolor-modulo8', ['Modulos
 $r->addRoute('POST', '/paciente/editar-tratamiento-dolor-modulo8', ['ModulosController', 'pacienteEditTratamiento']);
 
 //----- 9. EVALUACION DEL DOLOR
+$r->addRoute('GET', '/paciente/imagen-evaluacion-dolor/{orientacion}/{idPaciente}', ['ModulosController', 'pacienteImagenEvaluacionDolor']);
 $r->addRoute('POST', '/paciente/editar-img-frente-modulo9', ['ModulosController', 'pacienteEditImgED1']);
 $r->addRoute('POST', '/paciente/eliminar-img-frente-modulo9', ['ModulosController', 'pacienteDeleteImgED1']);
 
@@ -116,6 +117,8 @@ $r->addRoute('GET', '/paciente/pin/{idPaciente}', ['ClinicaController', 'pacient
 $r->addRoute('POST', '/paciente/insert-pin', ['ClinicaController', 'pacienteInsertPin']);
 
 $r->addRoute('GET', '/paciente/{idPaciente}', ['ClinicaController', 'pacienteDetalle']);
+$r->addRoute('GET', '/paciente/{idPaciente}/resumen-clinico', ['ClinicaController', 'resumenClinico']);
+$r->addRoute('POST', '/paciente/{idPaciente}/clinical-summary', ['ClinicalSummaryController', 'generate']);
 
 $r->addRoute('GET', '/nota-subsecuente/{idNota}', ['NotaSubsecuenteController', 'notaSubsecuente']);
 $r->addRoute('GET', '/nota-subsecuente/paciente/{idPaciente}/referencia/{referencia}', ['ClinicaController', 'pacienteNotaSubsecuente']);
@@ -167,6 +170,17 @@ $r->addGroup('/historia-clinica', function (RouteCollector $r) use ($registrarRu
 $r->addRoute('GET', '', ['HomeController', 'indexPaciente']);
 $r->addRoute('GET', '/acceso', ['LoginController', 'accesoPaciente']);
 $r->addRoute('POST', '/login', ['LoginController', 'loginPaciente']);
+$r->addRoute('GET', '/entrevista', ['PatientInterviewController', 'index']);
+$r->addRoute('POST', '/entrevista/capturar', ['PatientInterviewController', 'capture']);
+$r->addRoute('POST', '/entrevista/capturar-directo', ['PatientInterviewController', 'captureDirect']);
+$r->addRoute('POST', '/entrevista/interpretar', ['PatientInterviewController', 'interpret']);
+$r->addRoute('POST', '/entrevista/capturar-m02', ['PatientInterviewController', 'captureM02']);
+$r->addRoute('POST', '/entrevista/capturar-m04', ['PatientInterviewController', 'captureM04']);
+$r->addRoute('POST', '/entrevista/capturar-m05', ['PatientInterviewController', 'captureM05']);
+$r->addRoute('POST', '/entrevista/capturar-m06', ['PatientInterviewController', 'captureM06']);
+$r->addRoute('POST', '/entrevista/capturar-m08', ['PatientInterviewController', 'captureM08']);
+$r->addRoute('POST', '/entrevista/capturar-m09', ['PatientInterviewController', 'captureM09']);
+$r->addRoute('POST', '/entrevista/capturar-m09-mapa', ['PatientInterviewController', 'captureM09Map']);
 
 //----- VISTAS DE LOS 9 MODULOS
 $r->addRoute('GET', '/{modulo}/paciente/{idPaciente}', ['ModulosController', 'moduloVistaPaciente']);

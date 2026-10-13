@@ -209,7 +209,7 @@ $viewRolElements = [
 ],
 
 'antecedentes-personales-no-patologicos' => [
-['titulo' => 'Antecedentes Personales No Patologicos', 'url' => SERVIDOR . 'historia-clinica/'.$view.'/paciente/'.$id, 'icono' => 'file-text']
+['titulo' => 'Antecedentes Personales No Patológicos', 'url' => SERVIDOR . 'historia-clinica/'.$view.'/paciente/'.$id, 'icono' => 'file-text']
 ],
 
 'antecedentes-personales-quirurgicos' => [
@@ -217,7 +217,7 @@ $viewRolElements = [
 ],
 
 'antecedentes-personales-patologicos' => [
-['titulo' => 'Antecedentes Personales Patologicos', 'url' => SERVIDOR . 'historia-clinica/'.$view.'/paciente/'.$id, 'icono' => 'file-text']
+['titulo' => 'Antecedentes Personales Patológicos', 'url' => SERVIDOR . 'historia-clinica/'.$view.'/paciente/'.$id, 'icono' => 'file-text']
 ],
 
 'procedimientos-control-dolor' => [

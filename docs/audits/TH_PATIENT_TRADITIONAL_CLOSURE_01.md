@@ -1,0 +1,63 @@
+# TH-PATIENT-TRADITIONAL-CLOSURE-01
+
+## Resultado de cierre focalizado P01–P11
+
+```text
+TH_PATIENT_TRADITIONAL_CLOSURE_01:
+
+STATUS: PARTIAL
+
+CURRENT_BRANCH: Silvino
+CURRENT_HEAD: 1b08d9b4c41080c176fbe4588212863f3a1ac18c
+WORKTREE_PRESERVED: YES
+
+P06_MODAL_X_FIXED: PRESENT_IN_PREEXISTING_LOCAL_CHANGES
+P06_CLOSE_BEHAVIOR_STATICALLY_VERIFIED: YES
+
+P01_STATUS: PARTIAL
+P02_STATUS: PARTIAL
+P03_STATUS: PARTIAL
+P04_STATUS: PARTIAL
+P05_STATUS: PARTIAL
+P06_STATUS: PARTIAL
+P07_STATUS: PARTIAL
+P08_STATUS: PARTIAL
+P09_STATUS: PARTIAL
+P10_STATUS: PARTIAL
+P11_STATUS: PARTIAL
+
+UI_DEFECTS_FOUND: P06 modal sin X fue el defecto reportado; la X ya está presente en el código local
+UI_DEFECTS_FIXED: NONE_BY_THIS_PHASE; no se sobrescribieron archivos premodificados
+FILES_MODIFIED: docs/audits/TH_PATIENT_TRADITIONAL_CLOSURE_V1.md, docs/audits/TH_PATIENT_TRADITIONAL_CLOSURE_01.md
+
+PHP_LINT: PASS
+JS_SYNTAX: PASS
+GLOBAL_DIFF_CHECK: PASS_WITH_PREEXISTING_LINE_ENDING_WARNINGS
+
+DATABASE_ACCESSED: NO
+PDO_EXECUTED: NO
+SQL_EXECUTED: NONE
+HTTP_TESTS: NONE
+CLINICAL_DATA_MODIFIED: NO
+ENV_MODIFIED: NO
+
+VISUAL_BROWSER_VERIFIED: NO
+PERSISTENCE_VERIFIED: NO
+FULL_P01_P11_FLOW_VERIFIED: NO
+
+CONVERSATIONAL_HISTORY_MODIFIED: NO
+DOCTOR_MODULES_MODIFIED: NO
+P1_SECURITY_MODULES_MODIFIED: NO
+
+PENDING_FUNCTIONAL_TESTS: login, AJAX, persistencia, no-op, autorización cruzada, finalización y flujo completo P01–P11
+PENDING_VISUAL_TESTS: 375, 430, 768, 1024 y 1440 px; modales, foco, overflow, teclado y mapa corporal
+BLOCKERS: modificaciones locales preexistentes en las vistas y assets P01–P11; validación dinámica prohibida en esta fase
+NEXT_CONCRETE_ACTION: aprobar resolución de conflictos y ejecutar pruebas en entorno sintético aislado
+
+COMMITS: NONE
+DEPLOYMENTS: NONE
+PRODUCTION_READY: NO
+```
+
+El tablero detallado por módulo está en [TH_PATIENT_TRADITIONAL_CLOSURE_V1.md](TH_PATIENT_TRADITIONAL_CLOSURE_V1.md). La Historia Clínica Tradicional queda en `PARTIAL`: P06 tiene evidencia estática favorable, pero ningún módulo cuenta aquí con cierre funcional y visual integral.
+

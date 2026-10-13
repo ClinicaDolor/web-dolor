@@ -130,6 +130,118 @@ class MedicacionDolorModel{
     }
     
     //---------- OBTENER PREGUNTAS DEL MODULO (V1) ----------//
+    /**
+     * Renderiza el cuestionario del portal paciente sin mezclarlo con la
+     * tabla del área Doctor. El contrato data-p09-* permite que el cliente
+     * guarde y avance sin handlers inline ni reconstrucciones durante el clic.
+     */
+    public function mostrarPreguntasM7Paciente(int $idPaciente, int $idRol, int $idTema): string
+    {
+    $escape = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+    $columnCheck = $this->bd->prepare("SELECT COUNT(*) FROM information_schema.columns
+        WHERE table_schema = DATABASE() AND table_name = 'pac_preguntas_modulo_7' AND column_name = 'pregunta'");
+    $columnCheck->execute();
+    $hasQuestionText = (int)$columnCheck->fetchColumn() === 1;
+    $questionSelect = $hasQuestionText ? 'q.pregunta' : "'' AS pregunta";
+    $stmt = $this->bd->prepare("SELECT
+        r.id AS idRespuesta,
+        t.tema,
+        q.id AS idPregunta,
+        {$questionSelect},
+        COALESCE(r.respuesta, '') AS respuesta,
+        COALESCE(r.dosis, '') AS dosis,
+        COALESCE(r.resultados, '') AS resultados,
+        COALESCE(r.descripcion, '') AS descripcion,
+        COALESCE(r.consumo, '') AS consumo
+    FROM pac_temas_modulo_7 t
+    INNER JOIN pac_preguntas_modulo_7 q ON q.id_tema = t.id
+    LEFT JOIN pac_respuestas_paciente_modulo_7 r
+        ON r.id_pregunta = q.id AND r.id_paciente = :idPaciente
+    WHERE t.id = :idTema
+    ORDER BY q.id ASC");
+    $stmt->execute([':idPaciente' => $idPaciente, ':idTema' => $idTema]);
+    $preguntas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    if (!$hasQuestionText || !$preguntas) {
+        return '<div class="alert alert-warning p09-catalog-warning" role="status">El catálogo de este módulo no está disponible en el entorno de prueba. No se cargaron preguntas ni se realizaron cambios.</div>';
+    }
+    $modulos = $this->obtenerModulosM7();
+    $temaIds = array_map('intval', array_keys($modulos));
+    $temaIndex = array_search($idTema, $temaIds, true);
+    $prevId = $temaIndex !== false && $temaIndex > 0 ? $temaIds[$temaIndex - 1] : null;
+    $nextId = $temaIndex !== false && $temaIndex < count($temaIds) - 1 ? $temaIds[$temaIndex + 1] : null;
+    $result = '';
+
+    foreach ($preguntas as $index => $pregunta) {
+        $idRespuesta = (int)($pregunta['idRespuesta'] ?? 0);
+        $idPregunta = (int)$pregunta['idPregunta'];
+        $domKey = $idRespuesta > 0 ? (string)$idRespuesta : 'q' . $idPregunta;
+        $preguntaTexto = (string)$pregunta['pregunta'];
+        $respuesta = trim((string)($pregunta['respuesta'] ?? ''));
+        $dosis = (string)($pregunta['dosis'] ?? '');
+        $resultados = (string)($pregunta['resultados'] ?? '');
+        $descripcion = (string)($pregunta['descripcion'] ?? '');
+        $consumo = (string)($pregunta['consumo'] ?? '');
+        $active = $index === 0 ? ' active' : '';
+        $responseName = 'p09_respuesta_' . $domKey;
+        $resultName = 'p09_resultado_' . $domKey;
+        $consumptionName = 'p09_consumo_' . $domKey;
+        $result .= '<article class="pregunta-container p09-question' . $active . '" data-index="' . $index . '" data-p09-question="' . $domKey . '" data-p09-question-id="' . $idPregunta . '" data-p09-theme="' . $idTema . '" data-p09-prompt="' . $escape($preguntaTexto) . '">';
+        $result .= '<div class="text-secondary fw-bold mb-1 p05-question-habit-label">Clase de medicamento:</div>';
+        $result .= '<h3 class="mb-3 p05-question-habit-name">' . $escape($pregunta['tema']) . '</h3>';
+        $result .= '<div class="p05-question-prompt sectionQuestion mt-3 mb-3"><h4 class="text-secondary fw-bold mb-1 texto"><b>' . $escape($preguntaTexto) . '</b></h4></div>';
+        $result .= '<fieldset class="p09-fieldset"><legend class="visually-hidden">¿Has utilizado este medicamento?</legend><div class="d-flex flex-wrap gap-2 p09-choice-grid">';
+        foreach ([['Si', 'Sí', 'si'], ['No', 'No', 'no']] as $choice) {
+            [$value, $label, $slug] = $choice;
+            $inputId = 'p09-respuesta-' . $domKey . '-' . $slug;
+            $result .= '<label class="p05-choice-card text-center" for="' . $inputId . '"><input id="' . $inputId . '" type="radio" class="custom-checkbox" name="' . $responseName . '" value="' . $value . '" data-p09-control="response" data-p09-response="' . $idRespuesta . '" data-p09-question-id="' . $idPregunta . '" data-p09-theme="' . $idTema . '" data-p09-type="1" data-p09-saved-value="' . $escape($respuesta) . '"' . ($respuesta === $value ? ' checked' : '') . '><span>' . $label . '</span></label>';
+        }
+        $result .= '</div></fieldset>';
+
+        if ($respuesta === 'Si') {
+            $result .= '<div class="p09-dependencies" data-p09-dependencies>';
+            $result .= '<label class="form-label" for="p09-dosis-' . $domKey . '">¿Cuál es la dosis que utilizas?</label>';
+            $result .= '<input id="p09-dosis-' . $domKey . '" type="text" class="form-control mb-3" value="' . $escape($dosis) . '" placeholder="Ingresa aquí la dosis..." data-p09-control="text" data-p09-response="' . $idRespuesta . '" data-p09-question-id="' . $idPregunta . '" data-p09-theme="' . $idTema . '" data-p09-type="2" data-p09-saved-value="' . $escape($dosis) . '">';
+            $result .= '<fieldset class="p09-fieldset"><legend class="form-label">¿Cuáles fueron tus resultados al utilizar el medicamento?</legend><div class="d-flex flex-wrap gap-2 p09-choice-grid">';
+            foreach ([['Funciono', 'Funcionó', 'funciono'], ['No funciono', 'No funcionó', 'no-funciono'], ['Tuve efectos adversos', 'Tuve efectos adversos', 'adversos']] as $choice) {
+                [$value, $label, $slug] = $choice;
+                $inputId = 'p09-resultado-' . $domKey . '-' . $slug;
+                $result .= '<label class="p05-choice-card text-center" for="' . $inputId . '"><input id="' . $inputId . '" type="radio" class="custom-checkbox" name="' . $resultName . '" value="' . $escape($value) . '" data-p09-control="result" data-p09-response="' . $idRespuesta . '" data-p09-question-id="' . $idPregunta . '" data-p09-theme="' . $idTema . '" data-p09-type="3" data-p09-saved-value="' . $escape($resultados) . '"' . ($resultados === $value ? ' checked' : '') . '><span>' . $label . '</span></label>';
+            }
+            $result .= '</div></fieldset>';
+            if ($resultados === 'Tuve efectos adversos') {
+                $result .= '<label class="form-label" for="p09-descripcion-' . $domKey . '">Describe los efectos adversos</label>';
+                $result .= '<textarea id="p09-descripcion-' . $domKey . '" class="form-control mb-3" rows="3" placeholder="Ingresa aquí la descripción..." data-p09-control="text" data-p09-response="' . $idRespuesta . '" data-p09-question-id="' . $idPregunta . '" data-p09-theme="' . $idTema . '" data-p09-type="5" data-p09-saved-value="' . $escape($descripcion) . '">' . $escape($descripcion) . '</textarea>';
+            }
+            $result .= '<fieldset class="p09-fieldset"><legend class="form-label">¿Todavía utilizas este medicamento?</legend><div class="d-flex flex-wrap gap-2 p09-choice-grid">';
+            foreach ([['Si', 'Sí', 'si'], ['No', 'No', 'no']] as $choice) {
+                [$value, $label, $slug] = $choice;
+                $inputId = 'p09-consumo-' . $domKey . '-' . $slug;
+                $result .= '<label class="p05-choice-card text-center" for="' . $inputId . '"><input id="' . $inputId . '" type="radio" class="custom-checkbox" name="' . $consumptionName . '" value="' . $value . '" data-p09-control="consumption" data-p09-response="' . $idRespuesta . '" data-p09-question-id="' . $idPregunta . '" data-p09-theme="' . $idTema . '" data-p09-type="4" data-p09-saved-value="' . $escape($consumo) . '"' . ($consumo === $value ? ' checked' : '') . '><span>' . $label . '</span></label>';
+            }
+            $result .= '</div></fieldset></div>';
+        }
+
+        $result .= '<div class="mt-3 d-flex justify-content-between p09-navigation">';
+        if ($index === 0 && $prevId !== null) {
+            $result .= '<button type="button" class="btn btn-secondary" data-p09-previous-theme="' . $prevId . '"><i data-feather="chevron-left" aria-hidden="true"></i> ' . $escape($modulos[$prevId]) . '</button>';
+        } elseif ($index > 0) {
+            $result .= '<button type="button" class="btn btn-secondary" data-p09-previous-question><i data-feather="chevron-left" aria-hidden="true"></i> Anterior</button>';
+        } else {
+            $result .= '<span></span>';
+        }
+        if ($index < count($preguntas) - 1) {
+            $result .= '<button type="button" class="btn btn-primary patient-nonpathological-next" data-p09-next disabled aria-disabled="true">Siguiente <i data-feather="chevron-right" aria-hidden="true"></i></button>';
+        } elseif ($nextId !== null) {
+            $result .= '<button type="button" class="btn btn-success" data-p09-next-theme="' . $nextId . '">' . $escape($modulos[$nextId]) . ' <i data-feather="chevron-right" aria-hidden="true"></i></button>';
+        } else {
+            $result .= '<button type="button" class="btn btn-success" data-p09-finalize>Finalizar módulo <i data-feather="check" aria-hidden="true"></i></button>';
+        }
+        $result .= '</div></article>';
+    }
+    return $result;
+    }
+
+    //---------- OBTENER PREGUNTAS DEL MODULO (V1) ----------//
     public function mostrarPreguntasM7($idPaciente, $idRol, $idTema){
     $result = '';
         
@@ -391,48 +503,108 @@ class MedicacionDolorModel{
 
 
     public function editarCuestionarioM7Paciente($data){
-    $resultado = "";
-    $opcionEdicion = $data['idTipo'];
-
-    $consulta2 = "";
-    if($opcionEdicion == 1){
-    $consulta = "respuesta";
-    if($data['detalle'] == "No"){
-    $consulta2 = ", dosis = '', resultados = '', descripcion = '', consumo = ''";
-    }  
-    }else if($opcionEdicion == 2){
-    $consulta = "dosis";
-    }else if($opcionEdicion == 3){
-    $consulta = "resultados";
-
-    if($data['detalle'] == "Funciono" || $data['detalle'] == "No funciono"){
-    $consulta2 = ", descripcion = ''";
+    $idPaciente = filter_var($data['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    $idRespuesta = filter_var($data['idRespuesta'] ?? 0, FILTER_VALIDATE_INT);
+    $idPregunta = filter_var($data['idPregunta'] ?? 0, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    $idTema = filter_var($data['idTema'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    $idTipo = filter_var($data['idTipo'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 5]]);
+    if ($idPaciente === false || $idRespuesta === false || $idRespuesta < 0 || $idPregunta === false || $idTema === false || $idTipo === false || !array_key_exists('detalle', $data) || !is_scalar($data['detalle'])) {
+        return ['resultado' => 422, 'mensaje' => 'Datos de respuesta no válidos.'];
     }
 
-    }else if($opcionEdicion == 4){
-    $consulta = "consumo";
-    }else if($opcionEdicion == 5){
-    $consulta = "descripcion";
+    $detalle = trim((string)$data['detalle']);
+    $limits = [1 => 20, 2 => 5000, 3 => 40, 4 => 20, 5 => 5000];
+    if (mb_strlen($detalle) > $limits[$idTipo]) {
+        return ['resultado' => 422, 'mensaje' => 'La respuesta excede el límite permitido.'];
     }
-
-    
-    $sql = "UPDATE pac_respuestas_paciente_modulo_7 SET 
-    $consulta = :detalle $consulta2 WHERE id = :idRespuesta";
-    
-    $stmt = $this->bd->prepare($sql);                    
-                
-    $datos = [
-    ':idRespuesta' => $data['idRespuesta'],
-    ':detalle' => $data['detalle']
+    $allowed = [
+        1 => ['Si', 'No'],
+        3 => ['Funciono', 'No funciono', 'Tuve efectos adversos'],
+        4 => ['Si', 'No'],
     ];
-            
-    if ($stmt->execute($datos)) {
-    return array('resultado' => 200,'mensaje' => '¡Se actualizo la informacion correctamente!');
-            
-    } else {
-    return array('resultado' => 401,'mensaje' => '¡Error al actualizar la enfermedad de la lista!');
+    if (isset($allowed[$idTipo]) && !in_array($detalle, $allowed[$idTipo], true)) {
+        return ['resultado' => 422, 'mensaje' => 'La opción seleccionada no es válida.'];
     }
 
+    $question = $this->bd->prepare('SELECT id, id_tema FROM pac_preguntas_modulo_7 WHERE id = :idPregunta AND id_tema = :idTema LIMIT 1');
+    $question->execute([':idPregunta' => $idPregunta, ':idTema' => $idTema]);
+    if (!$question->fetch(\PDO::FETCH_ASSOC)) return ['resultado' => 422, 'mensaje' => 'La pregunta no pertenece a este módulo.'];
+
+    $context = $this->bd->prepare("SELECT r.id, r.id_paciente, r.id_pregunta, r.respuesta, r.dosis, r.resultados, r.descripcion, r.consumo,
+        q.id_tema
+        FROM pac_respuestas_paciente_modulo_7 r
+        INNER JOIN pac_preguntas_modulo_7 q ON q.id = r.id_pregunta
+        WHERE r.id = :idRespuesta AND r.id_paciente = :idPaciente AND r.id_pregunta = :idPregunta AND q.id_tema = :idTema");
+    $context->execute([':idRespuesta' => $idRespuesta, ':idPaciente' => $idPaciente, ':idPregunta' => $idPregunta, ':idTema' => $idTema]);
+    $row = $context->fetch(\PDO::FETCH_ASSOC);
+    if (!$row && $idRespuesta > 0) return ['resultado' => 403, 'mensaje' => 'No tienes autorización para actualizar esta respuesta.'];
+    if (!$row) {
+        $existing = $this->bd->prepare('SELECT id, id_paciente, id_pregunta, respuesta, dosis, resultados, descripcion, consumo FROM pac_respuestas_paciente_modulo_7 WHERE id_paciente = :idPaciente AND id_pregunta = :idPregunta LIMIT 1');
+        $existing->execute([':idPaciente' => $idPaciente, ':idPregunta' => $idPregunta]);
+        $row = $existing->fetch(\PDO::FETCH_ASSOC);
+        if (!$row) {
+            $insert = $this->bd->prepare("INSERT INTO pac_respuestas_paciente_modulo_7 (id_pregunta, id_paciente, respuesta, dosis, resultados, descripcion, consumo) VALUES (:idPregunta, :idPaciente, '', '', '', '', '')");
+            $insert->execute([':idPregunta' => $idPregunta, ':idPaciente' => $idPaciente]);
+            $idRespuesta = (int)$this->bd->lastInsertId();
+            $row = ['id' => $idRespuesta, 'id_paciente' => $idPaciente, 'id_pregunta' => $idPregunta, 'respuesta' => '', 'dosis' => '', 'resultados' => '', 'descripcion' => '', 'consumo' => ''];
+        } else {
+            $idRespuesta = (int)$row['id'];
+        }
+    }
+    if ((int)$row['id_paciente'] !== (int)$idPaciente) return ['resultado' => 403, 'mensaje' => 'No tienes autorización para actualizar esta respuesta.'];
+    if ((int)$row['id_pregunta'] !== (int)$idPregunta) return ['resultado' => 422, 'mensaje' => 'El contexto de la respuesta no es válido.'];
+    if (in_array($idTipo, [2, 3, 4], true) && (string)$row['respuesta'] !== 'Si') return ['resultado' => 422, 'mensaje' => 'Completa primero la respuesta afirmativa.'];
+    if ($idTipo === 5 && (string)$row['resultados'] !== 'Tuve efectos adversos') return ['resultado' => 422, 'mensaje' => 'La descripción sólo aplica a efectos adversos.'];
+
+    $column = [1 => 'respuesta', 2 => 'dosis', 3 => 'resultados', 4 => 'consumo', 5 => 'descripcion'][$idTipo];
+    $updates = [$column . ' = :detalle'];
+    $params = [':detalle' => $detalle, ':idRespuesta' => $idRespuesta, ':idPaciente' => $idPaciente, ':idPregunta' => (int)$row['id_pregunta']];
+    if ($idTipo === 1 && $detalle === 'No') {
+        $updates[] = "dosis = ''";
+        $updates[] = "resultados = ''";
+        $updates[] = "descripcion = ''";
+        $updates[] = "consumo = ''";
+    } elseif ($idTipo === 3 && in_array($detalle, ['Funciono', 'No funciono'], true)) {
+        $updates[] = "descripcion = ''";
+    }
+    $set = implode(', ', $updates);
+    $current = (string)($row[$column] ?? '');
+    $needsClear = ($idTipo === 1 && $detalle === 'No' && ((string)($row['respuesta'] ?? '') !== 'No' || (string)($row['resultados'] ?? '') !== ''));
+    if ($current === $detalle && !$needsClear) return ['resultado' => 200, 'mensaje' => 'La respuesta ya estaba guardada.', 'sin_cambios' => true, 'idRespuesta' => $idRespuesta];
+
+    $sql = "UPDATE pac_respuestas_paciente_modulo_7 SET {$set}
+        WHERE id = :idRespuesta AND id_paciente = :idPaciente AND id_pregunta = :idPregunta";
+    $stmt = $this->bd->prepare($sql);
+    $stmt->execute($params);
+    if ($stmt->rowCount() === 0 && $current !== $detalle) return ['resultado' => 422, 'mensaje' => 'No se pudo actualizar la respuesta.'];
+    return ['resultado' => 200, 'mensaje' => 'La información se actualizó correctamente.', 'sin_cambios' => false, 'idRespuesta' => $idRespuesta];
+
+    }
+
+    /**
+     * Finaliza P09 una sola vez para el paciente autorizado.
+     * La comprobación se mantiene dentro del modelo para que reintentos de
+     * red no creen filas duplicadas en la base sintética ni en producción.
+     */
+    public function finalizarModuloPaciente(int $idPaciente): array
+    {
+    $this->bd->beginTransaction();
+    try {
+        $existing = $this->bd->prepare('SELECT id FROM pac_historia_clinica_finalizar WHERE id_modulo = 7 AND id_paciente = :idPaciente LIMIT 1 FOR UPDATE');
+        $existing->execute([':idPaciente' => $idPaciente]);
+        if ($existing->fetchColumn() !== false) {
+            $this->bd->commit();
+            return ['resultado' => 200, 'mensaje' => '¡El módulo ya estaba finalizado!'];
+        }
+
+        $insert = $this->bd->prepare('INSERT INTO pac_historia_clinica_finalizar (id_modulo, id_paciente) VALUES (7, :idPaciente)');
+        $insert->execute([':idPaciente' => $idPaciente]);
+        $this->bd->commit();
+        return ['resultado' => 200, 'mensaje' => '¡Se finalizó el módulo correctamente!'];
+    } catch (\Throwable $exception) {
+        if ($this->bd->inTransaction()) $this->bd->rollBack();
+        return ['resultado' => 500, 'mensaje' => 'No se pudo finalizar el módulo.'];
+    }
     }
 
 }

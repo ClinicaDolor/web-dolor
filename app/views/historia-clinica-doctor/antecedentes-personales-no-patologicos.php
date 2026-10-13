@@ -1,19 +1,15 @@
 <?php 
-use App\Config\Database;
 use App\Models\AntecedentesNoPatologicosModel;
-$bd = Database::getInstance();
+use App\Services\ClinicalSummarySecurity;
 
 $model = new AntecedentesNoPatologicosModel();
-$preguntas_fijas = $model->obtenerPreguntasModulos(); 
-foreach ($preguntas_fijas as $preg) {
-echo $model->antecedentesNoPatologicos($data['idPaciente'], $preg);
-}
 
 $escape = static function ($value): string {
     return htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
 };
 $data['datos'] = is_array($data['datos'] ?? null) ? $data['datos'] : [];
 $patientId = (int) ($data['idPaciente'] ?? 0);
+$m03CsrfToken = ClinicalSummarySecurity::captureCsrfToken($patientId);
 $patientName = $data['nombre'] ?? '';
 $title = $data['title'] ?? 'Antecedentes Personales No Patológicos';
 $patientUrl = htmlspecialchars(SERVIDOR . 'clinica/paciente/' . $patientId, ENT_QUOTES, 'UTF-8');
@@ -86,9 +82,11 @@ $patientUrl = htmlspecialchars(SERVIDOR . 'clinica/paciente/' . $patientId, ENT_
     if(idUpdate == 1){
     $(".LoaderPage").show();
     }
+    const main = document.getElementById('main');
+    const csrfToken = main ? main.getAttribute('data-m03-csrf') : '';
     fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-M03-CSRF': csrfToken },
     body: JSON.stringify(parametros)
     }).then(res => res.json()).then(data => {
     if(idUpdate == 1){
@@ -120,7 +118,7 @@ $patientUrl = htmlspecialchars(SERVIDOR . 'clinica/paciente/' . $patientId, ENT_
     <div class="LoaderPage"></div>
     <div id="app">
     <?=$data['sidebar'];?>
-    <div id="main" data-rol="<?=$escape($data['idRol'] ?? '');?>" data-paciente="<?=$patientId;?>">
+    <div id="main" data-rol="<?=$escape($data['idRol'] ?? '');?>" data-paciente="<?=$patientId;?>" data-m03-csrf="<?=$escape($m03CsrfToken);?>">
     <?php include_once __DIR__ . '/../components/search-bar-doctor.php';?>
 
     <main class="main-content container-fluid doctor-nonpathological-content">

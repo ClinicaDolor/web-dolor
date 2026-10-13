@@ -26,6 +26,7 @@ private function guardPatient($idPaciente){
     $authMiddleware = new AuthMiddleware('');
     $auth = $authMiddleware->authAny();
     $authMiddleware->assertPatientAccess($idPaciente, $auth);
+    return $auth;
 }
 
 private function guardClinic(){
@@ -117,70 +118,144 @@ echo $model->mostrarPreguntasM2($idPaciente,$idRol);
 }
 
 public function contenidoPreguntasM3($idPaciente,$idRol,$idCuestionario){
- $this->guardPatient($idPaciente);
+ $auth = $this->guardPatient($idPaciente);
+ $idCuestionario = filter_var($idCuestionario, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+ if ($idCuestionario === false) {
+ http_response_code(404);
+ return;
+ }
+ $rolReal = ($auth['vista'] === 'historia-clinica') ? 'Paciente' : 'Doctor';
 $model = new AntecedentesNoPatologicosModel();
-echo $model->mostrarPreguntasM3($idPaciente,$idRol,$idCuestionario);
+echo $model->mostrarPreguntasM3($idPaciente,$rolReal,$idCuestionario);
 }
 
 public function contenidoPreguntasM4($idPaciente,$idRol){
- $this->guardPatient($idPaciente);
+ $auth = $this->guardPatient($idPaciente);
+ $rolReal = ($auth['vista'] === 'historia-clinica') ? 'Paciente' : 'Doctor';
 $model = new AntecedentesQuirurgicos();
-echo $model->mostrarPreguntasM4($idPaciente,$idRol);
+echo $model->mostrarPreguntasM4($idPaciente,$rolReal);
 }
 
 public function contenidoPreguntasM5V1($idPaciente,$idRol,$idCuestionario){
- $this->guardPatient($idPaciente);
+  $auth = $this->guardPatient($idPaciente);
+  $idCuestionario = filter_var($idCuestionario, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+  if ($idCuestionario === false) {
+  http_response_code(404);
+  return;
+  }
+  $rolReal = ($auth['vista'] === 'historia-clinica') ? 'Paciente' : 'Doctor';
 $model = new AntecedentesPatologicosModel();
-echo $model->mostrarPreguntasM5V1($idPaciente,$idRol,$idCuestionario);
+ echo $model->mostrarPreguntasM5V1($idPaciente,$rolReal,$idCuestionario);
 }
 
 public function contenidoPreguntasM5V2($idPaciente,$idRol){
- $this->guardPatient($idPaciente);
+  $auth = $this->guardPatient($idPaciente);
+  $rolReal = ($auth['vista'] === 'historia-clinica') ? 'Paciente' : 'Doctor';
 $model = new AntecedentesPatologicosModel();
-echo $model->mostrarPreguntasM5V2($idPaciente,$idRol);
+ echo $model->mostrarPreguntasM5V2($idPaciente,$rolReal);
 }
 
 public function contenidoPreguntasM6($idPaciente,$idRol){
- $this->guardPatient($idPaciente);
+ $auth = $this->guardPatient($idPaciente);
 $model = new MedicacionActualModel();
-echo $model->mostrarPreguntasM6($idPaciente,$idRol);
+try {
+    if ($auth['vista'] === 'historia-clinica') {
+        echo $model->mostrarPreguntasM6Paciente((int)$idPaciente);
+        return;
+    }
+    echo $model->mostrarPreguntasM6((int)$idPaciente, 'Doctor');
+} catch (\Throwable $exception) {
+    http_response_code(500);
+    echo 'No se pudo cargar la medicación. Inténtalo nuevamente.';
+}
 }
 
 
 public function contenidoPreguntasM7($idPaciente,$idRol,$idCuestionario){
- $this->guardPatient($idPaciente);
-$model = new MedicacionDolorModel();
-echo $model->mostrarPreguntasM7($idPaciente,$idRol,$idCuestionario);
+ try {
+ $auth = $this->guardPatient($idPaciente);
+ $idCuestionario = filter_var($idCuestionario, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+ if ($idCuestionario === false) {
+ http_response_code(404);
+ echo 'No se encontró el cuestionario.';
+ return;
+ }
+ $rolReal = (($auth['vista'] ?? '') === 'historia-clinica') ? 'Paciente' : 'Doctor';
+ $model = new MedicacionDolorModel();
+ if ($rolReal === 'Paciente') {
+ echo $model->mostrarPreguntasM7Paciente((int)$idPaciente, 0, $idCuestionario);
+ return;
+ }
+ echo $model->mostrarPreguntasM7((int)$idPaciente, $rolReal, $idCuestionario);
+ } catch (\Throwable $exception) {
+ http_response_code(500);
+ echo 'No se pudo cargar el cuestionario. Inténtalo nuevamente.';
+ }
 }
 
 public function contenidoPreguntasM8($idPaciente,$idRol){
- $this->guardPatient($idPaciente);
-$model = new ProcedimientosDolorModel();
-echo $model->mostrarPreguntasM8($idPaciente,$idRol);
+ $auth = $this->guardPatient($idPaciente);
+ $model = new ProcedimientosDolorModel();
+ try {
+     if (($auth['vista'] ?? '') === 'historia-clinica') {
+         header('Content-Type: application/json');
+         echo json_encode(['resultado' => true, 'procedimientos' => $model->p10Procedimientos((int) $idPaciente)]);
+         return;
+     }
+     echo $model->mostrarPreguntasM8((int) $idPaciente, 'Doctor');
+ } catch (\Throwable $exception) {
+     error_log('[P10] no se pudo cargar procedimientos: ' . get_class($exception));
+     http_response_code(500);
+     if (($auth['vista'] ?? '') === 'historia-clinica') {
+         header('Content-Type: application/json');
+         echo json_encode(['resultado' => false, 'mensaje' => 'No se pudieron cargar los procedimientos.']);
+     } else {
+         echo 'No se pudieron cargar los procedimientos. Inténtalo nuevamente.';
+     }
+ }
 }
 
 public function contenidoPreguntasM8V2($idPaciente,$idRol){
- $this->guardPatient($idPaciente);
-$model = new ProcedimientosDolorModel();
-echo $model->mostrarPreguntasM8V2($idPaciente,$idRol);
+ $auth = $this->guardPatient($idPaciente);
+ $model = new ProcedimientosDolorModel();
+ try {
+     if (($auth['vista'] ?? '') === 'historia-clinica') {
+         header('Content-Type: application/json');
+         echo json_encode(['resultado' => true] + $model->p10Tratamientos((int) $idPaciente));
+         return;
+     }
+     echo $model->mostrarPreguntasM8V2((int) $idPaciente, 'Doctor');
+ } catch (\Throwable $exception) {
+     error_log('[P10] no se pudo cargar tratamientos: ' . get_class($exception));
+     http_response_code(500);
+     if (($auth['vista'] ?? '') === 'historia-clinica') {
+         header('Content-Type: application/json');
+         echo json_encode(['resultado' => false, 'mensaje' => 'No se pudieron cargar los tratamientos.']);
+     } else {
+         echo 'No se pudieron cargar los tratamientos. Inténtalo nuevamente.';
+     }
+ }
 }
 
 public function contenidoPreguntasM9($idPaciente,$idRol){
- $this->guardPatient($idPaciente);
+ $auth = $this->guardPatient($idPaciente);
 $model = new EvaluacionDolorModel();
-echo $model->mostrarPreguntasFrenteM9($idPaciente,$idRol);
+$role = (($auth['vista'] ?? '') === 'historia-clinica') ? 'Paciente' : 'Doctor';
+echo $role === 'Paciente' ? $model->p11MostrarMapa((int) $idPaciente, $role, 'frente') : $model->mostrarPreguntasFrenteM9((int) $idPaciente, $role);
 }
 
 public function contenidoPreguntasM9V2($idPaciente,$idRol){
- $this->guardPatient($idPaciente);
+ $auth = $this->guardPatient($idPaciente);
 $model = new EvaluacionDolorModel();
-echo $model->mostrarPreguntasEspaldaM9($idPaciente,$idRol);
+$role = (($auth['vista'] ?? '') === 'historia-clinica') ? 'Paciente' : 'Doctor';
+echo $role === 'Paciente' ? $model->p11MostrarMapa((int) $idPaciente, $role, 'espalda') : $model->mostrarPreguntasEspaldaM9((int) $idPaciente, $role);
 }
 
 public function contenidoPreguntasM9V3($idPaciente,$idRol){
- $this->guardPatient($idPaciente);
+ $auth = $this->guardPatient($idPaciente);
 $model = new EvaluacionDolorModel();
-echo $model->mostrarPreguntasM9($idPaciente,$idRol);
+$role = (($auth['vista'] ?? '') === 'historia-clinica') ? 'Paciente' : 'Doctor';
+echo $role === 'Paciente' ? $model->p11MostrarCuestionario((int) $idPaciente, $role) : $model->mostrarPreguntasM9((int) $idPaciente, $role);
 }   
 
 //---------- CONTENIDO COMENTARIOS ----------
