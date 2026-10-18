@@ -6,6 +6,7 @@ use App\Models\CofeprisModel;
 use App\Models\PacienteModel;
 use App\Helpers\CalculadoraEdad;
 use App\Core\HttpMethod;
+use App\Services\ClinicalSummarySecurity;
 
 class CofeprisController extends BaseController{
 
@@ -77,46 +78,106 @@ class CofeprisController extends BaseController{
     public function insertFolios(){
 
         header('Content-Type: application/json');
-    
-        $authMiddleware = new AuthMiddleware('clinica');
-        $authMiddleware->authPermisos();
-    
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+            http_response_code(405);
             echo json_encode([
                 'resultado' => false,
                 'mensaje' => 'Método no permitido. Usa POST.'
             ]);
             return;
         }
-    
-        if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+
+        $authMiddleware = new AuthMiddleware('clinica');
+        $auth = $authMiddleware->authPermisos();
+        $clinicId = (int)($auth['id_clinica'] ?? 0);
+        $csrfToken = $_SERVER['HTTP_X_COFEPRIS_CSRF'] ?? null;
+
+        if (!ClinicalSummarySecurity::validClinicActionCsrf(
+            $clinicId,
+            is_string($csrfToken) ? $csrfToken : null
+        )) {
+            http_response_code(403);
             echo json_encode([
                 'resultado' => false,
-                'mensaje' => 'No se recibió archivo o hubo un error en la subida. Código de error: ' . ($_FILES['file']['error'] ?? 'desconocido')
+                'mensaje' => 'Token de seguridad inválido o ausente.'
             ]);
             return;
         }
-    
-        // Obtener datos del archivo
-        $fileName = $_FILES['file']['name'];
-        $fileTmpName = $_FILES['file']['tmp_name'];
-        $fileSize = $_FILES['file']['size'];
+
+        $folio = $_POST['folio'] ?? null;
+        if (!is_string($folio) || trim($folio) === '' || !ctype_digit(trim($folio))) {
+            http_response_code(422);
+            echo json_encode([
+                'resultado' => false,
+                'mensaje' => 'El folio inicial no es válido.'
+            ]);
+            return;
+        }
+        $folio = trim($folio);
+
+        $upload = $_FILES['file'] ?? null;
+        if (!is_array($upload) || ($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            http_response_code(422);
+            echo json_encode([
+                'resultado' => false,
+                'mensaje' => 'No se recibió un archivo PDF válido.'
+            ]);
+            return;
+        }
+
+        $fileName = basename((string)($upload['name'] ?? ''));
+        $fileTmpName = (string)($upload['tmp_name'] ?? '');
+        $fileSize = (int)($upload['size'] ?? 0);
         $fileExtension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
-    
-        // Insertar en el modelo
-        $model = new CofeprisModel();
-        $resultModel = $model->guardarFolio(
-            $_POST['folio'] ?? '',
-            $fileName,
-            $fileTmpName,
-            $fileSize,
-            $fileExtension
-        );
-    
-        // Responder en JSON
+
+        if ($fileName === '' || $fileName === '.' || $fileName === '..'
+            || $fileSize < 1 || !is_uploaded_file($fileTmpName)
+            || $fileExtension !== 'pdf') {
+            http_response_code(422);
+            echo json_encode([
+                'resultado' => false,
+                'mensaje' => 'El archivo debe ser un PDF válido.'
+            ]);
+            return;
+        }
+
+        try {
+            $finfo = class_exists('finfo') ? new \finfo(FILEINFO_MIME_TYPE) : null;
+            $mimeType = $finfo ? $finfo->file($fileTmpName) : false;
+        } catch (\Throwable $exception) {
+            $mimeType = false;
+        }
+        if ($mimeType !== 'application/pdf') {
+            http_response_code(422);
+            echo json_encode([
+                'resultado' => false,
+                'mensaje' => 'El archivo debe ser un PDF válido.'
+            ]);
+            return;
+        }
+
+        try {
+            $model = new CofeprisModel();
+            $resultModel = $model->guardarFolio(
+                $folio,
+                $fileName,
+                $fileTmpName,
+                $fileSize,
+                $fileExtension
+            );
+        } catch (\Throwable $exception) {
+            http_response_code(500);
+            echo json_encode([
+                'resultado' => false,
+                'mensaje' => 'No fue posible guardar el registro.'
+            ]);
+            return;
+        }
+
         echo json_encode([
-            'resultado' => $resultModel['resultado'] == 200,
-            'mensaje' => $resultModel['mensaje']
+            'resultado' => ($resultModel['resultado'] ?? 0) == 200,
+            'mensaje' => (string)($resultModel['mensaje'] ?? 'No fue posible guardar el registro.')
         ]);
 
     }

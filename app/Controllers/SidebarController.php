@@ -196,7 +196,9 @@ $viewRolElements = [
 ],
 
 'PACIENTE' => [
-'historia-clinica' => [],
+'historia-clinica' => [
+['titulo' => 'Entrevista Conversacional', 'url' => SERVIDOR . 'historia-clinica/entrevista', 'icono' => 'message-circle']
+],
 
 //---------- MODULOS DE HISTORIA CLINICA ----------
 'ficha-identificiacion' => [

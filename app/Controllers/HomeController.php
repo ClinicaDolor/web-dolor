@@ -5,6 +5,7 @@ use App\Middleware\AuthMiddleware;
 use App\Models\ClinicaModel;
 use App\Helpers\Sidebar;
 use App\Controllers\SidebarController;
+use App\Services\ClinicalSummarySecurity;
 
 class HomeController extends BaseController{
 
@@ -66,7 +67,13 @@ class HomeController extends BaseController{
         $sidebar->setActivarItem('Cofepris');
         $sidebarHtml = $sidebar->render();
 
-        $data = ['title' => 'Configuración Cofepris', 'datos' => $result,  'total_pacientes' => $countPacientes, 'sidebar' => $sidebarHtml];
+        $data = [
+            'title' => 'Configuración Cofepris',
+            'datos' => $result,
+            'total_pacientes' => $countPacientes,
+            'sidebar' => $sidebarHtml,
+            'cofepris_csrf' => ClinicalSummarySecurity::clinicActionCsrfToken((int)$result['id_clinica']),
+        ];
         $this->view('/clinica/configuracion-cofepris.php', $data);
 
     }
