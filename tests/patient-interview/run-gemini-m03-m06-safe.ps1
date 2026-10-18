@@ -1,9 +1,14 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('Preflight', 'Real')]
+    [ValidateSet('Preflight', 'Real', 'Diagnostics')]
     [string]$Mode = 'Preflight',
     [string]$PhpPath = 'C:\xampp\php\php.exe',
     [int]$Port = 0,
+    [ValidateSet('clinica_dolor_browser_20261012', 'clinica_dolor_demo_20261010_final')]
+    [string]$SyntheticDatabase = 'clinica_dolor_demo_20261010_final',
+    [ValidateSet(9301, 9302)]
+    [int]$SyntheticPatient = 9301,
+    [switch]$IncludeM02,
     [switch]$AllowRealCalls,
     [string]$SyntheticConfirmation = ''
 )
@@ -11,8 +16,9 @@ param(
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $harness = Join-Path $PSScriptRoot 'gemini-m03-m06-http.php'
-$syntheticDatabase = 'clinica_dolor_browser_20261012'
-$syntheticPatient = 9302
+$syntheticDatabase = $SyntheticDatabase
+$syntheticPatient = $SyntheticPatient
+$expectedConfirmation = if ($IncludeM02) { 'I_CONFIRM_SYNTHETIC_DELIVERY16_THREE_CALLS' } else { 'I_CONFIRM_SYNTHETIC_9302_TWO_CALLS' }
 
 if (-not (Test-Path -LiteralPath $PhpPath -PathType Leaf)) {
     throw 'PHP_XAMPP_NOT_FOUND'
@@ -81,18 +87,64 @@ function Invoke-PHPProcess([string[]]$Arguments) {
     }
 }
 
+function Get-SafeProcessDiagnostic($Run) {
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $stdout = if ($null -eq $Run.Stdout) { '' } else { [string]$Run.Stdout }
+        $stderr = if ($null -eq $Run.Stderr) { '' } else { [string]$Run.Stderr }
+        $stdoutHash = ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($stdout)))).Replace('-', '').ToLowerInvariant()
+        $stderrHash = ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($stderr)))).Replace('-', '').ToLowerInvariant()
+    } finally { $sha.Dispose() }
+    $jsonValid = $false
+    if (-not [string]::IsNullOrWhiteSpace($stdout)) { try { $null = $stdout | ConvertFrom-Json -ErrorAction Stop; $jsonValid = $true } catch {} }
+    [pscustomobject]@{
+        exit_code = [int]$Run.ExitCode
+        stdout_present = -not [string]::IsNullOrEmpty($stdout)
+        stdout_bytes = [Text.Encoding]::UTF8.GetByteCount($stdout)
+        stdout_sha256 = $stdoutHash
+        stdout_json_valid = $jsonValid
+        stderr_present = -not [string]::IsNullOrEmpty($stderr)
+        stderr_bytes = [Text.Encoding]::UTF8.GetByteCount($stderr)
+        stderr_sha256 = $stderrHash
+    }
+}
+
 $versionRun = Invoke-PHPProcess @('-r', 'echo PHP_VERSION, chr(124), PHP_SAPI, chr(124), PHP_BINARY;')
 if ($versionRun.ExitCode -ne 0) {
     throw 'PHP_XAMPP_NOT_EXECUTABLE'
 }
 $phpVersion = $versionRun.Stdout.Trim()
 
-if ($Mode -eq 'Real' -and (-not $AllowRealCalls -or $SyntheticConfirmation -ne 'I_CONFIRM_SYNTHETIC_9302_TWO_CALLS')) {
+if ($Mode -eq 'Diagnostics') {
+    $scenarios = @(
+        @{ name = 'json'; args = @('-r', "echo json_encode(array('status'=>'ok'));") ; expectedExit = 0; expectedJson = $true },
+        @{ name = 'empty'; args = @('-r', 'exit(0);') ; expectedExit = 0; expectedJson = $false },
+        @{ name = 'invalid_json'; args = @('-r', "echo 'not-json';") ; expectedExit = 0; expectedJson = $false },
+        @{ name = 'exception'; args = @('-r', "fwrite(STDERR, 'SIMULATED_EXCEPTION'); exit(7);") ; expectedExit = 7; expectedJson = $false },
+        @{ name = 'stderr_and_json'; args = @('-r', "fwrite(STDERR, 'SIMULATED_STDERR'); echo json_encode(array('status'=>'ok'));") ; expectedExit = 0; expectedJson = $true },
+        @{ name = 'premature'; args = @('-r', "fwrite(STDERR, 'SIMULATED_PREMATURE'); exit(9);") ; expectedExit = 9; expectedJson = $false }
+    )
+    $records = foreach ($scenario in $scenarios) {
+        $run = Invoke-PHPProcess $scenario.args
+        $diag = Get-SafeProcessDiagnostic $run
+        [pscustomobject]@{
+            name = $scenario.name
+            pass = $diag.exit_code -eq $scenario.expectedExit -and $diag.stdout_json_valid -eq $scenario.expectedJson
+            diagnostic = $diag
+        }
+    }
+    [pscustomobject]@{ status = if (@($records | Where-Object { -not $_.pass }).Count -eq 0) { 'DIAGNOSTICS_PASS' } else { 'DIAGNOSTICS_FAIL' }; php_context = [string]$phpVersion; real_gemini_calls = 0; scenarios = $records } | ConvertTo-Json -Depth 8 -Compress
+    return
+}
+
+if ($Mode -eq 'Real' -and (-not $AllowRealCalls -or $SyntheticConfirmation -ne $expectedConfirmation)) {
     throw 'REAL_CALLS_BLOCKED_EXPLICIT_CONFIRMATION_REQUIRED'
 }
 
 function Invoke-SyntheticProbe {
-    $probeRun = Invoke-PHPProcess @($harness, '--probe')
+    $probeArgs = @($harness, '--probe', ('--database=' + $syntheticDatabase), ('--patient=' + $syntheticPatient))
+    if ($IncludeM02) { $probeArgs += '--include-m02' }
+    $probeRun = Invoke-PHPProcess $probeArgs
     if ($probeRun.ExitCode -ne 0) {
         throw 'SYNTHETIC_PREFLIGHT_FAILED'
     }
@@ -129,7 +181,7 @@ try {
             php_context = [string]$phpVersion
             synthetic_port = $testPort
             synthetic_database_guard = $probe.http_environment.effective_database -eq $syntheticDatabase
-            patient_9302_guard = [int]$probe.patient_synthetic -eq $syntheticPatient
+            synthetic_patient_guard = [int]$probe.patient_synthetic -eq $syntheticPatient
             application_external_disabled = $true
             real_gemini_calls = 0
         } | ConvertTo-Json -Compress
@@ -139,7 +191,9 @@ try {
     if (-not $skipReal) {
         # The existing harness performs exactly one M03 and one M06 request. Its
         # verify-only mode does not call confirmation endpoints or write clinical data.
-        $realRun = Invoke-PHPProcess @($harness, '--verify-only')
+        $realArgs = @($harness, '--verify-only', ('--database=' + $syntheticDatabase), ('--patient=' + $syntheticPatient))
+        if ($IncludeM02) { $realArgs += '--include-m02' }
+        $realRun = Invoke-PHPProcess $realArgs
         if ($realRun.ExitCode -ne 0) {
             throw 'SYNTHETIC_REAL_RUN_FAILED'
         }
