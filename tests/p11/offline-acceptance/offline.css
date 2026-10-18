@@ -1,0 +1,21 @@
+/* Adaptador exclusivo del harness. Las reglas P11 se cargan desde public/assets/css/app.css. */
+body.p11-pain-evaluation-page { min-width: 320px; background: #f7f5ff; }
+.p11-offline-banner { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; padding: .75rem 1rem; background: #251937; color: #fff; font-size: .9rem; }
+.p11-offline-main { max-width: 1120px; margin-inline: auto; }
+.p11-offline-label { cursor: default; }
+.p11-offline-swatch--red { --p11-color: #ff0000; }
+.p11-offline-swatch--blue { --p11-color: #0000ff; }
+.p11-offline-swatch--green { --p11-color: #00ff00; }
+.p11-offline-swatch--yellow { --p11-color: #ffff00; }
+.p11-offline-swatch--magenta { --p11-color: #ff00ff; }
+.p11-color-option input:focus-visible + .p11-color-swatch { outline: 3px solid rgba(111,45,189,.3); outline-offset: 3px; }
+.p11-color-option:has(input:checked) { border-color: #AB47BC; background: #F3E8FA; }
+.p11-offline-canvas-frame { position: relative; width: min(100%, 520px); margin-inline: auto; background: #fff; }
+.p11-offline-canvas-frame canvas { width: 100% !important; max-width: none !important; margin-inline: 0 !important; }
+.p11-offline-side-label { position: absolute; top: 0; bottom: 0; z-index: 1; display: flex; width: 22%; align-items: center; justify-content: center; padding: .5rem; background: #fff; color: #251937; font-size: clamp(.78rem, 1.7vw, 1rem); font-weight: 800; line-height: 1.2; text-align: center; pointer-events: none; }
+.p11-offline-side-label--left { left: 0; }
+.p11-offline-side-label--right { right: 0; }
+@media (max-width: 767.98px) {
+    .p11-offline-banner { align-items: flex-start; flex-direction: column; }
+    .p11-offline-main { padding-inline: .9rem; }
+}
