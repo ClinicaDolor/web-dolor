@@ -1,4 +1,5 @@
 <?php
+use App\Services\ClinicalSummarySecurity;
 
 $escape = static function ($value): string {
     return htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
@@ -6,6 +7,7 @@ $escape = static function ($value): string {
 $patientId = (int) ($data['idPaciente'] ?? 0);
 $patientName = trim((string) ($data['nombre'] ?? ''));
 $patientSex = $data['sexo'] ?? '';
+$p11CsrfToken = ClinicalSummarySecurity::captureCsrfToken($patientId);
 $title = $data['title'] ?? 'Evaluación del dolor';
 $patientUrl = $escape(SERVIDOR . 'clinica/paciente/' . $patientId);
 
@@ -300,7 +302,7 @@ $patientUrl = $escape(SERVIDOR . 'clinica/paciente/' . $patientId);
     }
     fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-M03-CSRF': document.getElementById('main')?.dataset.p11Csrf || '' },
     body: JSON.stringify(parametros)
     }).then(res => res.json()).then(data => {
  
@@ -330,7 +332,7 @@ $patientUrl = $escape(SERVIDOR . 'clinica/paciente/' . $patientId);
     <div id="app">
         <?=$data['sidebar'];?>
 
-        <div id="main" data-rol="<?=$escape($data['idRol'] ?? '');?>" data-paciente="<?=$patientId;?>" data-sexo="<?=$escape($patientSex);?>">
+        <div id="main" data-rol="<?=$escape($data['idRol'] ?? '');?>" data-paciente="<?=$patientId;?>" data-sexo="<?=$escape($patientSex);?>" data-p11-csrf="<?=$escape($p11CsrfToken);?>">
             <?php include_once __DIR__ . '/../components/search-bar-doctor.php'; ?>
 
             <main class="main-content container-fluid doctor-pain-evaluation-content">
@@ -344,7 +346,7 @@ $patientUrl = $escape(SERVIDOR . 'clinica/paciente/' . $patientId);
                         <?php endif; ?>
                     </div>
                     <div class="doctor-pain-evaluation-hero-actions">
-                        <a class="doctor-pain-evaluation-action" href="<?=$patientUrl;?>">
+                        <a class="doctor-pain-evaluation-action" data-doctor-back-action href="<?=$patientUrl;?>">
                             <i data-feather="arrow-left" aria-hidden="true"></i>
                             <span>Volver al expediente</span>
                         </a>

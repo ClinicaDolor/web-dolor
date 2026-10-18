@@ -56,7 +56,7 @@ $formatValue = static function ($value) use ($escape): string {
                         <p class="doctor-ficha-patient-context">Paciente autorizado: <strong><?=$escape($patientName);?></strong></p>
                     </div>
                     <div class="doctor-page-hero-actions doctor-ficha-hero-actions">
-                        <a class="btn doctor-ficha-action doctor-ficha-action-secondary" href="<?=$patientUrl;?>">
+                        <a class="btn doctor-ficha-action doctor-ficha-action-secondary" data-doctor-back-action href="<?=$patientUrl;?>">
                             <i data-feather="arrow-left" aria-hidden="true"></i>
                             <span>Volver al expediente</span>
                         </a>

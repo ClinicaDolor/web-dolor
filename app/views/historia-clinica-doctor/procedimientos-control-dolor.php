@@ -272,7 +272,7 @@ $patientUrl = $escape(SERVIDOR . 'clinica/paciente/' . $patientId);
                         <?php endif; ?>
                     </div>
                     <div class="doctor-procedures-pain-hero-actions">
-                        <a class="doctor-procedures-pain-action" href="<?= $patientUrl; ?>">
+                        <a class="doctor-procedures-pain-action" data-doctor-back-action href="<?= $patientUrl; ?>">
                             <i data-feather="arrow-left" aria-hidden="true"></i>
                             <span>Volver al expediente</span>
                         </a>

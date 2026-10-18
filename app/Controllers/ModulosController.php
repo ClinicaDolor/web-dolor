@@ -358,24 +358,61 @@ class ModulosController extends BaseController {
     
     public function pacienteDeleteEnfermedad(){
     $data = json_decode(file_get_contents('php://input'), true);
-    $idRol = $data['idRol'];  // Obtener el idRol
-    $idRol == "Paciente" ? $view = "historia-clinica" : $view = "clinica";
-        
-    $authMiddleware = new AuthMiddleware($view);
-    $auth = $authMiddleware->authPermisos();
-    $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
     header('Content-Type: application/json');
     
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo HttpMethod::jsonResponse(405, false, "Método no permitido. Usa POST.");
     return;
     }
-    
+
+    if (!is_array($data)) {
+    echo HttpMethod::jsonResponse(422, false, 'Datos de eliminación no válidos.');
+    return;
+    }
+
+    $idEnfermedad = filter_var($data['idEnfermedad'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    if ($idEnfermedad === false) {
+    echo HttpMethod::jsonResponse(422, false, 'Datos de eliminación no válidos.');
+    return;
+    }
+
+    $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '';
+    if (strpos($requestPath, '/historia-clinica/') !== false) {
+    $view = 'historia-clinica';
+    } elseif (strpos($requestPath, '/clinica/') !== false) {
+    $view = 'clinica';
+    } else {
+    echo HttpMethod::jsonResponse(400, false, 'Contexto de eliminación no válido.');
+    return;
+    }
+
+    $authMiddleware = new AuthMiddleware($view);
+    $auth = $authMiddleware->authPermisos();
     $model = new AntecedenteFamiliarModel();
+
+    if ($view === 'historia-clinica') {
+    // En el portal del paciente, el paciente autorizado procede del JWT.
+    $idPacienteAutorizado = $authMiddleware->assertPatientAccess((int)$auth['id_usuario'], $auth);
+    } else {
+    // En la vista clínica, resolver primero el propietario del registro y
+    // después validar que pertenezca al ámbito de la clínica autenticada.
+    $idPacienteDelRegistro = $model->obtenerPacienteDeEnfermedad((int)$idEnfermedad);
+    if ($idPacienteDelRegistro === null) {
+    echo HttpMethod::jsonResponse(404, false, 'No se encontró el antecedente solicitado.');
+    return;
+    }
+    $idPacienteAutorizado = $authMiddleware->assertPatientAccess($idPacienteDelRegistro, $auth);
+    }
+
+    $data['idEnfermedad'] = (int)$idEnfermedad;
+    $data['idPaciente'] = $idPacienteAutorizado;
+
     $resultModel = $model->eliminarEnfermedadPaciente($data);
     
     if ($resultModel['resultado'] == 200) {
     echo HttpMethod::jsonResponse(200,true,$resultModel['mensaje']);
+    } elseif ($resultModel['resultado'] == 404) {
+    echo HttpMethod::jsonResponse(404, false, $resultModel['mensaje']);
     } else {
     echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
     }
@@ -810,10 +847,15 @@ class ModulosController extends BaseController {
     $authMiddleware = new AuthMiddleware($view);
     $auth = $authMiddleware->authPermisos();
     $authMiddleware->assertPatientAccess($idPaciente, $auth);
+    $csrfToken = $_SERVER['HTTP_X_M03_CSRF'] ?? ($data['csrf_token'] ?? null);
+    if (!ClinicalSummarySecurity::validCaptureCsrf((int)$idPaciente, is_scalar($csrfToken) ? (string)$csrfToken : null)) {
+    echo HttpMethod::jsonResponse(403, false, 'Token de seguridad inválido o ausente.');
+    return;
+    }
     $resultModel = (new MedicacionDolorModel())->editarCuestionarioM7Paciente($data);
     $status = (int)($resultModel['resultado'] ?? 422);
-    $httpStatus = $status === 200 ? 200 : ($status === 403 ? 403 : 422);
-    echo HttpMethod::jsonResponse($httpStatus, $status === 200, $resultModel['mensaje'] ?? 'No se pudo actualizar la respuesta.', '', ['idRespuesta' => (int)($resultModel['idRespuesta'] ?? 0), 'sin_cambios' => (bool)($resultModel['sin_cambios'] ?? false)]);
+    $httpStatus = $status === 200 ? 200 : (in_array($status, [403, 409], true) ? $status : 422);
+    echo HttpMethod::jsonResponse($httpStatus, $status === 200, $resultModel['mensaje'] ?? 'No se pudo actualizar la respuesta.', '', ['code' => $resultModel['code'] ?? null, 'idRespuesta' => (int)($resultModel['idRespuesta'] ?? 0), 'sin_cambios' => (bool)($resultModel['sin_cambios'] ?? false)]);
     } catch (\Throwable $exception) {
     http_response_code(500);
     echo HttpMethod::jsonResponse(500, false, 'No se pudo actualizar la respuesta. Inténtalo nuevamente.');
@@ -927,6 +969,10 @@ class ModulosController extends BaseController {
     $guard = new AuthMiddleware('');
     $auth = $guard->authAny();
     $guard->assertPatientAccess($idPaciente, $auth);
+    $csrfToken = $_SERVER['HTTP_X_M03_CSRF'] ?? ($payload['csrf_token'] ?? null);
+    if (!ClinicalSummarySecurity::validCaptureCsrf((int) $idPaciente, is_scalar($csrfToken) ? (string) $csrfToken : null)) {
+    throw new \RuntimeException('P11_CSRF_INVALID');
+    }
     $payload['idPaciente'] = (int) $idPaciente;
     $payload['idRolReal'] = (($auth['vista'] ?? '') === 'historia-clinica') ? 'Paciente' : 'Doctor';
     return $payload;
@@ -935,6 +981,10 @@ class ModulosController extends BaseController {
     private function p11Error(\Throwable $exception): void
     {
     error_log('[P11] operación no completada: ' . get_class($exception));
+    if ($exception->getMessage() === 'P11_CSRF_INVALID') {
+    echo HttpMethod::jsonResponse(403, false, 'Token de seguridad inválido o ausente.');
+    return;
+    }
     echo HttpMethod::jsonResponse(500, false, 'No se pudo completar la operación. Inténtalo nuevamente.');
     }
 
@@ -1166,12 +1216,26 @@ class ModulosController extends BaseController {
     $data['idPaciente'] = $idPaciente;
     $data['idModulo'] = $idModulo;
     $authMiddleware->assertPatientAccess($idPaciente, $auth);
+    $m07Model = null;
+    if ($idModulo === 7) {
+        $csrfToken = $_SERVER['HTTP_X_M03_CSRF'] ?? ($data['csrf_token'] ?? null);
+        if (!ClinicalSummarySecurity::validCaptureCsrf((int)$idPaciente, is_scalar($csrfToken) ? (string)$csrfToken : null)) {
+            echo HttpMethod::jsonResponse(403, false, 'Token de seguridad inválido o ausente.');
+            return;
+        }
+        $m07Model = new MedicacionDolorModel();
+        $finalizationGuard = $m07Model->validateLegacyM07Finalization((int)$idPaciente);
+        if (($finalizationGuard['ok'] ?? false) !== true) {
+            echo HttpMethod::jsonResponse(409, false, $finalizationGuard['mensaje'] ?? 'El módulo M07 requiere el formulario actualizado.', '', ['code' => $finalizationGuard['code'] ?? 'M07_EXTENDED_DATA_REQUIRES_UPDATED_FORM']);
+            return;
+        }
+    }
     $resultModel = $idModulo === 9
         ? (new EvaluacionDolorModel())->p11FinalizarModulo($idPaciente)
         : ($idModulo === 8
         ? (new ProcedimientosDolorModel())->p10FinalizarModulo($idPaciente)
         : ($idModulo === 7
-            ? (new MedicacionDolorModel())->finalizarModuloPaciente($idPaciente)
+            ? $m07Model->finalizarModuloPaciente($idPaciente)
             : ($idModulo === 6
                 ? (new MedicacionActualModel())->finalizarModuloPaciente($data)
                 : ($idModulo === 4

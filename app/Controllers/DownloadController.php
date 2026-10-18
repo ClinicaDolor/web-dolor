@@ -3,18 +3,37 @@
 namespace App\Controllers;
 
 use App\Middleware\AuthMiddleware;
+use App\Config\Database;
 
 class DownloadController{
 
 
 
     public function download($ruta, $archivo){
-        (new AuthMiddleware('clinica'))->authPermisos();
+        $authMiddleware = new AuthMiddleware('clinica');
+        $auth = $authMiddleware->authPermisos();
 
         $storagePath = realpath($_SERVER['DOCUMENT_ROOT'] . '/public/storage');
         $relativeDirectory = trim($ruta, '/\\');
+        $requestedName = basename($archivo);
+
+        if ($relativeDirectory === 'laboratorio') {
+            $stmt = Database::getInstance()->prepare(
+                'SELECT id_paciente FROM laboratorio WHERE ruta = :ruta AND nombre = :nombre LIMIT 1'
+            );
+            $stmt->execute(['ruta' => 'laboratorio', 'nombre' => $requestedName]);
+            $laboratorio = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            if (!$laboratorio) {
+                http_response_code(404);
+                exit('Archivo no encontrado.');
+            }
+
+            $authMiddleware->assertPatientAccess($laboratorio['id_paciente'], $auth);
+        }
+
         $candidatePath = $storagePath
-            ? $storagePath . DIRECTORY_SEPARATOR . $relativeDirectory . DIRECTORY_SEPARATOR . basename($archivo)
+            ? $storagePath . DIRECTORY_SEPARATOR . $relativeDirectory . DIRECTORY_SEPARATOR . $requestedName
             : false;
         $filePath = $candidatePath ? realpath($candidatePath) : false;
         $storagePrefix = $storagePath
