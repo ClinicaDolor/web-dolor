@@ -238,8 +238,7 @@ body.app-shell-body.doctor-patient-recipes-page .doctor-page-hero-actions {
   gap: .55rem;
 }
 
-body.app-shell-body.doctor-patient-recipes-page .doctor-page-hero-action,
-body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-toggle {
+body.app-shell-body.doctor-patient-recipes-page .doctor-page-hero-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -255,22 +254,14 @@ body.app-shell-body.doctor-patient-recipes-page .doctor-page-hero-action {
   padding-inline: 1rem;
 }
 
-body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-toggle {
-  width: 44px;
-  padding: .55rem;
-}
-
 body.app-shell-body.doctor-patient-recipes-page .doctor-page-hero-action:hover,
-body.app-shell-body.doctor-patient-recipes-page .doctor-page-hero-action:focus-visible,
-body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-toggle:hover,
-body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-toggle:focus-visible {
+body.app-shell-body.doctor-patient-recipes-page .doctor-page-hero-action:focus-visible {
   border-color: #c8b0ed;
   background: var(--clinic-primary-soft);
   color: var(--clinic-primary-dark);
 }
 
-body.app-shell-body.doctor-patient-recipes-page .doctor-page-hero-action svg,
-body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-toggle svg {
+body.app-shell-body.doctor-patient-recipes-page .doctor-page-hero-action svg {
   width: 1.05rem;
   height: 1.05rem;
   flex: 0 0 auto;
@@ -760,6 +751,188 @@ body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-results 
   }
 
   body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-actions,
+  body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-submit {
+    width: 100%;
+  }
+}
+
+/* TH-DOCTOR-COFEPRIS-MAIN-LIST-CREATE-MODAL-12: listado principal y alta en modal. */
+body.app-shell-body.doctor-cofepris-config-page.doctor-cofepris-config-modal-open {
+  overflow: hidden;
+}
+
+body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-list-card {
+  width: 100%;
+}
+
+body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-new-button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: .45rem;
+  padding: .65rem 1rem;
+  border: 1px solid var(--clinic-primary);
+  border-radius: 10px;
+  background: var(--clinic-primary);
+  color: #fff;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-new-button:hover,
+body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-new-button:focus-visible {
+  border-color: var(--clinic-primary-dark);
+  background: var(--clinic-primary-dark);
+  color: #fff;
+}
+
+body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-new-button:disabled {
+  cursor: not-allowed;
+  opacity: .65;
+}
+
+body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-new-button svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-modal[hidden] {
+  display: none;
+}
+
+body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-modal {
+  position: fixed;
+  z-index: 1100;
+  inset: 0;
+  display: grid;
+  overflow-y: auto;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(33, 22, 79, .48);
+}
+
+body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-modal-panel {
+  display: flex;
+  width: min(100%, 700px);
+  max-height: min(760px, calc(100vh - 2rem));
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--clinic-border);
+  border-radius: var(--clinic-radius);
+  background: #fff;
+  box-shadow: 0 24px 60px rgba(33, 22, 79, .25);
+}
+
+body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-modal-header,
+body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #ece7f8;
+}
+
+body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-modal-header h2 {
+  margin: .15rem 0 0;
+  color: var(--clinic-ink);
+  font-size: clamp(1.2rem, 2vw, 1.55rem);
+  font-weight: 800;
+}
+
+body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-modal-close {
+  display: inline-flex;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--clinic-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--clinic-primary-dark);
+}
+
+body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-modal-close:hover,
+body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-modal-close:focus-visible {
+  border-color: var(--clinic-primary);
+  background: var(--clinic-primary-soft);
+  color: var(--clinic-primary-dark);
+}
+
+body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-modal-close svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-modal-form {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+}
+
+body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-modal-body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1.25rem;
+}
+
+body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-modal-footer {
+  justify-content: flex-end;
+  border-top: 1px solid #ece7f8;
+  border-bottom: 0;
+  background: #fcfbff;
+}
+
+body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-cancel {
+  min-height: 44px;
+  padding: .65rem 1rem;
+  border: 1px solid var(--clinic-primary);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--clinic-primary-dark);
+  font-weight: 750;
+}
+
+body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-cancel:hover,
+body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-cancel:focus-visible {
+  border-color: var(--clinic-primary-dark);
+  background: var(--clinic-primary-soft);
+  color: var(--clinic-primary-dark);
+}
+
+@media (max-width: 767px) {
+  body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-card-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-new-button {
+    width: 100%;
+  }
+
+  body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-modal {
+    align-items: start;
+    padding: .75rem;
+  }
+
+  body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-modal-panel {
+    max-height: calc(100vh - 1.5rem);
+  }
+
+  body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-modal-header,
+  body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-modal-body,
+  body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-modal-footer {
+    padding: 1rem;
+  }
+
+  body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-modal-footer {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-cancel,
   body.app-shell-body.doctor-cofepris-config-page .doctor-cofepris-config-submit {
     width: 100%;
   }
@@ -2446,18 +2619,6 @@ body.app-shell-body.doctor-patient-pin-page .doctor-pin-card-header {
   background: linear-gradient(180deg, rgba(250, 248, 255, .98), rgba(255, 255, 255, .94));
 }
 
-body.app-shell-body.doctor-patient-pin-page .doctor-pin-card-header .dashboard-eyebrow {
-  margin: 0 0 .25rem;
-}
-
-body.app-shell-body.doctor-patient-pin-page .doctor-pin-card-header .card-title {
-  margin: 0;
-  color: var(--clinic-ink);
-  font-size: 1.05rem;
-  font-weight: 800;
-  letter-spacing: -.02em;
-}
-
 body.app-shell-body.doctor-patient-pin-page .doctor-pin-card-body {
   min-width: 0;
   padding: 1.25rem 1.35rem 1.35rem;
@@ -2738,8 +2899,7 @@ body.app-shell-body.doctor-patient-lab-page .doctor-page-hero-actions {
   gap: .55rem;
 }
 
-body.app-shell-body.doctor-patient-lab-page .doctor-page-hero-action,
-body.app-shell-body.doctor-patient-lab-page .doctor-lab-toggle {
+body.app-shell-body.doctor-patient-lab-page .doctor-page-hero-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2755,25 +2915,72 @@ body.app-shell-body.doctor-patient-lab-page .doctor-page-hero-action {
   padding-inline: 1rem;
 }
 
-body.app-shell-body.doctor-patient-lab-page .doctor-lab-toggle {
-  width: 44px;
-  padding: .55rem;
-}
-
 body.app-shell-body.doctor-patient-lab-page .doctor-page-hero-action:hover,
-body.app-shell-body.doctor-patient-lab-page .doctor-page-hero-action:focus-visible,
-body.app-shell-body.doctor-patient-lab-page .doctor-lab-toggle:hover,
-body.app-shell-body.doctor-patient-lab-page .doctor-lab-toggle:focus-visible {
+body.app-shell-body.doctor-patient-lab-page .doctor-page-hero-action:focus-visible {
   border-color: #c8b0ed;
   background: var(--clinic-primary-soft);
   color: var(--clinic-primary-dark);
 }
 
-body.app-shell-body.doctor-patient-lab-page .doctor-page-hero-action svg,
-body.app-shell-body.doctor-patient-lab-page .doctor-lab-toggle svg {
+body.app-shell-body.doctor-patient-lab-page .doctor-page-hero-action svg {
   width: 1.05rem;
   height: 1.05rem;
   flex: 0 0 auto;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-patient-context {
+  margin: 0 0 1rem;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-patient-strip {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+  padding: .9rem 1.15rem;
+  border: 1px solid var(--clinic-border);
+  border-radius: var(--clinic-radius);
+  background: #fff;
+  box-shadow: var(--clinic-shadow);
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-patient-icon {
+  display: inline-flex;
+  flex: 0 0 2.8rem;
+  width: 2.8rem;
+  height: 2.8rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--clinic-primary-soft);
+  color: var(--clinic-primary-dark);
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-patient-icon svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-patient-context-copy {
+  min-width: 0;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-patient-context-copy .dashboard-eyebrow {
+  margin: 0 0 .2rem;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-patient-context-copy h2 {
+  margin: 0;
+  color: var(--clinic-ink);
+  font-size: clamp(1rem, 1.5vw, 1.22rem);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-patient-context-copy > p:last-child {
+  margin: .2rem 0 0;
+  color: var(--clinic-muted);
+  font-size: .82rem;
 }
 
 body.app-shell-body.doctor-patient-lab-page .doctor-lab-card {
@@ -2843,6 +3050,37 @@ body.app-shell-body.doctor-patient-lab-page .doctor-lab-workspace > [class*="col
   margin-bottom: 0;
 }
 
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-list-column,
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-detail-column,
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-create-column {
+  min-width: 0;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-section-header {
+  align-items: flex-start;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-section-heading {
+  min-width: 0;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-section-heading .dashboard-eyebrow {
+  margin: 0 0 .28rem;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-section-heading .card-title {
+  color: var(--clinic-ink);
+  font-size: 1.08rem;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-count {
+  margin: .28rem 0 0;
+  color: var(--clinic-primary-dark);
+  font-size: .82rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 body.app-shell-body.doctor-patient-lab-page .doctor-lab-list-card .card-body {
   padding-top: 1rem;
 }
@@ -2853,6 +3091,37 @@ body.app-shell-body.doctor-patient-lab-page .doctor-lab-list-card .dataTable-con
   max-width: 100%;
   min-width: 0;
   overflow-x: auto;
+  overflow-y: visible;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-table-region[hidden],
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-empty-state[hidden] {
+  display: none;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-empty-state {
+  display: flex;
+  min-height: 7rem;
+  align-items: center;
+  justify-content: center;
+  gap: .65rem;
+  padding: 1.15rem;
+  border: 1px dashed #dbc9f2;
+  border-radius: .75rem;
+  background: rgba(250, 248, 255, .72);
+  color: var(--clinic-muted);
+  text-align: center;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-empty-state p {
+  margin: 0;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-empty-state svg {
+  flex: 0 0 auto;
+  width: 1.1rem;
+  height: 1.1rem;
+  color: var(--clinic-primary);
 }
 
 body.app-shell-body.doctor-patient-lab-page .doctor-lab-list-card #table1 {
@@ -2881,8 +3150,14 @@ body.app-shell-body.doctor-patient-lab-page .doctor-lab-list-card #table1 tbody 
 }
 
 body.app-shell-body.doctor-patient-lab-page .doctor-lab-list-card #table1 tbody tr:hover,
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-list-card #table1 tbody tr:focus,
 body.app-shell-body.doctor-patient-lab-page .doctor-lab-list-card #table1 tbody tr:focus-within {
   background: var(--clinic-primary-soft);
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-list-card #table1 tbody tr:focus-visible {
+  outline: 3px solid rgba(111, 55, 174, .28);
+  outline-offset: -3px;
 }
 
 body.app-shell-body.doctor-patient-lab-page .doctor-lab-list-card #table1 th,
@@ -2897,6 +3172,45 @@ body.app-shell-body.doctor-patient-lab-page .doctor-lab-detail-content {
   overflow-wrap: anywhere;
 }
 
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-detail-modal-content {
+  width: min(100%, 760px);
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-detail-modal-body {
+  min-height: 8rem;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal-status {
+  margin: 0 0 1rem;
+  color: var(--clinic-muted);
+  font-size: .9rem;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal-status:empty {
+  display: none;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-detail-modal-body .doctor-lab-detail-content .float-end {
+  display: flex;
+  float: none;
+  justify-content: flex-end;
+  margin-bottom: 1rem;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-detail-modal-body .doctor-lab-detail-content .fs-5 {
+  display: block;
+  color: var(--clinic-ink);
+  overflow-wrap: anywhere;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-detail-modal-body .doctor-lab-detail-content a[download] {
+  display: inline-flex;
+  min-width: 44px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+}
+
 body.app-shell-body.doctor-patient-lab-page .doctor-lab-create-card .form-control,
 body.app-shell-body.doctor-patient-lab-page .doctor-lab-create-card .ql-toolbar,
 body.app-shell-body.doctor-patient-lab-page .doctor-lab-create-card .ql-container {
@@ -2905,6 +3219,20 @@ body.app-shell-body.doctor-patient-lab-page .doctor-lab-create-card .ql-containe
 
 body.app-shell-body.doctor-patient-lab-page .doctor-lab-create-card .form-control {
   min-height: 42px;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-field {
+  margin-bottom: .9rem;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-field-label {
+  display: inline-block;
+  margin-bottom: .35rem;
+  color: var(--clinic-muted);
+  font-size: .72rem;
+  font-weight: 750;
+  letter-spacing: .04em;
+  text-transform: uppercase;
 }
 
 body.app-shell-body.doctor-patient-lab-page .doctor-lab-create-card .editor {
@@ -2935,6 +3263,10 @@ body.app-shell-body.doctor-patient-lab-page #mensaje {
   font-size: .82rem;
 }
 
+body.app-shell-body.doctor-patient-lab-page #detalleLaboratorioModalBody[aria-busy="true"] {
+  opacity: .7;
+}
+
 @media (max-width: 767px) {
   body.app-shell-body.doctor-patient-lab-page .doctor-page-hero {
     align-items: stretch;
@@ -2950,13 +3282,18 @@ body.app-shell-body.doctor-patient-lab-page #mensaje {
     flex: 1 1 auto;
   }
 
+  body.app-shell-body.doctor-patient-lab-page .doctor-lab-patient-strip {
+    align-items: flex-start;
+    padding: 1rem;
+  }
+
   body.app-shell-body.doctor-patient-lab-page .doctor-lab-card .card-body {
     padding: 1rem;
   }
 
   body.app-shell-body.doctor-patient-lab-page .doctor-lab-list-card #table1 {
-    min-width: 0;
-    table-layout: fixed;
+    min-width: 34rem;
+    table-layout: auto;
   }
 
   body.app-shell-body.doctor-patient-lab-page .doctor-lab-list-card #table1 th,
@@ -2968,6 +3305,240 @@ body.app-shell-body.doctor-patient-lab-page #mensaje {
   }
 
   body.app-shell-body.doctor-patient-lab-page .doctor-lab-submit .btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 430px) {
+  body.app-shell-body.doctor-patient-lab-page .doctor-lab-patient-strip {
+    gap: .75rem;
+    padding: .85rem;
+  }
+
+  body.app-shell-body.doctor-patient-lab-page .doctor-lab-patient-icon {
+    flex-basis: 2.55rem;
+    width: 2.55rem;
+    height: 2.55rem;
+  }
+}
+
+/* TH-DOCTOR-LABORATORY-FINALIZATION-05: modal de creación sin cambiar el endpoint existente. */
+body.app-shell-body.doctor-patient-lab-page.doctor-lab-modal-open {
+  overflow: hidden;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-section-header {
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-new-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  padding-inline: 1rem;
+  white-space: nowrap;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-new-button svg,
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal-actions svg {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal[hidden] {
+  display: none;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal {
+  position: fixed;
+  z-index: 1200;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(37, 25, 55, .42);
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal-content {
+  display: flex;
+  width: min(100%, 680px);
+  max-height: calc(100vh - 2rem);
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--clinic-border);
+  border-radius: var(--clinic-radius);
+  background: #fff;
+  box-shadow: 0 1.25rem 3rem rgba(55, 35, 91, .22);
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal-header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem;
+  border-bottom: 1px solid var(--clinic-border);
+  background: linear-gradient(135deg, rgba(255, 255, 255, .98), rgba(248, 245, 255, .98));
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal-header .dashboard-eyebrow {
+  margin: 0 0 .25rem;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal-header h2 {
+  margin: 0;
+  color: var(--clinic-primary-dark);
+  font-size: clamp(1.2rem, 2vw, 1.45rem);
+  font-weight: 850;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal-close {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--clinic-primary-dark);
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal-close:hover,
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal-close:focus-visible {
+  border-color: #c8b0ed;
+  background: var(--clinic-primary-soft);
+  color: var(--clinic-primary-dark);
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal-close svg {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal-body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1.25rem;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal .form-control,
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal .ql-toolbar,
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal .ql-container {
+  border-color: var(--clinic-border);
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal .form-control {
+  min-height: 42px;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal .editor {
+  min-height: 10rem;
+  height: auto;
+  font-size: 1rem;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal .ql-editor {
+  min-height: 10rem;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal .form-control:focus,
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal .ql-container:focus-within {
+  border-color: var(--clinic-primary);
+  box-shadow: 0 0 0 .2rem rgba(111, 55, 174, .14);
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-field-help {
+  display: block;
+  margin-top: .3rem;
+  color: var(--clinic-muted);
+  font-size: .78rem;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal-body #mensaje {
+  min-height: 1.25rem;
+  margin-top: .75rem;
+  color: var(--clinic-danger, #a72e4d);
+  font-size: .82rem;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: .6rem;
+  padding: 1rem 1.25rem 1.25rem;
+  border-top: 1px solid var(--clinic-border);
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal-actions .btn {
+  display: inline-flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  font-weight: 800;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal-cancel {
+  border: 1px solid #AB47BC;
+  background: #F3E8FA;
+  color: #5B1978;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal-cancel:hover,
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal-cancel:focus-visible {
+  border-color: #9C27B0;
+  background: #EEDAF7;
+  color: #5B1978;
+}
+
+body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal :where(button, input, textarea, select):focus-visible {
+  outline: 3px solid rgba(111, 45, 189, .28);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px #fff;
+}
+
+@media (max-width: 767px) {
+  body.app-shell-body.doctor-patient-lab-page .doctor-lab-section-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  body.app-shell-body.doctor-patient-lab-page .doctor-lab-new-button {
+    width: 100%;
+  }
+
+  body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal {
+    padding: .5rem;
+  }
+
+  body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal-content {
+    max-height: calc(100vh - 1rem);
+  }
+
+  body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal-header,
+  body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal-body,
+  body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal-actions {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  body.app-shell-body.doctor-patient-lab-page .doctor-lab-modal-actions .btn {
     width: 100%;
   }
 }
@@ -3954,6 +4525,13 @@ body.app-shell-body.doctor-patient-note-page .main-content {
   margin-inline: auto;
 }
 
+/* TH-DOCTOR-SUBSEQUENT-NOTE-UX-STRUCTURAL-IMPLEMENTATION-05: el módulo usa el ancho útil del dashboard. */
+body.app-shell-body.doctor-patient-note-page #main .doctor-note-main-content {
+  width: 100%;
+  max-width: none;
+  margin-inline: 0;
+}
+
 body.app-shell-body.doctor-patient-note-page .doctor-note-hero {
   display: flex;
   align-items: center;
@@ -3992,8 +4570,7 @@ body.app-shell-body.doctor-patient-note-page .doctor-page-hero-actions {
   flex: 0 0 auto;
 }
 
-body.app-shell-body.doctor-patient-note-page .doctor-page-hero-action,
-body.app-shell-body.doctor-patient-note-page .doctor-note-toggle {
+body.app-shell-body.doctor-patient-note-page .doctor-page-hero-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -4009,22 +4586,14 @@ body.app-shell-body.doctor-patient-note-page .doctor-page-hero-action {
   padding-inline: 1rem;
 }
 
-body.app-shell-body.doctor-patient-note-page .doctor-note-toggle {
-  width: 44px;
-  padding: .5rem;
-}
-
 body.app-shell-body.doctor-patient-note-page .doctor-page-hero-action:hover,
-body.app-shell-body.doctor-patient-note-page .doctor-page-hero-action:focus-visible,
-body.app-shell-body.doctor-patient-note-page .doctor-note-toggle:hover,
-body.app-shell-body.doctor-patient-note-page .doctor-note-toggle:focus-visible {
+body.app-shell-body.doctor-patient-note-page .doctor-page-hero-action:focus-visible {
   border-color: #c8b0ed;
   background: var(--clinic-primary-soft);
   color: var(--clinic-primary-dark);
 }
 
-body.app-shell-body.doctor-patient-note-page .doctor-page-hero-action svg,
-body.app-shell-body.doctor-patient-note-page .doctor-note-toggle svg {
+body.app-shell-body.doctor-patient-note-page .doctor-page-hero-action svg {
   width: 1.05rem;
   height: 1.05rem;
 }
@@ -4047,6 +4616,57 @@ body.app-shell-body.doctor-patient-note-page .doctor-note-patient-card .card-bod
   padding-block: 1.1rem;
 }
 
+body.app-shell-body.doctor-patient-note-page .doctor-note-patient-strip {
+  display: flex;
+  align-items: center;
+  gap: .85rem;
+  margin-bottom: 1rem;
+  padding: 1rem 1.15rem;
+  border: 1px solid var(--clinic-border);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .96), rgba(248, 245, 255, .92));
+}
+
+body.app-shell-body.doctor-patient-note-page .doctor-note-patient-icon {
+  display: grid;
+  width: 2.8rem;
+  height: 2.8rem;
+  flex: 0 0 2.8rem;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--clinic-primary-soft);
+  color: var(--clinic-primary);
+}
+
+body.app-shell-body.doctor-patient-note-page .doctor-note-patient-icon svg {
+  width: 1.3rem;
+  height: 1.3rem;
+}
+
+body.app-shell-body.doctor-patient-note-page .doctor-note-patient-context-copy {
+  min-width: 0;
+}
+
+body.app-shell-body.doctor-patient-note-page .doctor-note-patient-context-copy .dashboard-eyebrow {
+  margin: 0 0 .2rem;
+}
+
+body.app-shell-body.doctor-patient-note-page .doctor-note-patient-context-copy h2 {
+  margin: 0;
+  color: var(--clinic-ink);
+  font-size: clamp(1.15rem, 2vw, 1.45rem);
+  font-weight: 800;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+body.app-shell-body.doctor-patient-note-page .doctor-note-patient-context-copy p:last-child {
+  margin: .2rem 0 0;
+  color: var(--clinic-muted);
+  font-size: .86rem;
+  line-height: 1.35;
+}
+
 body.app-shell-body.doctor-patient-note-page .doctor-note-patient-card .row {
   row-gap: .9rem;
 }
@@ -4062,13 +4682,30 @@ body.app-shell-body.doctor-patient-note-page .doctor-note-entry-section {
   margin-top: 1rem;
 }
 
+body.app-shell-body.doctor-patient-note-page .doctor-note-history-grid,
+body.app-shell-body.doctor-patient-note-page .doctor-note-entry-grid {
+  row-gap: 1rem;
+}
+
+body.app-shell-body.doctor-patient-note-page .doctor-note-history-grid > [class*="col-"],
+body.app-shell-body.doctor-patient-note-page .doctor-note-entry-grid > [class*="col-"] {
+  flex: 0 0 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
 body.app-shell-body.doctor-patient-note-page .doctor-note-history-card,
 body.app-shell-body.doctor-patient-note-page .doctor-note-detail-card {
-  min-height: 100%;
+  min-height: 0;
 }
 
 body.app-shell-body.doctor-patient-note-page .doctor-note-history-card tbody tr {
   cursor: pointer;
+}
+
+body.app-shell-body.doctor-patient-note-page .doctor-note-history-card tbody tr:focus-visible {
+  outline: 3px solid rgba(111, 45, 189, .25);
+  outline-offset: -3px;
 }
 
 body.app-shell-body.doctor-patient-note-page .doctor-note-history-card tbody tr:focus-within,
@@ -4080,6 +4717,8 @@ body.app-shell-body.doctor-patient-note-page .doctor-note-section-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
   margin-bottom: 1rem;
   padding: .25rem 0 0;
 }
@@ -4089,6 +4728,107 @@ body.app-shell-body.doctor-patient-note-page .doctor-note-section-heading h2 {
   color: var(--clinic-ink);
   font-size: 1.2rem;
   font-weight: 800;
+}
+
+body.app-shell-body.doctor-patient-note-page .doctor-note-history-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+body.app-shell-body.doctor-patient-note-page .doctor-note-history-card-header > div {
+  min-width: 0;
+}
+
+body.app-shell-body.doctor-patient-note-page .doctor-note-history-action {
+  display: inline-flex;
+  min-height: 44px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  white-space: nowrap;
+}
+
+body.app-shell-body.doctor-patient-note-page .doctor-note-history-reference {
+  display: inline-block;
+  max-width: 22rem;
+  color: var(--clinic-primary-dark);
+  font-size: .78rem;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+body.app-shell-body.doctor-patient-note-page .doctor-note-empty-state {
+  display: flex;
+  min-height: 7rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .75rem;
+  padding: 1.25rem;
+  border: 1px dashed var(--clinic-border);
+  border-radius: 10px;
+  background: #faf8ff;
+  color: var(--clinic-muted);
+  text-align: center;
+}
+
+body.app-shell-body.doctor-patient-note-page .doctor-note-empty-state p {
+  margin: 0;
+}
+
+body.app-shell-body.doctor-patient-note-page .doctor-note-detail-action {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  padding: .55rem .8rem;
+  border: 1px solid var(--clinic-border);
+  border-radius: 10px;
+  background: #fff;
+  background-color: #fff;
+  background-image: none;
+  color: var(--clinic-primary-dark);
+  font-weight: 700;
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease;
+}
+
+body.app-shell-body.doctor-patient-note-page .doctor-note-detail-action:hover,
+body.app-shell-body.doctor-patient-note-page .doctor-note-detail-action:active {
+  border-color: var(--clinic-primary);
+  background: var(--clinic-primary);
+  background-color: var(--clinic-primary);
+  background-image: none;
+  color: #fff;
+}
+
+body.app-shell-body.doctor-patient-note-page .doctor-note-detail-action:hover svg,
+body.app-shell-body.doctor-patient-note-page .doctor-note-detail-action:active svg {
+  color: #fff;
+}
+
+body.app-shell-body.doctor-patient-note-page .doctor-note-detail-action:focus-visible {
+  border-color: var(--clinic-primary);
+  background: #fff;
+  background-color: #fff;
+  background-image: none;
+  color: var(--clinic-primary-dark);
+  outline: 3px solid rgba(111, 45, 189, .28);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px #fff;
+}
+
+body.app-shell-body.doctor-patient-note-page .doctor-note-detail-action svg {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+  color: currentColor;
 }
 
 body.app-shell-body.doctor-patient-note-page .doctor-note-editor-card .row {
@@ -4159,7 +4899,66 @@ body.app-shell-body.doctor-patient-note-page .resizable {
   transition: all .3s ease-in-out;
 }
 
+body.app-shell-body.doctor-patient-note-page .doctor-note-entry-grid {
+  margin-bottom: 0;
+}
+
+body.app-shell-body.doctor-patient-note-page .doctor-note-entry-primary,
+body.app-shell-body.doctor-patient-note-page .doctor-note-entry-related {
+  min-width: 0;
+}
+
+body.app-shell-body.doctor-patient-note-page .doctor-note-card .dataTable-wrapper,
+body.app-shell-body.doctor-patient-note-page .doctor-note-card .dataTable-container {
+  max-width: 100%;
+}
+
+body.app-shell-body.doctor-patient-note-page .doctor-note-card .dataTable-container {
+  overflow-x: auto;
+  border-radius: 10px;
+}
+
+body.app-shell-body.doctor-patient-note-page .doctor-note-card .dataTable-table {
+  width: 100%;
+  min-width: 0;
+}
+
+body.app-shell-body.doctor-patient-note-page .doctor-note-card .dataTable-table th,
+body.app-shell-body.doctor-patient-note-page .doctor-note-card .dataTable-table td {
+  overflow-wrap: anywhere;
+}
+
+body.app-shell-body.doctor-patient-note-page .doctor-note-card .ql-container.ql-snow {
+  height: auto;
+  min-height: 9rem;
+  overflow: visible;
+}
+
+body.app-shell-body.doctor-patient-note-page .doctor-note-card .ql-editor {
+  height: auto;
+  min-height: 9rem;
+  overflow-y: visible;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 767px) {
+  body.app-shell-body.doctor-patient-note-page .doctor-note-section-heading {
+    align-items: flex-start;
+  }
+
+  body.app-shell-body.doctor-patient-note-page .doctor-note-section-heading > .btn {
+    width: 100%;
+  }
+
+  body.app-shell-body.doctor-patient-note-page .doctor-note-history-card-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  body.app-shell-body.doctor-patient-note-page .doctor-note-history-action {
+    width: 100%;
+  }
+
   body.app-shell-body.doctor-patient-note-page .doctor-note-hero {
     align-items: flex-start;
     flex-direction: column;
@@ -4183,6 +4982,11 @@ body.app-shell-body.doctor-patient-note-page .resizable {
     padding: 1rem;
   }
 
+  body.app-shell-body.doctor-patient-note-page .doctor-note-patient-strip {
+    align-items: flex-start;
+    padding: .9rem 1rem;
+  }
+
   body.app-shell-body.doctor-patient-note-page .doctor-note-patient-card .fs-5 {
     font-size: 1rem !important;
   }
@@ -4200,7 +5004,7 @@ body.app-shell-body.doctor-patient-note-page .resizable {
   }
 
   body.app-shell-body.doctor-patient-note-page .doctor-note-history-card .dataTable-container {
-    overflow-x: visible;
+    overflow-x: auto;
   }
 
   body.app-shell-body.doctor-patient-note-page .doctor-note-history-card .dataTable-table {
@@ -4224,6 +5028,452 @@ body.app-shell-body.doctor-patient-note-page .resizable {
   body.app-shell-body.doctor-patient-note-page .doctor-note-editor-card .row.p-2 > [class*="col-"] {
     flex: 0 0 50%;
     max-width: 50%;
+  }
+}
+
+@media (min-width: 1100px) {
+  body.app-shell-body.doctor-patient-note-page .doctor-note-editor-card .row.p-2 > [class*="col-"] {
+    flex: 0 0 33.333333%;
+    max-width: 33.333333%;
+  }
+}
+
+/* TH-DOCTOR-SUBSEQUENT-NOTE-CREATE-UX-REDESIGN-09: formulario de captura scoped. */
+body.app-shell-body.doctor-note-create-page .doctor-note-entry-section {
+  margin-top: 1.75rem;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-form-intro {
+  margin: 0 0 1.5rem;
+  padding: 0 .25rem .25rem;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-form-intro h2 {
+  margin: .25rem 0 .45rem;
+  color: var(--clinic-ink);
+  font-size: clamp(1.35rem, 2vw, 1.85rem);
+  line-height: 1.15;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-form-intro > p:last-child {
+  max-width: 72ch;
+  margin: 0;
+  color: var(--clinic-muted);
+  font-size: .95rem;
+  line-height: 1.55;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-entry-grid {
+  row-gap: 1.5rem;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-entry-grid > [class*="col-"] {
+  flex: 0 0 100%;
+  max-width: 100%;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-card {
+  height: auto;
+  min-height: 0;
+  margin-bottom: 0;
+  overflow: visible;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-card-header,
+body.app-shell-body.doctor-note-create-page .doctor-note-optional-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-card-header {
+  min-height: 0;
+  padding: 1.25rem 1.5rem 1rem;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-card-header h3,
+body.app-shell-body.doctor-note-create-page .doctor-note-optional-header h3 {
+  margin: 0;
+  color: var(--clinic-ink);
+  font-size: 1.1rem;
+  line-height: 1.25;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-card-help,
+body.app-shell-body.doctor-note-create-page .doctor-note-subsection-heading p:last-child,
+body.app-shell-body.doctor-note-create-page .doctor-note-related-heading p {
+  margin: .35rem 0 0;
+  color: var(--clinic-muted);
+  font-size: .86rem;
+  line-height: 1.45;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-card .card-body {
+  padding: 1.5rem;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-vitals-grid {
+  row-gap: 1rem;
+  margin-inline: -.5rem;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-field {
+  min-width: 0;
+  padding-inline: .5rem;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-subsection {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--clinic-border);
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-subsection-heading,
+body.app-shell-body.doctor-note-create-page .doctor-note-related-heading {
+  margin-bottom: .85rem;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-subsection-heading h3,
+body.app-shell-body.doctor-note-create-page .doctor-note-related-heading h4 {
+  margin: .2rem 0 0;
+  color: var(--clinic-ink);
+  font-size: 1rem;
+  line-height: 1.3;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-subsection-heading .dashboard-eyebrow,
+body.app-shell-body.doctor-note-create-page .doctor-note-related-heading .dashboard-eyebrow {
+  margin: 0;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-editor-shell {
+  width: 100%;
+  min-width: 0;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-card .ql-toolbar.ql-snow {
+  margin-top: .25rem;
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-card .ql-container.ql-snow {
+  border-bottom-left-radius: 10px;
+  border-bottom-right-radius: 10px;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-recipe-toggle {
+  max-width: 24rem;
+  padding: .75rem 1rem;
+  border: 1px solid var(--clinic-border);
+  border-radius: 12px;
+  background: #faf8ff;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-recipe-toggle .form-check-label {
+  color: var(--clinic-primary-dark);
+  font-weight: 700;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-recipe-fields {
+  margin-top: 1rem;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-entry-related {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  align-items: stretch;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-entry-primary {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* TH-DOCTOR-SUBSEQUENT-NOTE-CARD-SPACING-FIX-09C: feedback vacío sin altura reservada. */
+body.app-shell-body.doctor-note-create-page #mensaje {
+  min-height: 0;
+  margin: 0;
+}
+
+body.app-shell-body.doctor-note-create-page #mensaje:empty {
+  display: none;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-action-row {
+  width: 100%;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-related-block + .doctor-note-related-block {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--clinic-border);
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-lab-detail {
+  margin-top: .75rem;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .75rem;
+  min-height: 44px;
+  padding-top: 1rem;
+  border-top: 1px solid var(--clinic-border);
+}
+
+/* TH-DOCTOR-SUBSEQUENT-NOTE-ACTION-BUTTONS-REMEDIATION-09D: acciones finales scoped. */
+body.app-shell-body.doctor-note-create-page .doctor-note-form-actions > [data-note-exit],
+body.app-shell-body.doctor-note-create-page .doctor-note-form-actions .doctor-note-submit .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: .6rem 1rem;
+  border-radius: 10px;
+  font-size: .9rem;
+  font-weight: 700;
+  line-height: 1.2;
+  gap: .4rem;
+  white-space: nowrap;
+  transition: background-color .2s ease, border-color .2s ease, color .2s ease, box-shadow .2s ease;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-form-actions > [data-note-exit] {
+  border: 1px solid var(--clinic-primary);
+  background: #fff;
+  color: var(--clinic-primary-dark);
+  text-decoration: none;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-form-actions .doctor-note-submit {
+  margin: 0;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-form-actions .doctor-note-submit .btn {
+  border: 1px solid var(--clinic-primary);
+  background: var(--clinic-primary);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(65, 37, 122, .12);
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-form-actions > [data-note-exit]:hover,
+body.app-shell-body.doctor-note-create-page .doctor-note-form-actions > [data-note-exit]:focus-visible {
+  border-color: var(--clinic-primary-dark);
+  background: var(--clinic-primary-dark);
+  color: #fff;
+  box-shadow: none;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-form-actions .doctor-note-submit .btn:hover,
+body.app-shell-body.doctor-note-create-page .doctor-note-form-actions .doctor-note-submit .btn:focus-visible,
+body.app-shell-body.doctor-note-create-page .doctor-note-form-actions .doctor-note-submit .btn:active {
+  border-color: var(--clinic-primary-dark);
+  background: var(--clinic-primary-dark);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(65, 37, 122, .16);
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-form-actions > [data-note-exit]:focus-visible,
+body.app-shell-body.doctor-note-create-page .doctor-note-form-actions .doctor-note-submit .btn:focus-visible {
+  outline: 3px solid rgba(125, 69, 193, .24);
+  outline-offset: 2px;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-form-actions .doctor-note-submit .btn:disabled,
+body.app-shell-body.doctor-note-create-page .doctor-note-form-actions .doctor-note-submit .btn[aria-busy="true"] {
+  cursor: wait;
+  opacity: .65;
+  box-shadow: none;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-form-actions .doctor-note-submit .btn:disabled:hover,
+body.app-shell-body.doctor-note-create-page .doctor-note-form-actions .doctor-note-submit .btn:disabled:focus-visible,
+body.app-shell-body.doctor-note-create-page .doctor-note-form-actions .doctor-note-submit .btn[aria-busy="true"]:hover,
+body.app-shell-body.doctor-note-create-page .doctor-note-form-actions .doctor-note-submit .btn[aria-busy="true"]:focus-visible {
+  border-color: var(--clinic-primary);
+  background: var(--clinic-primary);
+  color: #fff;
+}
+
+/* TH-DOCTOR-SUBSEQUENT-NOTE-ACTION-BUTTONS-ALIGNMENT-FIX-09F: wrapper sin padding heredado y controles con caja común. */
+body.app-shell-body.doctor-note-create-page .doctor-note-form-actions .doctor-note-submit {
+  display: flex;
+  align-items: stretch;
+  margin: 0;
+  padding: 0;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-form-actions > [data-note-exit],
+body.app-shell-body.doctor-note-create-page .doctor-note-form-actions .doctor-note-submit .btn {
+  box-sizing: border-box;
+  height: 44px;
+  min-height: 44px;
+  margin: 0;
+  vertical-align: middle;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-form-actions > [data-note-exit] svg,
+body.app-shell-body.doctor-note-create-page .doctor-note-form-actions .doctor-note-submit .btn span,
+body.app-shell-body.doctor-note-create-page .doctor-note-form-actions .doctor-note-submit .btn svg {
+  color: currentColor;
+  stroke: currentColor;
+}
+
+@media (max-width: 767px) {
+  body.app-shell-body.doctor-note-create-page .doctor-note-entry-grid {
+    row-gap: 1rem;
+  }
+
+  body.app-shell-body.doctor-note-create-page .doctor-note-card-header,
+  body.app-shell-body.doctor-note-create-page .doctor-note-card .card-body {
+    padding-inline: 1rem;
+  }
+
+  body.app-shell-body.doctor-note-create-page .doctor-note-card-header {
+    padding-top: 1rem;
+    padding-bottom: .8rem;
+  }
+
+  body.app-shell-body.doctor-note-create-page .doctor-note-optional-header {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  body.app-shell-body.doctor-note-create-page .doctor-note-recipe-toggle {
+    width: 100%;
+    max-width: none;
+  }
+
+  body.app-shell-body.doctor-note-create-page .doctor-note-entry-related {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  body.app-shell-body.doctor-note-create-page .doctor-note-entry-primary {
+    gap: 1rem;
+  }
+
+  body.app-shell-body.doctor-note-create-page .doctor-note-entry-related > * {
+    width: 100%;
+  }
+
+  body.app-shell-body.doctor-note-create-page .doctor-note-form-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  body.app-shell-body.doctor-note-create-page .doctor-note-form-actions .doctor-note-submit {
+    order: -1;
+  }
+
+  body.app-shell-body.doctor-note-create-page .doctor-note-form-actions .btn,
+  body.app-shell-body.doctor-note-create-page .doctor-note-form-actions .doctor-note-submit,
+  body.app-shell-body.doctor-note-create-page .doctor-note-form-actions .doctor-note-submit .btn {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+/* TH-DOCTOR-SUBSEQUENT-NOTE-CREATE-UI-REMEDIATION-09A: selector de receta y estados de botones scoped. */
+body.app-shell-body.doctor-note-create-page .doctor-note-recipe-toggle {
+  display: grid;
+  grid-template-columns: 1.15rem minmax(0, 1fr);
+  column-gap: .75rem;
+  row-gap: .3rem;
+  align-items: start;
+  padding: .9rem 1rem;
+  overflow: visible;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-recipe-toggle .form-check-input {
+  position: static;
+  float: none;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: .15rem 0 0;
+  flex: 0 0 auto;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-recipe-toggle .form-check-label {
+  grid-column: 2;
+  margin: 0;
+  color: var(--clinic-primary-dark);
+  line-height: 1.35;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-recipe-toggle small {
+  grid-column: 2;
+  margin: 0;
+  color: var(--clinic-muted);
+  line-height: 1.4;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-recipe-toggle .form-check-input:focus-visible {
+  outline: 3px solid rgba(125, 69, 193, .24);
+  outline-offset: 2px;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-recipe-fields[hidden] {
+  display: none;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-recipe-fields {
+  padding-top: 1.25rem;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-recipe-fields > label,
+body.app-shell-body.doctor-note-create-page .doctor-note-recipe-fields > .mt-3,
+body.app-shell-body.doctor-note-create-page .doctor-note-recipe-fields > .doctor-note-editor-shell {
+  display: block;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-recipe-fields > .mt-3 {
+  margin-top: 1rem !important;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-recipe-fields > .ql-toolbar.ql-snow {
+  margin-top: .35rem;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-lab-card .btn-outline-primary:hover,
+body.app-shell-body.doctor-note-create-page .doctor-note-lab-card .btn-outline-primary:focus-visible,
+body.app-shell-body.doctor-note-create-page .doctor-note-lab-card .btn-outline-primary:active {
+  color: #fff;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-lab-card .btn-outline-primary:hover svg,
+body.app-shell-body.doctor-note-create-page .doctor-note-lab-card .btn-outline-primary:focus-visible svg,
+body.app-shell-body.doctor-note-create-page .doctor-note-lab-card .btn-outline-primary:active svg {
+  color: currentColor;
+  stroke: currentColor;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-lab-card .btn-outline-primary:hover,
+body.app-shell-body.doctor-note-create-page .doctor-note-lab-card .btn-outline-primary:focus-visible,
+body.app-shell-body.doctor-note-create-page .doctor-note-lab-card .btn-outline-primary:active {
+  border-color: var(--clinic-primary-dark);
+  background: var(--clinic-primary-dark);
+  color: #fff;
+}
+
+body.app-shell-body.doctor-note-create-page .doctor-note-lab-card .btn-outline-primary:focus-visible,
+body.app-shell-body.doctor-note-create-page .doctor-page-hero-action:focus-visible {
+  outline: 3px solid rgba(125, 69, 193, .24);
+  outline-offset: 2px;
+}
+
+@media (max-width: 767px) {
+  body.app-shell-body.doctor-note-create-page .doctor-note-recipe-toggle {
+    grid-template-columns: 1.15rem minmax(0, 1fr);
+    padding: .85rem .9rem;
   }
 }
 
@@ -5351,6 +6601,7 @@ body.auth-page {
   --clinic-radius: 16px;
   --clinic-shadow: 0 10px 28px rgba(65, 37, 122, .10);
   --clinic-shadow-hover: 0 18px 34px rgba(65, 37, 122, .16);
+  --clinic-sidebar-expanded-width: 276px;
 }
 
 body.app-shell-body {
@@ -5545,6 +6796,116 @@ body.app-shell-body .sidebar-wrapper .menu .sidebar-item.active .sidebar-link {
 body.app-shell-body .sidebar-wrapper .menu .sidebar-item.active .sidebar-link::before {
   content: none;
   display: none;
+}
+
+/* TH-CLINICA-GLOBAL-SIDEBAR-COLLAPSIBLE-IMPLEMENTATION-11: el control del
+   sidebar compacta el shell en escritorio y conserva el drawer en móvil. */
+@media (min-width: 768px) {
+  body.app-shell-body.dashboard-doctor,
+  body.app-shell-body.doctor-patients-page,
+  body.app-shell-body.doctor-patient-form-page {
+    --clinic-sidebar-expanded-width: 248px;
+  }
+
+  body.app-shell-body #sidebar .sidebar-wrapper {
+    left: 0;
+    width: var(--clinic-sidebar-expanded-width);
+    transition: width .22s ease, box-shadow .22s ease;
+  }
+
+  body.app-shell-body #sidebar.sidebar-compact .sidebar-wrapper {
+    width: 84px;
+  }
+
+  body.app-shell-body #sidebar.sidebar-compact .sidebar-header {
+    padding: 1.35rem .8rem .8rem;
+    text-align: center;
+  }
+
+  body.app-shell-body #sidebar.sidebar-compact .sidebar-header img {
+    width: 48px;
+    max-width: 48px;
+    max-height: 42px;
+    object-fit: contain;
+    object-position: center;
+  }
+
+  body.app-shell-body #sidebar.sidebar-compact .menu .sidebar-title {
+    overflow: hidden;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  body.app-shell-body #sidebar.sidebar-compact .menu .sidebar-link {
+    justify-content: center;
+    margin-left: .55rem;
+    margin-right: .55rem;
+    padding-left: .55rem;
+    padding-right: .55rem;
+  }
+
+  body.app-shell-body #sidebar.sidebar-compact .menu .sidebar-link > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  body.app-shell-body #sidebar.sidebar-compact .menu .sidebar-item.active .sidebar-link {
+    justify-content: center;
+  }
+
+  body.app-shell-body #main {
+    margin-left: var(--clinic-sidebar-expanded-width);
+    transition: margin-left .22s ease;
+  }
+
+  body.app-shell-body #sidebar.sidebar-compact ~ #main {
+    margin-left: 84px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1100px) {
+  body.app-shell-body {
+    --clinic-sidebar-expanded-width: 220px;
+  }
+
+  body.app-shell-body #sidebar .sidebar-wrapper {
+    width: var(--clinic-sidebar-expanded-width);
+  }
+
+  body.app-shell-body #sidebar.sidebar-compact .sidebar-wrapper {
+    width: 84px;
+  }
+
+  body.app-shell-body #main {
+    margin-left: var(--clinic-sidebar-expanded-width);
+  }
+
+  body.app-shell-body #sidebar.sidebar-compact ~ #main {
+    margin-left: 84px;
+  }
+}
+
+@media (max-width: 767px) {
+  body.app-shell-body #sidebar .sidebar-wrapper {
+    width: 276px;
+  }
+
+  body.app-shell-body #sidebar.sidebar-compact .sidebar-wrapper {
+    width: 276px;
+  }
 }
 
 body.app-shell-body .topbar-session {
@@ -5781,12 +7142,6 @@ body.app-shell-body .patient-record-header-actions svg {
   height: 1rem;
 }
 
-body.app-shell-body .patient-record-layout-toggle {
-  min-width: 42px;
-  padding-right: .7rem;
-  padding-left: .7rem;
-}
-
 @media (max-width: 991px) {
   body.app-shell-body .patient-record-header {
     gap: 1rem;
@@ -5811,12 +7166,8 @@ body.app-shell-body .patient-record-layout-toggle {
     justify-content: stretch;
   }
 
-  body.app-shell-body .patient-record-header-actions .btn:not(.patient-record-layout-toggle) {
+  body.app-shell-body .patient-record-header-actions .btn {
     flex: 1 1 auto;
-  }
-
-  body.app-shell-body .patient-record-layout-toggle {
-    flex: 0 0 42px;
   }
 
   body.app-shell-body .patient-record-meta {
@@ -6199,6 +7550,134 @@ body.app-shell-body.doctor-patient-record-page .patient-record-async-state-empty
 
   body.app-shell-body.doctor-patient-record-page .patient-record-card-action {
     width: 100%;
+  }
+}
+
+/* TH-DOCTOR-PATIENT-MODULE-CARDS-03: accesos de lectura del expediente. */
+body.app-shell-body.doctor-patient-record-page .patient-module-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  width: 100%;
+}
+
+body.app-shell-body.doctor-patient-record-page .patient-module-card {
+  display: flex;
+  min-width: 0;
+  min-height: 148px;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.15rem 1.2rem;
+  border: 1px solid var(--clinic-border);
+  border-radius: 1rem;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(50, 27, 109, .07);
+  color: var(--clinic-ink);
+  text-decoration: none;
+  transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+
+body.app-shell-body.doctor-patient-record-page .patient-module-card:hover {
+  border-color: #c8a9ee;
+  box-shadow: 0 12px 26px rgba(50, 27, 109, .11);
+  color: var(--clinic-ink);
+  transform: translateY(-1px);
+}
+
+body.app-shell-body.doctor-patient-record-page .patient-module-card:focus-visible {
+  outline: 3px solid rgba(125, 69, 193, .28);
+  outline-offset: 3px;
+  border-color: var(--clinic-primary);
+}
+
+body.app-shell-body.doctor-patient-record-page .patient-module-card-icon {
+  display: inline-flex;
+  flex: 0 0 3rem;
+  width: 3rem;
+  height: 3rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e4d5f7;
+  border-radius: .85rem;
+  background: var(--clinic-primary-soft);
+  color: var(--clinic-primary-dark);
+}
+
+body.app-shell-body.doctor-patient-record-page .patient-module-card-icon svg {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+body.app-shell-body.doctor-patient-record-page .patient-module-card-content {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: .18rem;
+}
+
+body.app-shell-body.doctor-patient-record-page .patient-module-card-eyebrow {
+  color: var(--clinic-primary-dark);
+  font-size: .7rem;
+  font-weight: 800;
+  letter-spacing: .06em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+body.app-shell-body.doctor-patient-record-page .patient-module-card-title {
+  color: var(--clinic-ink);
+  font-size: 1.08rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+body.app-shell-body.doctor-patient-record-page .patient-module-card-description {
+  min-height: 2.7em;
+  color: var(--clinic-muted);
+  font-size: .86rem;
+  line-height: 1.45;
+}
+
+body.app-shell-body.doctor-patient-record-page .patient-module-card-count {
+  color: var(--clinic-primary-dark);
+  font-size: .82rem;
+  line-height: 1.35;
+}
+
+body.app-shell-body.doctor-patient-record-page .patient-module-card-count strong {
+  color: var(--clinic-ink);
+  font-size: .95rem;
+}
+
+body.app-shell-body.doctor-patient-record-page .patient-module-card-arrow {
+  flex: 0 0 auto;
+  width: 1.15rem;
+  height: 1.15rem;
+  color: var(--clinic-primary);
+}
+
+@media (max-width: 767px) {
+  body.app-shell-body.doctor-patient-record-page .patient-module-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  body.app-shell-body.doctor-patient-record-page .patient-module-card {
+    min-height: 132px;
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 460px) {
+  body.app-shell-body.doctor-patient-record-page .patient-module-card {
+    gap: .8rem;
+    padding: .9rem;
+  }
+
+  body.app-shell-body.doctor-patient-record-page .patient-module-card-icon {
+    flex-basis: 2.7rem;
+    width: 2.7rem;
+    height: 2.7rem;
   }
 }
 
@@ -9438,7 +10917,6 @@ body.app-shell-body.doctor-clinical-view.doctor-patient-cofepris-page .doctor-pa
   gap: .65rem;
 }
 
-body.app-shell-body.doctor-clinical-view.doctor-patient-cofepris-page .doctor-patient-cofepris-toggle,
 body.app-shell-body.doctor-clinical-view.doctor-patient-cofepris-page .doctor-page-hero-action {
   display: inline-flex;
   min-height: 42px;
@@ -9450,29 +10928,20 @@ body.app-shell-body.doctor-clinical-view.doctor-patient-cofepris-page .doctor-pa
   white-space: nowrap;
 }
 
-body.app-shell-body.doctor-clinical-view.doctor-patient-cofepris-page .doctor-patient-cofepris-toggle {
-  border: 1px solid var(--clinic-border);
-  background: #fff;
-  color: var(--clinic-primary-dark);
-}
-
-body.app-shell-body.doctor-clinical-view.doctor-patient-cofepris-page .doctor-patient-cofepris-toggle:hover,
-body.app-shell-body.doctor-clinical-view.doctor-patient-cofepris-page .doctor-patient-cofepris-toggle:focus-visible {
-  border-color: var(--clinic-primary);
-  background: var(--clinic-primary-soft);
-  color: var(--clinic-primary-dark);
-}
-
 body.app-shell-body.doctor-clinical-view.doctor-patient-cofepris-page .doctor-page-hero-action {
-  border: 1px solid #d6c3f2;
-  background: var(--clinic-primary-soft);
+  border: 1px solid var(--clinic-border);
+  background: #FFFFFF;
+  background-color: #FFFFFF;
   color: var(--clinic-primary-dark);
 }
 
 body.app-shell-body.doctor-clinical-view.doctor-patient-cofepris-page .doctor-page-hero-action:hover,
-body.app-shell-body.doctor-clinical-view.doctor-patient-cofepris-page .doctor-page-hero-action:focus-visible {
+body.app-shell-body.doctor-clinical-view.doctor-patient-cofepris-page .doctor-page-hero-action:focus,
+body.app-shell-body.doctor-clinical-view.doctor-patient-cofepris-page .doctor-page-hero-action:focus-visible,
+body.app-shell-body.doctor-clinical-view.doctor-patient-cofepris-page .doctor-page-hero-action:active {
   border-color: var(--clinic-primary);
-  background: #e5d9ff;
+  background: #FFFFFF;
+  background-color: #FFFFFF;
   color: var(--clinic-primary-dark);
 }
 
@@ -9638,7 +11107,6 @@ body.app-shell-body.doctor-clinical-view.doctor-patient-cofepris-page textarea.d
 }
 
 body.app-shell-body.doctor-clinical-view.doctor-patient-cofepris-page .doctor-patient-cofepris-control:focus,
-body.app-shell-body.doctor-clinical-view.doctor-patient-cofepris-page .doctor-patient-cofepris-toggle:focus-visible,
 body.app-shell-body.doctor-clinical-view.doctor-patient-cofepris-page .doctor-patient-cofepris-submit:focus-visible {
   border-color: var(--clinic-focus);
   box-shadow: 0 0 0 .2rem rgba(125, 69, 193, .16);
@@ -9705,7 +11173,6 @@ body.app-shell-body.doctor-clinical-view.doctor-patient-cofepris-page #mensaje {
   }
 
   body.app-shell-body.doctor-clinical-view.doctor-patient-cofepris-page .doctor-patient-cofepris-hero-actions,
-  body.app-shell-body.doctor-clinical-view.doctor-patient-cofepris-page .doctor-patient-cofepris-toggle,
   body.app-shell-body.doctor-clinical-view.doctor-patient-cofepris-page .doctor-page-hero-action {
     width: 100%;
   }
@@ -10003,26 +11470,21 @@ body.app-shell-body.doctor-clinical-view.doctor-cofepris-detail-page .doctor-cof
   }
 }
 
-/* UI-FIX-TOGGLE-01: etiqueta visible y tamaño adaptable para toggles de distribución. */
-body.app-shell-body.doctor-patient-record-page .patient-record-layout-toggle,
-body.app-shell-body.doctor-patient-note-page .doctor-note-toggle,
+/* TH-DOCTOR-LAYOUT-ICON-STANDARDIZATION-02: controles compactos de distribución. */
 body.app-shell-body.doctor-note-page .doctor-followup-toggle,
-body.app-shell-body.doctor-patient-lab-page .doctor-lab-toggle,
-body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-toggle,
 body.app-shell-body.doctor-recipes-page .doctor-recipes-toggle,
 body.app-shell-body.doctor-external-recipe-page .doctor-external-recipe-layout-toggle {
-  width: auto;
-  min-width: 0;
-  min-height: 42px;
-  padding: .65rem 1rem;
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  flex: 0 0 44px;
   white-space: nowrap;
 }
 
-body.app-shell-body.doctor-patient-record-page .patient-record-layout-toggle,
-body.app-shell-body.doctor-patient-note-page .doctor-note-toggle,
 body.app-shell-body.doctor-note-page .doctor-followup-toggle,
-body.app-shell-body.doctor-patient-lab-page .doctor-lab-toggle,
-body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-toggle,
 body.app-shell-body.doctor-recipes-page .doctor-recipes-toggle,
 body.app-shell-body.doctor-external-recipe-page .doctor-external-recipe-layout-toggle {
   display: inline-flex;
@@ -10031,13 +11493,11 @@ body.app-shell-body.doctor-external-recipe-page .doctor-external-recipe-layout-t
   gap: .45rem;
 }
 
-body.app-shell-body.doctor-patient-record-page .patient-record-layout-toggle svg,
-body.app-shell-body.doctor-patient-note-page .doctor-note-toggle svg,
 body.app-shell-body.doctor-note-page .doctor-followup-toggle svg,
-body.app-shell-body.doctor-patient-lab-page .doctor-lab-toggle svg,
-body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-toggle svg,
 body.app-shell-body.doctor-recipes-page .doctor-recipes-toggle svg,
 body.app-shell-body.doctor-external-recipe-page .doctor-external-recipe-layout-toggle svg {
+  width: 1.1rem;
+  height: 1.1rem;
   flex: 0 0 auto;
 }
 
@@ -10052,38 +11512,9 @@ body.app-shell-body.doctor-external-recipe-page .doctor-external-recipe-layout-t
     flex-wrap: wrap;
   }
 
-  body.app-shell-body.doctor-patient-record-page .patient-record-layout-toggle,
-  body.app-shell-body.doctor-patient-note-page .doctor-note-toggle,
   body.app-shell-body.doctor-note-page .doctor-followup-toggle,
-  body.app-shell-body.doctor-patient-lab-page .doctor-lab-toggle,
-  body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-toggle,
   body.app-shell-body.doctor-recipes-page .doctor-recipes-toggle,
   body.app-shell-body.doctor-external-recipe-page .doctor-external-recipe-layout-toggle {
-    flex: 1 1 auto;
-  }
-}
-
-/* UI-FIX-D19-02: prevalece sobre los breakpoints heredados del shell D19. */
-body.app-shell-body.doctor-clinical-view.doctor-patient-cofepris-page .doctor-patient-cofepris-toggle {
-  width: 44px;
-  min-width: 44px;
-  max-width: 44px;
-  flex: 0 0 44px;
-  min-height: 44px;
-  padding: .55rem;
-}
-
-@media (max-width: 767px) {
-  body.app-shell-body.doctor-clinical-view.doctor-patient-cofepris-page .doctor-patient-cofepris-hero-actions {
-    flex-direction: row;
-    align-items: center;
-    flex-wrap: wrap;
-  }
-
-  body.app-shell-body.doctor-clinical-view.doctor-patient-cofepris-page .doctor-patient-cofepris-toggle {
-    width: 44px;
-    min-width: 44px;
-    max-width: 44px;
     flex: 0 0 44px;
   }
 }
@@ -18209,6 +19640,11 @@ body.app-shell-body.patient-nonpathological-page .patient-nonpathological-card-h
   width: 100%;
 }
 
+body.app-shell-body.patient-pain-medication-page .patient-nonpathological-instruction-heading {
+  display: block;
+  width: 100%;
+}
+
 body.app-shell-body.patient-nonpathological-page .patient-nonpathological-card-body {
   display: block;
 }
@@ -18642,13 +20078,6 @@ body.app-shell-body.patient-surgery-page .p06-modal {
   padding: 1rem;
   background: rgba(37, 25, 55, .42);
 }
-body.app-shell-body.patient-surgery-page .p06-modal-content { width: min(100%, 620px); border: 1px solid var(--clinic-border); border-radius: var(--clinic-radius); background: #fff; box-shadow: 0 1.25rem 3rem rgba(55, 35, 91, .22); }
-body.app-shell-body.patient-surgery-page .p06-modal-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: 1.1rem 1.25rem; border-bottom: 1px solid var(--clinic-border); background: linear-gradient(135deg, rgba(255,255,255,.98), rgba(248,245,255,.98)); }
-body.app-shell-body.patient-surgery-page .p06-modal-header h2 { margin: 0; color: var(--clinic-primary-dark); font-size: clamp(1.2rem, 2vw, 1.45rem); font-weight: 850; }
-body.app-shell-body.patient-surgery-page .p06-modal-close { border: 0; background-color: transparent; color: var(--clinic-primary-dark); font-size: 1.75rem; line-height: 1; }
-body.app-shell-body.patient-surgery-page .p06-modal-body { padding: 1.25rem; color: var(--clinic-ink); line-height: 1.6; }
-body.app-shell-body.patient-surgery-page .p06-modal-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .6rem; padding: 1rem 1.25rem 1.25rem; border-top: 1px solid var(--clinic-border); }
-body.app-shell-body.patient-surgery-page .p06-modal-actions .btn { min-height: 46px; display: inline-flex; align-items: center; gap: .4rem; font-weight: 800; }
 body.app-shell-body.patient-surgery-page :where(a, button, input, textarea, select):focus-visible { outline: 3px solid rgba(111, 45, 189, .28); outline-offset: 2px; box-shadow: 0 0 0 2px #fff; }
 
 @media (max-width: 767.98px) {
@@ -18664,13 +20093,11 @@ body.app-shell-body.patient-surgery-page :where(a, button, input, textarea, sele
   body.app-shell-body.patient-surgery-page .p06-fields { grid-template-columns: 1fr; }
   body.app-shell-body.patient-surgery-page .p06-field-wide { grid-column: auto; }
   body.app-shell-body.patient-surgery-page .p06-record-actions,
-  body.app-shell-body.patient-surgery-page .p06-navigation,
-  body.app-shell-body.patient-surgery-page .p06-modal-actions { flex-direction: column; align-items: stretch; }
+  body.app-shell-body.patient-surgery-page .p06-navigation { flex-direction: column; align-items: stretch; }
   body.app-shell-body.patient-surgery-page .p06-record-actions .btn,
   body.app-shell-body.patient-surgery-page .p06-navigation .btn,
   body.app-shell-body.patient-surgery-page .p06-list-actions .btn,
-  body.app-shell-body.patient-surgery-page .p06-empty-actions .btn,
-  body.app-shell-body.patient-surgery-page .p06-modal-actions .btn { width: 100%; }
+  body.app-shell-body.patient-surgery-page .p06-empty-actions .btn { width: 100%; }
   body.app-shell-body.patient-surgery-page .p06-navigation > span { display: none; }
   body.app-shell-body.patient-surgery-page .p06-record-status { white-space: normal; text-align: right; }
 }
@@ -19296,6 +20723,8 @@ body.app-shell-body.patient-clinical-form .patient-instructions-modal .patient-i
 
 body.app-shell-body.patient-clinical-form .patient-instructions-modal .patient-instructions-modal-header {
   flex: 0 0 auto;
+  display: flex;
+  justify-content: space-between;
   align-items: flex-start;
   gap: 1rem;
   padding: 1.1rem 1.25rem;
@@ -19312,12 +20741,43 @@ body.app-shell-body.patient-clinical-form .patient-instructions-modal .patient-i
   overflow-wrap: anywhere;
 }
 
-body.app-shell-body.patient-clinical-form .patient-instructions-modal .btn-close,
-body.app-shell-body.patient-clinical-form .patient-instructions-modal .patient-instructions-close {
+body.app-shell-body.patient-clinical-form .patient-instructions-modal .th-modal-close {
   flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
   min-width: 44px;
   min-height: 44px;
+  padding: 0;
   margin: 0;
+  border: 1px solid transparent;
+  border-radius: .5rem;
+  background: transparent;
+  background-image: none;
+  color: var(--clinic-primary-dark);
+  opacity: 1;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+
+body.app-shell-body.patient-clinical-form .patient-instructions-modal .th-modal-close:hover {
+  border-color: #c8b0ed;
+  background: var(--clinic-primary-soft);
+  color: var(--clinic-primary-dark);
+}
+
+body.app-shell-body.patient-clinical-form .patient-instructions-modal .th-modal-close:focus-visible {
+  border-color: #c8b0ed;
+  background: var(--clinic-primary-soft);
+  color: var(--clinic-primary-dark);
+}
+
+body.app-shell-body.patient-clinical-form .patient-instructions-modal .th-modal-close-icon {
+  display: block;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
 }
 
 body.app-shell-body.patient-clinical-form .patient-instructions-modal .patient-instructions-modal-body {
@@ -19394,6 +20854,69 @@ body.app-shell-body.patient-clinical-form .patient-instructions-modal :where(but
   box-shadow: 0 0 0 2px #fff;
 }
 
+/* Controles canónicos de audio de los modales P04–P11. */
+body.app-shell-body.patient-clinical-form .patient-instructions-modal .th-modal-audio-controls {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .6rem;
+}
+
+body.app-shell-body.patient-clinical-form .patient-instructions-modal .th-modal-audio-button {
+  display: inline-flex;
+  min-width: 9.5rem;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: .45rem;
+  padding: .7rem 1rem;
+  border: 1px solid transparent;
+  border-radius: .65rem;
+  font: inherit;
+  font-weight: 800;
+  line-height: 1.2;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease, opacity .15s ease;
+}
+
+body.app-shell-body.patient-clinical-form .patient-instructions-modal .th-modal-audio-listen {
+  border-color: #AB47BC;
+  background: #F3E8FA;
+  color: #5B1978;
+}
+
+body.app-shell-body.patient-clinical-form .patient-instructions-modal .th-modal-audio-stop {
+  border-color: var(--clinic-border);
+  background: #fff;
+  color: var(--clinic-ink);
+}
+
+body.app-shell-body.patient-clinical-form .patient-instructions-modal .th-modal-audio-button:hover:not(:disabled),
+body.app-shell-body.patient-clinical-form .patient-instructions-modal .th-modal-audio-button:focus-visible {
+  border-color: #9C27B0;
+  background: #EEDAF7;
+  color: #5B1978;
+}
+
+body.app-shell-body.patient-clinical-form .patient-instructions-modal .th-modal-audio-stop:hover:not(:disabled),
+body.app-shell-body.patient-clinical-form .patient-instructions-modal .th-modal-audio-stop:focus-visible {
+  border-color: #AB47BC;
+  background: #F7F3FA;
+  color: var(--clinic-ink);
+}
+
+body.app-shell-body.patient-clinical-form .patient-instructions-modal .th-modal-audio-button:disabled {
+  cursor: not-allowed;
+  opacity: .52;
+}
+
+body.app-shell-body.patient-clinical-form .patient-instructions-modal .th-modal-audio-icon {
+  display: block;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+}
+
 @media (max-width: 767.98px) {
   body.app-shell-body.patient-clinical-form .patient-instructions-modal {
     padding: .25rem;
@@ -19407,6 +20930,14 @@ body.app-shell-body.patient-clinical-form .patient-instructions-modal :where(but
 
   body.app-shell-body.patient-clinical-form .patient-instructions-modal .patient-instructions-modal-content {
     max-height: calc(100vh - .5rem);
+  }
+
+  body.app-shell-body.patient-clinical-form .patient-instructions-modal .th-modal-audio-controls {
+    width: 100%;
+  }
+
+  body.app-shell-body.patient-clinical-form .patient-instructions-modal .th-modal-audio-button {
+    flex: 1 1 10rem;
   }
 
   body.app-shell-body.patient-clinical-form .patient-instructions-modal .patient-instructions-modal-header,
@@ -19424,4 +20955,1146 @@ body.app-shell-body.patient-clinical-form .patient-instructions-modal :where(but
   body.app-shell-body.patient-clinical-form .patient-instructions-modal .patient-instructions-modal-actions .btn {
     width: 100%;
   }
+}
+
+/* TH-DOCTOR-PATIENT-PIN-REDESIGN-04: composición compacta del expediente y credenciales. */
+body.app-shell-body.doctor-patient-pin-page .doctor-pin-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  width: 100%;
+  margin-top: 1.25rem;
+}
+
+body.app-shell-body.doctor-patient-pin-page .doctor-pin-patient-strip {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+  padding: .9rem 1.15rem;
+  border: 1px solid var(--clinic-border);
+  border-radius: var(--clinic-radius);
+  background: #fff;
+  box-shadow: var(--clinic-shadow);
+}
+
+body.app-shell-body.doctor-patient-pin-page .doctor-pin-patient-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 3rem;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  background: var(--clinic-primary-soft);
+  color: var(--clinic-primary-dark);
+}
+
+body.app-shell-body.doctor-patient-pin-page .doctor-pin-patient-icon svg {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+body.app-shell-body.doctor-patient-pin-page .doctor-pin-patient-context {
+  min-width: 0;
+}
+
+body.app-shell-body.doctor-patient-pin-page .doctor-pin-patient-context .dashboard-eyebrow {
+  margin: 0 0 .2rem;
+}
+
+body.app-shell-body.doctor-patient-pin-page .doctor-pin-patient-context h2 {
+  margin: 0;
+  color: var(--clinic-ink);
+  font-size: clamp(1rem, 1.5vw, 1.25rem);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+body.app-shell-body.doctor-patient-pin-page .doctor-pin-patient-context > p:last-child {
+  margin: .2rem 0 0;
+  color: var(--clinic-muted);
+  font-size: .82rem;
+}
+
+body.app-shell-body.doctor-patient-pin-page .doctor-pin-access-card {
+  height: auto;
+  min-width: 0;
+  margin: 0;
+}
+
+body.app-shell-body.doctor-patient-pin-page .doctor-pin-card-header {
+  align-items: center;
+  padding: 1.15rem 1.35rem 1rem;
+}
+
+body.app-shell-body.doctor-patient-pin-page .doctor-pin-card-heading {
+  min-width: 0;
+}
+
+body.app-shell-body.doctor-patient-pin-page .doctor-pin-card-description,
+body.app-shell-body.doctor-patient-pin-page .doctor-pin-card-count {
+  margin: .35rem 0 0;
+  color: var(--clinic-muted);
+  font-size: .84rem;
+  line-height: 1.45;
+}
+
+body.app-shell-body.doctor-patient-pin-page .doctor-pin-card-count strong {
+  color: var(--clinic-primary-dark);
+}
+
+body.app-shell-body.doctor-patient-pin-page .doctor-pin-card-body {
+  padding: 1.15rem 1.35rem 1.35rem;
+}
+
+body.app-shell-body.doctor-patient-pin-page .doctor-pin-table-scroll {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+body.app-shell-body.doctor-patient-pin-page .doctor-pin-table {
+  min-width: 100%;
+  table-layout: auto;
+}
+
+body.app-shell-body.doctor-patient-pin-page .doctor-pin-card .dataTable-wrapper,
+body.app-shell-body.doctor-patient-pin-page .doctor-pin-card .dataTable-container {
+  max-width: 100%;
+  overflow: visible;
+}
+
+body.app-shell-body.doctor-patient-pin-page .doctor-pin-card .dataTable-top,
+body.app-shell-body.doctor-patient-pin-page .doctor-pin-card .dataTable-bottom {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 767px) {
+  body.app-shell-body.doctor-patient-pin-page .doctor-pin-patient-strip {
+    align-items: flex-start;
+    padding: 1rem;
+  }
+
+  body.app-shell-body.doctor-patient-pin-page .doctor-pin-card-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: .8rem;
+  }
+
+  body.app-shell-body.doctor-patient-pin-page .doctor-pin-action {
+    width: 100%;
+  }
+
+  body.app-shell-body.doctor-patient-pin-page .doctor-pin-card-body {
+    padding: 1rem;
+  }
+
+  body.app-shell-body.doctor-patient-pin-page .doctor-pin-table-scroll {
+    overflow-x: auto;
+  }
+
+  body.app-shell-body.doctor-patient-pin-page .doctor-pin-table {
+    min-width: 36rem;
+  }
+}
+
+@media (max-width: 430px) {
+  body.app-shell-body.doctor-patient-pin-page .doctor-pin-patient-strip {
+    gap: .75rem;
+    padding: .85rem;
+  }
+
+  body.app-shell-body.doctor-patient-pin-page .doctor-pin-patient-icon {
+    flex-basis: 2.65rem;
+    width: 2.65rem;
+    height: 2.65rem;
+  }
+}
+
+/* TH-DOCTOR-PIN-EXACT-TITLE-MATCH-08: contador bajo el eyebrow canónico. */
+body.app-shell-body.doctor-patient-pin-page .doctor-pin-access-card .doctor-pin-card-count {
+  color: var(--clinic-primary-dark);
+  font-weight: 650;
+}
+
+/* TH-DOCTOR-PRESCRIPTION-UX-IMPLEMENTATION-02: composición de receta sin modal. */
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-patient-strip {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+  margin: 1.25rem 0 1rem;
+  padding: .9rem 1.15rem;
+  border: 1px solid var(--clinic-border);
+  border-radius: var(--clinic-radius);
+  background: #fff;
+  box-shadow: var(--clinic-shadow);
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-patient-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 3rem;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  background: var(--clinic-primary-soft);
+  color: var(--clinic-primary-dark);
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-patient-icon svg {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-patient-context {
+  min-width: 0;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-patient-context .dashboard-eyebrow {
+  margin: 0 0 .2rem;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-patient-context h2 {
+  margin: 0;
+  color: var(--clinic-ink);
+  font-size: clamp(1rem, 1.5vw, 1.25rem);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-patient-context > p:last-child {
+  margin: .2rem 0 0;
+  color: var(--clinic-muted);
+  font-size: .82rem;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-workspace {
+  display: grid;
+  gap: 1rem;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-workspace > .row {
+  row-gap: 1rem;
+  margin-right: 0;
+  margin-left: 0;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-workspace > .row > [class*="col-"] {
+  min-width: 0;
+  padding-right: 0;
+  padding-left: 0;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-support-row > [class*="col-"] {
+  display: flex;
+  flex-direction: column;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-support-row .doctor-recipe-card {
+  width: 100%;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-section-header {
+  align-items: flex-start;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-card-heading {
+  min-width: 0;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-card-heading .dashboard-eyebrow {
+  margin: 0 0 .28rem;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-card-heading .card-title {
+  color: var(--clinic-ink);
+  font-size: 1.08rem;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-count {
+  margin: .28rem 0 0;
+  color: var(--clinic-primary-dark);
+  font-size: .82rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-count strong {
+  font-weight: 850;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-list-card .card-body {
+  padding-top: 1rem;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-table-content,
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-table-content .dataTable-wrapper,
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-table-content .dataTable-container {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-table-content .dataTable-wrapper,
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-table-content .dataTable-container {
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-table-content #table1,
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-table-content #tableRecetas {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-table-content #table1 th:first-child,
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-table-content #table1 td:first-child,
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-table-content #tableRecetas th:first-child,
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-table-content #tableRecetas td:first-child {
+  width: 18%;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-table-content #table1 th,
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-table-content #table1 td,
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-table-content #tableRecetas th,
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-table-content #tableRecetas td {
+  padding: .7rem .65rem;
+  vertical-align: middle;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-table-content tbody tr[role="button"] {
+  cursor: pointer;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-table-content tbody tr[role="button"]:hover,
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-table-content tbody tr[role="button"]:focus {
+  background: var(--clinic-primary-soft);
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-table-content tbody tr[role="button"]:focus-visible {
+  outline: 3px solid rgba(111, 55, 174, .28);
+  outline-offset: -3px;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-empty-state[hidden] {
+  display: none;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-empty-state {
+  display: flex;
+  min-height: 7rem;
+  align-items: center;
+  justify-content: center;
+  gap: .65rem;
+  padding: 1.15rem;
+  border: 1px dashed #dbc9f2;
+  border-radius: .75rem;
+  background: rgba(250, 248, 255, .72);
+  color: var(--clinic-muted);
+  text-align: center;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-empty-state svg {
+  flex: 0 0 auto;
+  width: 1.1rem;
+  height: 1.1rem;
+  color: var(--clinic-primary);
+}
+
+@media (max-width: 767px) {
+  body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-patient-strip {
+    align-items: flex-start;
+    padding: 1rem;
+  }
+
+  body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-workspace > .row > [class*="col-"] {
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-table-content #table1,
+  body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-table-content #tableRecetas {
+    min-width: 30rem;
+  }
+}
+
+@media (max-width: 430px) {
+  body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-patient-strip {
+    gap: .75rem;
+    padding: .85rem;
+  }
+
+  body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-patient-icon {
+    flex-basis: 2.65rem;
+    width: 2.65rem;
+    height: 2.65rem;
+  }
+}
+
+/* TH-DOCTOR-PRESCRIPTION-MODALS-IMPLEMENTATION-04: modales scoped a Recetas. */
+body.app-shell-body.doctor-patient-recipes-page.doctor-recipe-modal-open {
+  overflow: hidden;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-section-header {
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-new-button {
+  display: inline-flex;
+  min-height: 44px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  padding-inline: 1rem;
+  white-space: nowrap;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-new-button svg,
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal-actions svg {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal[hidden] {
+  display: none;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal {
+  position: fixed;
+  z-index: 1200;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(37, 25, 55, .42);
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal-content {
+  display: flex;
+  width: min(100%, 760px);
+  max-height: calc(100vh - 2rem);
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--clinic-border);
+  border-radius: var(--clinic-radius);
+  background: #fff;
+  box-shadow: 0 1.25rem 3rem rgba(55, 35, 91, .22);
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-create-modal-content {
+  width: min(100%, 820px);
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal-header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem;
+  border-bottom: 1px solid var(--clinic-border);
+  background: linear-gradient(135deg, rgba(255, 255, 255, .98), rgba(248, 245, 255, .98));
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal-header .dashboard-eyebrow {
+  margin: 0 0 .25rem;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal-header h2 {
+  margin: 0;
+  color: var(--clinic-primary-dark);
+  font-size: clamp(1.2rem, 2vw, 1.45rem);
+  font-weight: 850;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal-close {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--clinic-primary-dark);
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal-close:hover,
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal-close:focus-visible {
+  border-color: #c8b0ed;
+  background: var(--clinic-primary-soft);
+  color: var(--clinic-primary-dark);
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal-close svg {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal-body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1.25rem;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal .form-control,
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal .ql-toolbar,
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal .ql-container {
+  border-color: var(--clinic-border);
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal .form-control {
+  min-height: 42px;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-field {
+  margin-bottom: .9rem;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-field-label {
+  display: inline-block;
+  margin-bottom: .35rem;
+  color: var(--clinic-muted);
+  font-size: .72rem;
+  font-weight: 750;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal .editor,
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal .ql-editor {
+  min-height: 10rem;
+  height: auto;
+  font-size: 1rem;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal .form-control:focus,
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal .ql-container:focus-within {
+  border-color: var(--clinic-primary);
+  box-shadow: 0 0 0 .2rem rgba(111, 55, 174, .14);
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal-body #mensaje {
+  min-height: 1.25rem;
+  margin-top: .75rem;
+  color: var(--clinic-danger, #a72e4d);
+  font-size: .82rem;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: .6rem;
+  padding: 1rem 1.25rem 1.25rem;
+  border-top: 1px solid var(--clinic-border);
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal-actions .btn {
+  display: inline-flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  font-weight: 800;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal-cancel {
+  border: 1px solid #AB47BC;
+  background: #F3E8FA;
+  color: #5B1978;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal-cancel:hover,
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal-cancel:focus-visible {
+  border-color: #9C27B0;
+  background: #EEDAF7;
+  color: #5B1978;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal :where(button, input, textarea, select, [contenteditable="true"]):focus-visible {
+  outline: 3px solid rgba(111, 45, 189, .28);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px #fff;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-detail-modal-body {
+  min-height: 8rem;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal-status {
+  margin: 0 0 1rem;
+  color: var(--clinic-muted);
+  font-size: .9rem;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal-status:empty {
+  display: none;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-detail-modal-body .doctor-recipe-detail-content .float-end {
+  display: flex;
+  float: none;
+  justify-content: flex-end;
+  margin-bottom: 1rem;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-detail-modal-body .doctor-recipe-detail-content .fs-5 {
+  display: block;
+  color: var(--clinic-ink);
+  overflow-wrap: anywhere;
+}
+
+body.app-shell-body.doctor-patient-recipes-page #detalleRecetaModalBody[aria-busy="true"] {
+  opacity: .7;
+}
+
+@media (max-width: 767px) {
+  body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-section-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-new-button {
+    width: 100%;
+  }
+
+  body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal {
+    padding: .5rem;
+  }
+
+  body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal-content {
+    max-height: calc(100vh - 1rem);
+  }
+
+  body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal-header,
+  body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal-body,
+  body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal-actions {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-modal-actions .btn {
+    width: 100%;
+  }
+}
+
+/* TH-DOCTOR-PRESCRIPTION-MODALS-FUNCTIONAL-FIX-05: vista previa PDF scoped a Recetas. */
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-print-modal-content {
+  width: min(100%, 1080px);
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-print-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-print-options {
+  display: grid;
+  gap: .35rem;
+  padding: .85rem 1rem;
+  border: 1px solid var(--clinic-border);
+  border-radius: .75rem;
+  background: rgba(248, 245, 255, .7);
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-print-options .form-check {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  min-height: 2rem;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-print-options .form-check-input {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-print-options .form-check-label {
+  color: var(--clinic-primary-dark);
+  font-weight: 750;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-print-help {
+  margin: 0 0 .45rem 1.65rem;
+  color: var(--clinic-muted);
+  font-size: .82rem;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-preview-frame-wrap {
+  min-height: 22rem;
+  overflow: hidden;
+  border: 1px solid var(--clinic-border);
+  border-radius: .75rem;
+  background: #f7f5fb;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-preview-frame-wrap iframe {
+  display: block;
+  width: 100%;
+  min-height: 58vh;
+  border: 0;
+  background: #fff;
+}
+
+body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-preview-frame-wrap iframe[hidden] {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-print-modal-body {
+    gap: .75rem;
+  }
+
+  body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-preview-frame-wrap {
+    min-height: 18rem;
+  }
+
+  body.app-shell-body.doctor-patient-recipes-page .doctor-recipe-preview-frame-wrap iframe {
+    min-height: 55vh;
+  }
+}
+
+/* TH-DOCTOR-COFEPRIS-UX-IMPLEMENTATION-01: homologación con Laboratorio y Receta. */
+body.app-shell-body.doctor-patient-cofepris-page.doctor-cofepris-modal-open {
+  overflow: hidden;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-patient-context {
+  margin: 0 0 1rem;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-patient-strip {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+  padding: .9rem 1.15rem;
+  border: 1px solid var(--clinic-border);
+  border-radius: var(--clinic-radius);
+  background: #fff;
+  box-shadow: var(--clinic-shadow);
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-patient-icon {
+  display: inline-flex;
+  flex: 0 0 2.8rem;
+  width: 2.8rem;
+  height: 2.8rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--clinic-primary-soft);
+  color: var(--clinic-primary-dark);
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-patient-icon svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-patient-copy {
+  min-width: 0;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-patient-copy .dashboard-eyebrow {
+  margin: 0 0 .2rem;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-patient-copy h2 {
+  margin: 0;
+  color: var(--clinic-ink);
+  font-size: clamp(1rem, 1.5vw, 1.22rem);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-patient-copy > p:last-child {
+  margin: .2rem 0 0;
+  color: var(--clinic-muted);
+  font-size: .82rem;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-page-hero-action {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: .45rem;
+  border: 1px solid var(--clinic-border);
+  background: #FFFFFF;
+  background-color: #FFFFFF;
+  color: var(--clinic-primary-dark);
+  text-decoration: none;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-page-hero-action {
+  padding-inline: 1rem;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-page-hero-action:hover,
+body.app-shell-body.doctor-patient-cofepris-page .doctor-page-hero-action:focus,
+body.app-shell-body.doctor-patient-cofepris-page .doctor-page-hero-action:focus-visible,
+body.app-shell-body.doctor-patient-cofepris-page .doctor-page-hero-action:active {
+  border-color: #c8b0ed;
+  background: #FFFFFF;
+  background-color: #FFFFFF;
+  color: var(--clinic-primary-dark);
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-page-hero-action svg {
+  width: 1.05rem;
+  height: 1.05rem;
+  flex: 0 0 auto;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-list-card .doctor-patient-cofepris-card-header {
+  align-items: flex-start;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-list-heading {
+  min-width: 0;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-list-heading .dashboard-eyebrow {
+  margin: 0 0 .28rem;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-list-heading .card-title {
+  color: var(--clinic-ink);
+  font-size: 1.08rem;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-count {
+  margin: .28rem 0 0;
+  color: var(--clinic-primary-dark);
+  font-size: .82rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-new-button {
+  display: inline-flex;
+  min-height: 44px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  padding-inline: 1rem;
+  white-space: nowrap;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-new-button svg,
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-submit svg {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  border: 0;
+  border-radius: 0;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-table-wrap .dataTable-wrapper,
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-table-wrap .dataTable-container {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-table-wrap .dataTable-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0;
+  padding: 0 0 1rem;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-table-wrap .dataTable-top > * {
+  margin: 0;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-table-wrap .dataTable-search {
+  margin-left: auto;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-table {
+  width: 100%;
+  min-width: 42rem;
+  margin-bottom: 0;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-table thead th {
+  border-bottom-color: var(--clinic-border);
+  background: #faf8ff;
+  color: var(--clinic-primary-dark);
+  font-size: .8rem;
+  white-space: nowrap;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-table tbody tr {
+  cursor: pointer;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-table tbody tr:hover,
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-table tbody tr:focus-visible {
+  background: var(--clinic-primary-soft);
+  outline: 2px solid var(--clinic-focus);
+  outline-offset: -2px;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-edit {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  color: var(--clinic-primary-dark);
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-edit:hover,
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-edit:focus-visible {
+  background: var(--clinic-primary-soft);
+  color: var(--clinic-primary-dark);
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-empty {
+  display: flex;
+  min-height: 7rem;
+  align-items: center;
+  justify-content: center;
+  gap: .65rem;
+  margin: 0;
+  padding: 1.15rem;
+  border: 1px dashed #dbc9f2;
+  border-radius: 10px;
+  background: #faf8ff;
+  color: var(--clinic-muted);
+  text-align: center;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-empty[hidden],
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-modal[hidden] {
+  display: none;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-empty svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  color: var(--clinic-primary);
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-modal {
+  position: fixed;
+  z-index: 1200;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(37, 25, 55, .42);
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-modal-content {
+  display: flex;
+  width: min(100%, 700px);
+  max-height: calc(100vh - 2rem);
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--clinic-border);
+  border-radius: var(--clinic-radius);
+  background: #fff;
+  box-shadow: 0 1.25rem 3rem rgba(55, 35, 91, .22);
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-modal-header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem;
+  border-bottom: 1px solid var(--clinic-border);
+  background: linear-gradient(135deg, rgba(255, 255, 255, .98), rgba(248, 245, 255, .98));
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-modal-header .dashboard-eyebrow {
+  margin: 0 0 .25rem;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-modal-header h2 {
+  margin: 0;
+  color: var(--clinic-primary-dark);
+  font-size: clamp(1.2rem, 2vw, 1.45rem);
+  font-weight: 850;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-modal-close {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--clinic-primary-dark);
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-modal-close:hover,
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-modal-close:focus-visible {
+  border-color: #c8b0ed;
+  background: var(--clinic-primary-soft);
+  color: var(--clinic-primary-dark);
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-modal-close svg {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-modal-body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1.25rem;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-modal-status {
+  min-height: 1.25rem;
+  margin: 0 0 .75rem;
+  color: var(--clinic-muted);
+  font-size: .82rem;
+}
+
+body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-modal :where(button, input, textarea, select, a):focus-visible {
+  outline: 3px solid rgba(111, 45, 189, .28);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px #fff;
+}
+
+@media (max-width: 767px) {
+  body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-patient-strip {
+    align-items: flex-start;
+    padding: 1rem;
+  }
+
+  body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-list-card .doctor-patient-cofepris-card-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-new-button {
+    width: 100%;
+  }
+
+  body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-table-wrap .dataTable-top {
+    align-items: stretch;
+    flex-direction: column;
+    gap: .7rem;
+  }
+
+  body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-table-wrap .dataTable-search {
+    margin-left: 0;
+  }
+
+  body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-modal {
+    padding: .5rem;
+  }
+
+  body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-modal-content {
+    max-height: calc(100vh - 1rem);
+  }
+
+  body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-modal-header,
+  body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-modal-body {
+    padding-right: 1rem;
+    padding-left: 1rem;
+  }
+}
+
+@media (max-width: 430px) {
+  body.app-shell-body.doctor-patient-cofepris-page .doctor-patient-cofepris-patient-strip {
+    gap: .75rem;
+    padding: .85rem;
+  }
+}
+
+/* TH-DOCTOR-GLOBAL-BACK-BUTTONS-AUDIT-IMPLEMENTATION-01
+ * Shared visual contract for authenticated Doctor back links only.
+ * The href attribute keeps this scoped to navigational anchors and avoids
+ * changing create, distribution, cancel, modal, or submit controls.
+ */
+body.app-shell-body.app-shell-doctor a[data-doctor-back-action][href] {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: .45rem;
+  padding: .65rem 1rem;
+  border: 1px solid var(--clinic-border, #d9d2ed);
+  border-radius: 10px;
+  background: #FFFFFF;
+  background-color: #FFFFFF;
+  background-image: none;
+  color: var(--clinic-primary-dark, #2c195e);
+  font-family: inherit;
+  font-size: .92rem;
+  font-weight: 700;
+  line-height: 1.2;
+  opacity: 1;
+  box-shadow: none;
+  text-decoration: none;
+}
+
+body.app-shell-body.app-shell-doctor a[data-doctor-back-action][href]:hover,
+body.app-shell-body.app-shell-doctor a[data-doctor-back-action][href]:focus,
+body.app-shell-body.app-shell-doctor a[data-doctor-back-action][href]:focus-visible,
+body.app-shell-body.app-shell-doctor a[data-doctor-back-action][href]:active {
+  border-color: var(--clinic-primary, #6f2dbd);
+  background: #FFFFFF;
+  background-color: #FFFFFF;
+  background-image: none;
+  color: var(--clinic-primary-dark, #2c195e);
+  opacity: 1;
+  box-shadow: none;
+}
+
+body.app-shell-body.app-shell-doctor a[data-doctor-back-action][href]:focus-visible {
+  outline: 3px solid rgba(111, 45, 189, .25);
+  outline-offset: 2px;
+}
+
+body.app-shell-body.app-shell-doctor a[data-doctor-back-action][href] svg,
+body.app-shell-body.app-shell-doctor a[data-doctor-back-action][href] i {
+  width: 1.05rem;
+  height: 1.05rem;
+  flex: 0 0 auto;
+  color: currentColor;
 }
