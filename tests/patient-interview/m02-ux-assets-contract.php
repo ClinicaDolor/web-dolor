@@ -22,7 +22,7 @@ $assertions = [
     str_contains($view, 'data-m02-interpret hidden'),
     str_contains($view, 'const interpretM02 = async'),
     str_contains($view, "input.dispatchEvent(new Event('input', {bubbles: true}))"),
-    str_contains($view, 'La respuesta cambió. Revisa la nueva propuesta; todavía no se guardó ningún dato.'),
+    str_contains($view, 'La respuesta cambió. Vuelve a enviarla para validarla; todavía no se guardó ningún dato.'),
     str_contains($view, 'data-m02-defer'),
     str_contains($view, 'Pregunta M02 pendiente. No se guardó ni se convirtió en «No».'),
     substr_count($view, "document.querySelectorAll('[data-m02-interpret]')") === 1,

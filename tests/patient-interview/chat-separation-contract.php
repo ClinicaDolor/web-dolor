@@ -27,10 +27,11 @@ $assert(!str_contains($traditional, 'data-p05-mode'), 'El selector conversaciona
 $assert(!str_contains($traditional, 'p05GuidedMode'), 'M03 conserva ramas visuales de la entrevista.');
 $assert(str_contains($dashboard, 'historia-clinica/entrevista'), 'El portal no enlaza la experiencia independiente.');
 $assert(str_contains($chat, 'historia-clinica/entrevista/capturar'), 'La interfaz no usa su endpoint de captura.');
-$assert(str_contains($chat, 'Piloto determinista'), 'La interfaz no identifica el modo sin proveedor.');
+$assert(!str_contains($chat, 'Piloto determinista'), 'La interfaz conserva una etiqueta obsoleta del piloto.');
+$assert(str_contains($service, 'gemini_not_selected'), 'El servicio no registra el bloqueo o selección determinista del proveedor.');
 $assert(str_contains($routes, "'/entrevista/interpretar', ['PatientInterviewController', 'interpret']"), 'Falta el endpoint de interpretación conversacional.');
 $assert(str_contains($service, 'deterministic'), 'Falta el fallback determinista del motor conversacional.');
 $assert(str_contains($service, 'interpretConversation'), 'Falta el adaptador conversacional opcional.');
 $assert(!str_contains($chat, 'GEMINI_API_KEY'), 'La vista expone una clave o configuración externa.');
 
-echo "Chat separation contract: PASS (" . 15 . " assertions; no database writes)\n";
+echo "Chat separation contract: PASS (" . 16 . " assertions; no database writes)\n";
