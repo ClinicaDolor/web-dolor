@@ -14,7 +14,7 @@ $startInfo.UseShellExecute = $false
 $startInfo.CreateNoWindow = $true
 $startInfo.RedirectStandardOutput = $false
 $startInfo.RedirectStandardError = $false
-foreach ($entry in @{DB_DATABASE=$database;P04_TEST_DATABASE=$database;APP_ENV='testing';APP_KEY=([Guid]::NewGuid().ToString('N'))}.GetEnumerator()) { $startInfo.Environment[$entry.Key] = $entry.Value }
+foreach ($entry in @{DB_DATABASE=$database;P04_TEST_DATABASE=$database;APP_ENV='testing';APP_KEY=([Guid]::NewGuid().ToString('N'));CLINICAL_AI_SYNTHETIC_MODE='1';CLINICAL_AI_EXTERNAL_ENABLED='0';NATIVE_STT_ENABLED='1'}.GetEnumerator()) { $startInfo.Environment[$entry.Key] = $entry.Value }
 $server = [System.Diagnostics.Process]::new(); $server.StartInfo = $startInfo; $server.Start() | Out-Null
 Start-Sleep -Milliseconds 350
 for ($attempt=0; $attempt -lt 20; $attempt++) {

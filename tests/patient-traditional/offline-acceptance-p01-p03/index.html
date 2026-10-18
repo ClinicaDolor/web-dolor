@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; connect-src 'none'; form-action 'none'; img-src 'self' data:; script-src 'self'; style-src 'self'; font-src 'self';">
+    <title>Aceptación offline P01–P03</title>
+    <link rel="stylesheet" href="offline.css">
+</head>
+<body>
+<div class="offline-shell">
+    <header class="offline-banner" role="note">
+        <strong>Harness offline P01–P03</strong>
+        <span>Datos ficticios · sin autenticación · sin persistencia · sin red</span>
+    </header>
+
+    <nav class="offline-nav" aria-label="Vistas de inspección">
+        <button type="button" data-screen="p01">P01 · Acceso</button>
+        <button type="button" data-screen="p02">P02 · Dashboard</button>
+        <button type="button" data-screen="p03">P03 · Ficha</button>
+    </nav>
+
+    <main>
+        <section id="p01" class="screen screen-auth" aria-labelledby="p01-title">
+            <div class="auth-visual" aria-hidden="true">
+                <span class="brand-mark">CLÍNICA<br>DEL DOLOR</span>
+                <span class="brand-line">Portal Paciente</span>
+            </div>
+            <div class="auth-panel">
+                <span class="eyebrow">PORTAL DE PACIENTES</span>
+                <h1 id="p01-title">Ingresa tu PIN</h1>
+                <p id="p01-help" class="muted">Tu información está protegida.</p>
+                <div id="p01-form" role="group" aria-labelledby="p01-title">
+                    <label for="offline-pin">PIN de acceso</label>
+                    <div class="input-wrap"><span aria-hidden="true">⌑</span><input id="offline-pin" type="password" inputmode="numeric" autocomplete="off" placeholder="Ingresa tu PIN" aria-describedby="p01-help p01-message" aria-invalid="false"></div>
+                    <p id="p01-message" class="message" role="alert" aria-live="assertive" hidden></p>
+                    <button id="p01-submit" class="button primary" type="button">Entrar <span aria-hidden="true">→</span></button>
+                </div>
+                <p class="assurance">◈ <span>Acceso seguro para pacientes</span></p>
+                <button class="portal-link screen-link" type="button" data-screen="p02">Inspeccionar dashboard offline <span aria-hidden="true">→</span></button>
+            </div>
+        </section>
+
+        <section id="p02" class="screen app-screen" aria-labelledby="p02-title" hidden>
+            <header class="topbar"><span class="menu-icon" aria-hidden="true">☰</span><span class="topbar-label">Portal del paciente · Silvana Demo</span></header>
+            <div class="content">
+                <header class="hero">
+                    <div><span class="eyebrow">MI HISTORIA CLÍNICA</span><h1 id="p02-title">Mi Historia Clínica</h1><p class="muted">Completa tu información, paso a paso y a tu ritmo.</p></div>
+                    <span class="patient-chip">Paciente: Silvana Demo</span>
+                </header>
+                <section class="progress-card" aria-labelledby="progress-title">
+                    <div class="section-heading"><div><span class="eyebrow">TU PROGRESO</span><h2 id="progress-title">Avance de tu Historia Clínica</h2><p class="muted">Consulta cuánto has completado y continúa con la siguiente sección disponible.</p></div><strong class="progress-number">22%</strong></div>
+                    <div class="progress-track" role="progressbar" aria-label="Progreso general de tu Historia Clínica" aria-valuenow="22" aria-valuemin="0" aria-valuemax="100"><span class="progress-22"></span></div>
+                    <div class="progress-meta"><span><strong>2 <small>/ 9</small></strong> Secciones completadas</span><span><strong>Antecedentes familiares</strong> Siguiente sección</span></div>
+                    <button class="button primary" type="button" data-screen="p03">Comenzar mi siguiente sección <span aria-hidden="true">→</span></button>
+                </section>
+                <section class="panel" aria-labelledby="module-title">
+                    <div class="section-heading"><div><span class="eyebrow">HISTORIA CLÍNICA</span><h2 id="module-title">Tus secciones</h2><p class="muted">Estados representados con datos ficticios; el cálculo real no se ejecuta offline.</p></div></div>
+                    <div class="module-grid">
+                        <button class="module-card done" type="button" data-screen="p03"><span class="module-index">1</span><span class="module-status">Completada</span><strong>Ficha de identificación del paciente</strong><span>Sección registrada en tu expediente.</span><b>92% · Ver sección →</b></button>
+                        <button class="module-card" type="button" data-screen="p03"><span class="module-index">2</span><span class="module-status">Disponible</span><strong>Antecedentes familiares</strong><span>Continúa cuando estés listo.</span><b>0% · Continuar sección →</b></button>
+                        <button class="module-card" type="button" data-screen="p03"><span class="module-index">3</span><span class="module-status">Disponible</span><strong>Antecedentes Personales No Patológicos</strong><span>Continúa cuando estés listo.</span><b>0% · Continuar sección →</b></button>
+                        <button class="module-card" type="button" data-screen="p03"><span class="module-index">4</span><span class="module-status">Con avance</span><strong>Antecedentes Personales Quirúrgicos</strong><span>Revisa y continúa.</span><b>35% · Continuar sección →</b></button>
+                        <button class="module-card" type="button" data-screen="p03"><span class="module-index">5</span><span class="module-status">Disponible</span><strong>Antecedentes Personales Patológicos</strong><span>Continúa cuando estés listo.</span><b>0% · Continuar sección →</b></button>
+                        <button class="module-card" type="button" data-screen="p03"><span class="module-index">6</span><span class="module-status">Disponible</span><strong>Medicación Actual</strong><span>Continúa cuando estés listo.</span><b>0% · Continuar sección →</b></button>
+                        <button class="module-card" type="button" data-screen="p03"><span class="module-index">7</span><span class="module-status">Disponible</span><strong>Medicamentos para controlar el dolor</strong><span>Continúa cuando estés listo.</span><b>0% · Continuar sección →</b></button>
+                        <button class="module-card" type="button" data-screen="p03"><span class="module-index">8</span><span class="module-status">Disponible</span><strong>Procedimientos que ha utilizado para controlar el dolor</strong><span>Continúa cuando estés listo.</span><b>0% · Continuar sección →</b></button>
+                        <button class="module-card" type="button" data-screen="p03"><span class="module-index">9</span><span class="module-status">Disponible</span><strong>Evaluación del dolor</strong><span>Continúa cuando estés listo.</span><b>0% · Continuar sección →</b></button>
+                    </div>
+                </section>
+            </div>
+        </section>
+
+        <section id="p03" class="screen app-screen" aria-labelledby="p03-title" hidden>
+            <header class="topbar"><span class="menu-icon" aria-hidden="true">☰</span><span class="topbar-label">Portal del paciente · Silvana Demo</span></header>
+            <div class="content">
+                <header class="hero"><div><span class="eyebrow">MI HISTORIA CLÍNICA</span><h1 id="p03-title">Ficha de identificación</h1><p class="muted">Revisa tus datos personales registrados en la clínica.</p></div><button class="button secondary" type="button" data-screen="p02"><span aria-hidden="true">←</span> Volver a mi Historia Clínica</button></header>
+                <div class="info-grid">
+                    <section class="info-card" aria-labelledby="personal-title"><div class="card-title"><span aria-hidden="true">◉</span><div><span class="eyebrow">DATOS PERSONALES</span><h2 id="personal-title">Información personal</h2></div></div><dl><div><dt>Nombre completo</dt><dd>Silvana Demo</dd></div><div><dt>Edad</dt><dd>42 años</dd></div><div><dt>Sexo</dt><dd>Femenino</dd></div><div><dt>Estado civil</dt><dd>No registrado</dd></div><div><dt>Fecha de nacimiento</dt><dd>1984-04-12</dd></div><div><dt>CURP</dt><dd>Dato sintético</dd></div><div><dt>Lugar de origen</dt><dd>No registrado</dd></div><div><dt>Lugar de residencia</dt><dd>No registrado</dd></div><div><dt>Ocupación</dt><dd>No registrado</dd></div><div><dt>Número de hijos</dt><dd>No registrado</dd></div><div><dt>Edad de sus hijos</dt><dd>No registrado</dd></div></dl></section>
+                    <section class="info-card" aria-labelledby="address-title"><div class="card-title"><span aria-hidden="true">⌖</span><div><span class="eyebrow">DOMICILIO</span><h2 id="address-title">Dirección actual</h2></div></div><dl><div class="wide"><dt>Calle</dt><dd>No registrado</dd></div><div><dt>Número interior</dt><dd>No registrado</dd></div><div><dt>Número exterior</dt><dd>No registrado</dd></div><div><dt>Colonia</dt><dd>No registrado</dd></div><div><dt>Delegación</dt><dd>No registrado</dd></div><div><dt>Código postal</dt><dd>No registrado</dd></div><div><dt>Municipio</dt><dd>No registrado</dd></div><div><dt>Distancia a la clínica</dt><dd>No registrado</dd></div></dl></section>
+                    <section class="info-card" aria-labelledby="contact-title"><div class="card-title"><span aria-hidden="true">✆</span><div><span class="eyebrow">CONTACTO Y RESPONSABLES</span><h2 id="contact-title">Contacto y responsables</h2></div></div><dl><div class="wide"><dt>Correo electrónico</dt><dd>demo@example.invalid</dd></div><div><dt>Teléfono de casa</dt><dd>No registrado</dd></div><div><dt>Celular</dt><dd>No registrado</dd></div><div><dt>¿Tiene cuidador(a)?</dt><dd>No registrado</dd></div><div class="wide"><dt>Nombre del cuidador(a)</dt><dd>No registrado</dd></div><div><dt>Teléfono del cuidador(a)</dt><dd>No registrado</dd></div><div class="wide"><dt>Nombre del familiar responsable</dt><dd>No registrado</dd></div><div><dt>Teléfono del familiar responsable</dt><dd>No registrado</dd></div></dl></section>
+                    <section class="info-card" aria-labelledby="context-title"><div class="card-title"><span aria-hidden="true">✉</span><div><span class="eyebrow">CONTEXTO DE ATENCIÓN</span><h2 id="context-title">Motivo y referencia</h2></div></div><dl><div class="wide"><dt>Persona que lo recomendó</dt><dd>No registrado</dd></div><div><dt>Redes sociales</dt><dd>No registrado</dd></div><div class="wide"><dt>Motivo por el que solicita atención</dt><dd>No registrado</dd></div></dl></section>
+                </div>
+                <div class="offline-finalization" role="note">La finalización requiere la aplicación autenticada y no se ejecuta en este harness.</div>
+            </div>
+        </section>
+    </main>
+</div>
+<script src="offline.js"></script>
+</body>
+</html>

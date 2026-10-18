@@ -1,0 +1,32 @@
+[
+  {
+    "id": "audio-03s",
+    "file": "C:\\xampp\\htdocs\\clinica-dolor\\tests\\voice-stt-01\\audio\\audio-03s.wav",
+    "target_seconds": 3,
+    "expected_text": "No fumo y no tomo medicamentos.",
+    "requested_voice": "Microsoft Pablo",
+    "effective_voice": "Microsoft Pablo",
+    "voice_selection": "requested_es_voice",
+    "synthetic_only": true
+  },
+  {
+    "id": "audio-10s",
+    "file": "C:\\xampp\\htdocs\\clinica-dolor\\tests\\voice-stt-01\\audio\\audio-10s.wav",
+    "target_seconds": 10,
+    "expected_text": "No fumo ni bebo alcohol. Tomo ibuprofeno de cuatrocientos miligramos dos veces al día para el dolor.",
+    "requested_voice": "Microsoft Pablo",
+    "effective_voice": "Microsoft Pablo",
+    "voice_selection": "requested_es_voice",
+    "synthetic_only": true
+  },
+  {
+    "id": "audio-20s",
+    "file": "C:\\xampp\\htdocs\\clinica-dolor\\tests\\voice-stt-01\\audio\\audio-20s.wav",
+    "target_seconds": 20,
+    "expected_text": "No fumo ni bebo alcohol. Actualmente tomo ibuprofeno de cuatrocientos miligramos dos veces al día y paracetamol de quinientos miligramos por la noche. La dosis me ayuda un poco, pero el dolor continúa y no he tenido efectos secundarios.",
+    "requested_voice": "Microsoft Pablo",
+    "effective_voice": "Microsoft Pablo",
+    "voice_selection": "requested_es_voice",
+    "synthetic_only": true
+  }
+]
