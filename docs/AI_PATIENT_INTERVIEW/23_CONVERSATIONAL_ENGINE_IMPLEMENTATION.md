@@ -55,6 +55,72 @@ BROWSER_E2E: PENDING
 REAL_PATIENT_AI_RELEASE: NOT_AUTHORIZED
 ```
 
+## Fase 6.9R — acceso sintético y micrófono sin respuesta (2026-10-13)
+
+La revisión fue focal y se limitó a la Entrevista Conversacional. El servidor
+sintético preexistente PID 59900 permaneció intacto; las comprobaciones HTTP y
+el preflight ya ejecutados confirmaron la base
+`clinica_dolor_browser_20261012`, el paciente sintético 9302 y Gemini
+deshabilitado en la aplicación habitual. No se reinició el servidor, no se
+utilizó `bd_clinica` y no se realizaron llamadas externas.
+
+Se confirmó una causa de código para el síntoma «el micrófono no hace nada»:
+cuando el reconocimiento local no estaba disponible, la vista agregaba un
+`span` no interactivo. Ese elemento no podía mostrar una explicación al ser
+activado. Además, la detección consultaba únicamente el prototipo, aunque
+`processLocally` es una capacidad de instancia del reconocimiento.
+
+La corrección quedó limitada a `app/views/paciente/entrevista.php`: la
+capacidad se detecta construyendo una instancia sin iniciar el micrófono; el
+control no disponible ahora es un botón accesible, no inicia reconocimiento ni
+solicita permisos, y al activarse informa que el navegador no confirma el
+reconocimiento local en `es-MX`. Cuando la capacidad sí está disponible, se
+conservan `processLocally=true`, la edición antes del envío, los mensajes de
+permiso/error y la prohibición de transferencia de audio externa.
+
+Se ampliaron las aserciones estáticas de
+`tests/patient-interview/voice-and-navigation-contract.php` para cubrir la
+detección por instancia y el control explicativo. La prueba pasó con 11
+aserciones y cero escrituras. No fue posible probar el permiso ni el dictado
+en navegador real porque la sesión no expuso Chrome/Edge; el navegador interno
+de Codex no completó el acceso local autenticado.
+
+```yaml
+PHASE: 6.9R
+SYNTHETIC_SERVER: PASS_PREEXISTING_PID_59900_UNTOUCHED
+SYNTHETIC_DATABASE: PASS_CLINICA_DOLOR_BROWSER_20261012
+SYNTHETIC_LOGIN: PASS_HTTP_HARNESS_ONLY
+SYNTHETIC_BROWSER_ACCESS: NOT_VERIFIED
+SYNTHETIC_ACCESS_BLOCKER: "No hubo Chrome/Edge operativo ni sesión autenticada automatizable"
+
+CLINICA_TEST_SECURE_CONTEXT: NOT_VERIFIED_REAL_BROWSER
+MICROPHONE_BUTTON_EVENT: PASS_UNAVAILABLE_CONTROL_EXPLAINS_LIMITATION
+MICROPHONE_BUTTON_DISABLED_REASON: "El navegador no confirma reconocimiento local es-MX; se mantiene captura escrita"
+SPEECH_RECOGNITION_SUPPORT: NOT_VERIFIED_REAL_BROWSER
+PROCESS_LOCALLY_SUPPORT: PASS_CODE_GATE_NOT_REAL_BROWSER
+ES_MX_LOCAL_AVAILABILITY: NOT_VERIFIED_REAL_BROWSER
+MICROPHONE_PERMISSION: NOT_VERIFIED_REAL_BROWSER
+VOICE_ROOT_CAUSE: "Control de indisponibilidad era un span sin evento; detección sólo por prototipo"
+
+VOICE_ERROR_FEEDBACK: PASS_CODE_PATH
+VOICE_TRANSCRIPTION: NOT_VERIFIED_REAL_BROWSER
+VOICE_REAL_BROWSER_TEST: NOT_VERIFIED
+HTTPS_REQUIRED: NOT_DETERMINED_WITHOUT_REAL_BROWSER
+HTTPS_CHANGE_PROPOSED: NO
+OWNER_APPROVAL_REQUIRED: "Sólo si se solicita cambiar infraestructura HTTPS; no se propuso ni aplicó cambio"
+
+REAL_GEMINI_CALLS: 0
+BD_CLINICA_MODIFIED: NO
+PATIENT_310_MODIFIED: NO
+LEGACY_FORMS_MODIFIED: NO
+ENV_MODIFIED: NO
+
+FILES_MODIFIED: "app/views/paciente/entrevista.php; tests/patient-interview/voice-and-navigation-contract.php; docs/AI_PATIENT_INTERVIEW/23_CONVERSATIONAL_ENGINE_IMPLEMENTATION.md"
+CORRECTIONS: "Detección local por instancia y botón explicativo accesible para micrófono no disponible"
+REMAINING_BLOCKERS: "Verificación en Chrome/Edge real: secure context, permiso, SpeechRecognition, paquete es-MX, transcripción y avance visual"
+NEXT_ACTION: "Abrir el fixture sintético en Chrome/Edge y probar manualmente el botón; no habilitar Gemini ni audio externo"
+```
+
 ## Fase 6.7T — diagnóstico focal del transporte Gemini (2026-10-12)
 
 Esta fase no realizó llamadas nuevas a Gemini ni solicitudes de diagnóstico a
@@ -2153,4 +2219,108 @@ FILES_MODIFIED: "docs/AI_PATIENT_INTERVIEW/23_CONVERSATIONAL_ENGINE_IMPLEMENTATI
 VOICE_BLOCKERS: "No Chrome/Edge operativo ni sesión sintética autenticada disponible en esta ejecución; permiso, SpeechRecognition, processLocally y es-MX permanecen sin verificación real"
 REMAINING_BLOCKERS: "Prueba humana o navegador Chrome/Edge real con fixture sintética; validar transcripción local y avance DOM de M03/P4"
 NEXT_ACTION: "Abrir el portal sintético en Chrome/Edge, iniciar sesión sintética manualmente y probar dictado local; no habilitar Gemini ni datos reales"
+```
+
+## Fase 6.9 — correcciones funcionales y aceptación real pendiente (2026-10-13)
+
+La revisión se mantuvo dentro de la Entrevista Conversacional. El preflight
+confirmó el listener sintético PID 59900 en `127.0.0.1:8098`, la base
+`clinica_dolor_browser_20261012`, el paciente sintético 9302 y Gemini
+deshabilitado en la aplicación habitual. No se terminó ningún listener
+preexistente y no se utilizó `bd_clinica`.
+
+Se reprodujo y corrigió un defecto del arnés, no del flujo clínico: el proceso
+PHP hijo iniciado con `proc_open` podía sobrevivir al cierre del proceso
+intermediario y dejar un puerto sintético escuchando. Además, el lanzador
+PowerShell perdía el diagnóstico útil cuando el hijo terminaba con error. El
+router ahora se inicia sin shell intermediario, limpia el listener del puerto
+propio y el lanzador conserva código de salida, presencia/tamaño y hash de
+stdout/stderr, además de indicar si stdout contiene JSON válido. No se
+registran contenidos clínicos ni secretos.
+
+La ruta HTTP de captura directa M03/P4 se probó con paciente 9302 en la base
+sintética: la respuesta numérica se guardó con `saveAndContinue` explícito,
+se leyó nuevamente, se obtuvo la siguiente pregunta, se rechazó una entrada
+inválida sin cambios y no se crearon duplicados. El estado original fue
+restaurado por el propio arnés.
+
+La aceptación real de voz y la validación visual siguen pendientes. En esta
+sesión sólo estuvo disponible el navegador interno de Codex; Chrome/Edge no
+estuvieron disponibles y no se automatizaron credenciales. Por tanto no se
+declara que el permiso, `SpeechRecognition`, `processLocally`, `es-MX`, el
+dictado real ni el avance visual estén comprobados en un navegador del
+propietario.
+
+### Matriz focal de elegibilidad
+
+| Módulo | Clasificación actual | Motivo |
+|---|---|---|
+| M02 | `DIRECTA_SEGURA` sólo para el `No` seguro existente; en otro caso `ACLARACIÓN`/`REVISIÓN` | Dependencias y parentescos requieren contexto |
+| M03 | `DIRECTA_SEGURA` para input numérico completo y elegible; resto `ACLARACIÓN`/`REVISIÓN` | P4 validada por HTTP sintético |
+| M04 | `REVISIÓN` | Propuesta clínica estructurada |
+| M05 | `REVISIÓN` | Antecedentes y dependencias |
+| M06 | `REVISIÓN` | Medicación y campos múltiples |
+| M07 | `BLOQUEADA` | Contrato actual no habilita captura directa |
+| M08 | `REVISIÓN` | Tratamiento y resultado estructurados |
+| M09 | `REVISIÓN` | Evaluación y mapa PNG requieren confirmación |
+
+```yaml
+PHASE: 6.9
+SCOPE: CONVERSATIONAL_INTERVIEW_ONLY
+CURRENT_WORKTREE_PRESERVED: YES
+SYNTHETIC_ENVIRONMENT_VERIFIED: PASS
+SYNTHETIC_PATIENT_VERIFIED: PASS_9302
+
+M03_P4_DIRECT_SAVE: PASS_HTTP_SYNTHETIC
+M03_P4_EXPLICIT_CONSENT: PASS_SAVE_AND_CONTINUE_REQUIRED
+M03_P4_READBACK: PASS_HTTP
+M03_P4_NEXT_QUESTION_HTTP: PASS
+M03_P4_NEXT_QUESTION_BROWSER: NOT_VERIFIED
+M03_P4_REDUNDANT_REVIEW: PASS_DIRECT_PATH
+M03_P4_DUPLICATE_PROTECTION: PASS
+
+VOICE_SECURE_CONTEXT: NOT_VERIFIED_REAL_BROWSER
+VOICE_LOCAL_SUPPORT: NOT_VERIFIED_REAL_BROWSER
+VOICE_ES_MX: NOT_VERIFIED_REAL_BROWSER
+VOICE_PERMISSION: NOT_VERIFIED_REAL_BROWSER
+VOICE_REAL_DICTATION: NOT_VERIFIED
+VOICE_TRANSCRIPTION_EDITABLE: PASS_CODE_PATH_ONLY
+VOICE_EXTERNAL_STT_ENABLED: NO
+
+CONVERSATION_STATE_REVIEW: PASS_CODE_AND_SYNTHETIC_CONTRACTS
+PROCESSING_STATE: PASS_CODE_CONTRACT
+CLARIFICATION_STATE: PASS_SYNTHETIC_CONTRACTS
+REVIEW_STATE: PASS_SYNTHETIC_CONTRACTS
+DIRECT_SAVE_STATE: PASS_HTTP_M03_P4
+ERROR_RECOVERY: PASS_SYNTHETIC_FAILURE_CONTRACTS
+SESSION_RESUME: NOT_VERIFIED_BROWSER
+
+GEMINI_LAUNCHER_EVIDENCE: PASS_PREVENTS_REAL_CALLS_BY_DEFAULT_AND_RETURNS_DIAGNOSTICS
+GEMINI_SIMULATED_FAILURE_TESTS: PASS_JSON_EMPTY_INVALID_EXCEPTION_STDERR_PREMATURE
+REAL_GEMINI_CALLS_ADDED: 0
+
+RESPONSIVE_375: NOT_VERIFIED_REAL_BROWSER
+RESPONSIVE_430: NOT_VERIFIED_REAL_BROWSER
+RESPONSIVE_768: NOT_VERIFIED_REAL_BROWSER
+RESPONSIVE_1024: NOT_VERIFIED_REAL_BROWSER
+RESPONSIVE_1440: NOT_VERIFIED_REAL_BROWSER
+
+DIRECT_CAPTURE_ELIGIBILITY_MATRIX: DOCUMENTED_ABOVE; NO_GENERALIZATION_IMPLEMENTED
+SYNTHETIC_TESTS: "PASS m03-direct-http-acceptance; PASS m03-direct-capture; PASS voice/navigation; PASS conversational-engine; PASS compact-UX; PASS launcher diagnostics"
+BROWSER_E2E: NOT_VERIFIED_NO_CHROME_OR_EDGE_SESSION
+UNCONFIRMED_WRITES: ZERO
+SYNTHETIC_FIXTURE_RESTORED: PASS
+
+BD_CLINICA_MODIFIED: NO
+PATIENT_310_MODIFIED: NO
+LEGACY_FORMS_MODIFIED: NO
+SHARED_CLINICAL_SERVICES_MODIFIED: NO
+ENV_MODIFIED: NO
+
+FILES_MODIFIED: "tests/patient-interview/gemini-m03-m06-http.php; tests/patient-interview/run-gemini-m03-m06-safe.ps1; tests/patient-interview/m03-direct-http-acceptance.php; docs/AI_PATIENT_INTERVIEW/23_CONVERSATIONAL_ENGINE_IMPLEMENTATION.md"
+DEFECTS_CONFIRMED: "Router PHP hijo quedaba vivo tras probe; el lanzador ocultaba stdout/stderr y código de salida; no se reprodujo defecto clínico en M03/P4"
+CORRECTIONS_IMPLEMENTED: "proc_open sin shell intermediario; limpieza por listener propio; diagnóstico seguro de procesos; prueba HTTP M03/P4"
+REMAINING_BLOCKERS: "Aceptación autenticada en Chrome/Edge, dictado local real y comprobación visual responsive"
+OWNER_APPROVAL_REQUIRED: "Prueba manual del propietario con fixture sintética; no se requiere autorización para llamadas Gemini porque no se ejecutarán"
+NEXT_ACTION: "Ejecutar protocolo manual sintético en Chrome/Edge cuando esté disponible; no habilitar Gemini ni datos reales"
 ```
