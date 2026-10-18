@@ -391,7 +391,7 @@ function calcularEdad() {
         <p>Registra la indicación médica para un paciente existente o externo.</p>
     </div>
     <div class="doctor-page-hero-actions">
-        <a href="<?=SERVIDOR?>clinica/recetas" class="btn doctor-page-hero-action">
+        <a href="<?=SERVIDOR?>clinica/recetas" class="btn doctor-page-hero-action" data-doctor-back-action>
             <i data-feather="arrow-left" aria-hidden="true"></i>
             <span>Volver a recetas</span>
         </a>
@@ -403,7 +403,7 @@ function calcularEdad() {
 
 
 
-<div class="col-12 resizable">
+<div class="col-12">
 
 <!----- SELECTOR TIPO PACIENTE ----->
 <div class="card doctor-new-recipe-card doctor-new-recipe-selector-card">

@@ -11,6 +11,7 @@ $versionedAsset = static function (string $baseUrl, string $assetPath, string $p
 $appCssUrl = $versionedAsset(RUTA_CSS, 'app.css', 'assets/css/app.css');
 $loaderJsUrl = $versionedAsset(RUTA_JS, 'loader.js', 'assets/js/loader.js');
 $voiceUtilitiesJsUrl = $versionedAsset(RUTA_JS, 'voice-utilities.js', 'assets/js/voice-utilities.js');
+$audioStatusJsUrl = $versionedAsset(RUTA_JS, 'patient-audio-status.js', 'assets/js/patient-audio-status.js');
 $featherJsUrl = $versionedAsset(RUTA_JS, 'feather-icons/feather.min.js', 'assets/js/feather-icons/feather.min.js');
 $appJsUrl = $versionedAsset(RUTA_JS, 'app.js', 'assets/js/app.js');
 $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
@@ -33,6 +34,8 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
     let p08FinalizationInFlight = false;
     let p08LastFocusedElement = null;
     let p08SpeechRequestId = 0;
+    let p08SpeechStarted = false;
+    let p08SpeechMode = null;
     let p08InitialLoad = true;
 
     function p08PatientId() {
@@ -163,23 +166,28 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
             .finally(() => { p08FinalizationInFlight = false; p08SetBusy(false); });
     }
     function p08StopVoice(announce = true) {
+        const hadSpeech = p08SpeechStarted;
         p08SpeechRequestId += 1;
+        p08SpeechStarted = false;
         if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-        document.querySelectorAll('.p08-voice-button[data-action="stop-voice"]').forEach(button => { button.hidden = true; });
-        document.querySelectorAll('.p08-voice-button[data-action="read-question"]').forEach(button => { button.setAttribute('aria-pressed', 'false'); });
-        const status = document.getElementById('p08VoiceStatus'); if (announce && status) status.textContent = 'Audio detenido.';
+        document.querySelectorAll('#p08InstructionsModal .p08-voice-button[data-action="stop-voice"]').forEach(button => { button.hidden = false; });
+        document.querySelectorAll('#p08InstructionsModal .p08-voice-button[data-action="read-question"]').forEach(button => { button.setAttribute('aria-pressed', 'false'); });
+        document.querySelectorAll('body > .p08-voice-button[data-action="stop-voice"], .p08-question-tools .p08-voice-button[data-action="stop-voice"]').forEach(button => { button.hidden = true; button.tabIndex = -1; });
+        const status = document.getElementById('p08VoiceStatus'); if (announce && hadSpeech && status) PatientAudioStatus.stopped(status);
+        if (p08SpeechMode === 'instructions') PatientAudioControls.setState('p08-instructions', announce && hadSpeech ? 'stopped' : 'idle');
+        p08SpeechMode = null;
     }
     function p08Speak(text, mode = 'question') {
-        if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') { p08SetMessage('La lectura por voz no está disponible. Puedes continuar con las instrucciones escritas.'); return false; }
+        if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') { p08SetMessage('La lectura por voz no está disponible. Puedes continuar con las instrucciones escritas.'); if (mode === 'instructions') PatientAudioControls.unavailable('p08-instructions'); return false; }
         const cleanText = String(text || '').replace(/\s+/g, ' ').trim(); if (!cleanText) return false;
         p08StopVoice(false);
         const utterance = new SpeechSynthesisUtterance(cleanText);
         const voices = window.speechSynthesis.getVoices(); const voice = voices.find(item => /^es-MX/i.test(item.lang)) || voices.find(item => /^es(-|_)/i.test(item.lang));
         utterance.lang = voice ? voice.lang : 'es-MX'; if (voice) utterance.voice = voice; utterance.rate = .88;
-        const requestId = ++p08SpeechRequestId;
-        utterance.onstart = () => { if (requestId !== p08SpeechRequestId) return; document.querySelectorAll('.p08-voice-button[data-action="stop-voice"]').forEach(button => { button.hidden = false; }); document.querySelectorAll('.p08-voice-button[data-action="read-question"]').forEach(button => { button.setAttribute('aria-pressed', 'true'); }); const status = document.getElementById('p08VoiceStatus'); if (status) status.textContent = mode === 'instructions' ? 'Reproduciendo instrucciones.' : 'Reproduciendo el registro activo.'; };
-        utterance.onend = () => { if (requestId === p08SpeechRequestId) p08StopVoice(false); };
-        utterance.onerror = () => { if (requestId === p08SpeechRequestId) p08StopVoice(false); };
+        const requestId = ++p08SpeechRequestId; p08SpeechMode = mode;
+        utterance.onstart = () => { if (requestId !== p08SpeechRequestId) return; p08SpeechStarted = true; document.querySelectorAll('.p08-voice-button[data-action="stop-voice"]:not(#p08StopInstructionsButton)').forEach(button => { button.hidden = false; }); document.querySelectorAll('.p08-voice-button[data-action="read-question"]:not(#p08ReadInstructionsButton)').forEach(button => { button.setAttribute('aria-pressed', 'true'); }); const status = document.getElementById('p08VoiceStatus'); if (status) mode === 'instructions' ? PatientAudioStatus.playing(status) : status.textContent = 'Reproduciendo el registro activo.'; if (mode === 'instructions') PatientAudioControls.playing('p08-instructions'); };
+        utterance.onend = () => { if (requestId !== p08SpeechRequestId) return; p08SpeechStarted = false; if (mode === 'instructions') { PatientAudioStatus.idle(document.getElementById('p08VoiceStatus')); PatientAudioControls.ended('p08-instructions'); } p08StopVoice(false); };
+        utterance.onerror = () => { if (requestId !== p08SpeechRequestId) return; p08SpeechStarted = false; p08StopVoice(false); if (mode === 'instructions') { PatientAudioStatus.idle(document.getElementById('p08VoiceStatus')); PatientAudioControls.idle('p08-instructions'); p08SetMessage('No se pudo iniciar la lectura. Presiona Escuchar para intentarlo de nuevo.'); } };
         try { window.speechSynthesis.speak(utterance); return true; } catch (error) { return false; }
     }
     function p08ReadCurrentQuestion(fromButton = true) {
@@ -206,7 +214,7 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
         const record = actionElement.closest('.p08-record'); if (action === 'add') return p08AddRecord(); if (action === 'save') return p08SaveRecord(record); if (action === 'delete') return p08DeleteRecord(record); if (action === 'previous') return p08Navigate(-1); if (action === 'next') return p08Navigate(1); if (action === 'finalize') return p08Finalize();
     });
     document.addEventListener('keydown', event => { const modal = document.getElementById('p08InstructionsModal'); PatientInstructionsModal.handleKeydown(event, modal, p08CloseInstructions); });
-    document.addEventListener('DOMContentLoaded', () => p08LoadContent());
+        document.addEventListener('DOMContentLoaded', () => { PatientAudioStatus.idle(document.getElementById('p08VoiceStatus')); p08LoadContent(); });
     </script>
 </head>
 <body class="app-shell-body app-shell-patient patient-clinical-form patient-medication-page">
@@ -229,7 +237,7 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
         <?php include_once __DIR__ . '/../components/footer-doctor.php'; ?>
     </div>
 </div>
-<div id="p08InstructionsModal" class="p08-modal patient-instructions-modal" role="dialog" aria-modal="true" aria-labelledby="p08InstructionsTitle" aria-describedby="p08InstructionsText" aria-hidden="true" style="display:none"><div class="modal-dialog modal-dialog-centered patient-instructions-dialog"><div class="p08-modal-content patient-instructions-modal-content"><div class="p08-modal-header patient-instructions-modal-header"><h2 id="p08InstructionsTitle" class="patient-instructions-modal-title">Antes de comenzar: Medicación actual</h2><button type="button" class="p08-modal-close patient-instructions-close btn-close" data-action="close-modal" aria-label="Cerrar instrucciones"></button></div><div class="p08-modal-body patient-instructions-modal-body"><p id="p08InstructionsText" data-narration-instructions>En esta sección registrarás los medicamentos que utilizas actualmente. Lee o escucha las instrucciones, completa los cinco datos de cada registro y guarda los cambios antes de avanzar. Puedes agregar o eliminar medicamentos y finalizar cuando hayas terminado.</p><p class="p08-voice-status patient-instructions-voice-prompt" id="p08VoiceStatus" role="status" aria-live="polite">Puedes escuchar las instrucciones o continuar leyendo.</p><p class="patient-instructions-modal-note">Tus respuestas se guardan mientras avanzas. Puedes cerrar esta ventana sin perder tu progreso.</p></div><div class="p08-modal-actions patient-instructions-modal-actions"><button type="button" class="btn p08-voice-button patient-instructions-secondary" data-action="read-question"><i data-feather="volume-2" aria-hidden="true"></i><span>Escuchar</span></button><button type="button" class="btn p08-voice-button patient-instructions-secondary" data-action="stop-voice" hidden><i data-feather="square" aria-hidden="true"></i><span>Detener</span></button><button type="button" class="btn btn-primary" data-action="close-modal">Entendido, comenzar</button></div></div></div></div>
-<script src="<?= RUTA_JS; ?>patient-instructions-modal.js"></script><script src="<?= RUTA_JS; ?>patient-narration-highlight.js"></script><script src="<?= $voiceUtilitiesJsUrl; ?>"></script><script src="<?= $featherJsUrl; ?>"></script><script src="<?= RUTA_PUBLIC; ?>libs/perfect-scrollbar/perfect-scrollbar.min.js"></script><script src="<?= $appJsUrl; ?>"></script><script src="<?= $mainJsUrl; ?>"></script>
+<div id="p08InstructionsModal" class="p08-modal patient-instructions-modal" role="dialog" aria-modal="true" aria-labelledby="p08InstructionsTitle" aria-describedby="p08InstructionsText" aria-hidden="true" style="display:none"><div class="modal-dialog modal-dialog-centered patient-instructions-dialog"><div class="p08-modal-content patient-instructions-modal-content"><div class="p08-modal-header patient-instructions-modal-header"><h2 id="p08InstructionsTitle" class="patient-instructions-modal-title">Antes de comenzar: Medicación actual</h2><?php $modalCloseConfig = ['data' => ['data-action' => 'close-modal']]; include __DIR__ . '/partials/modal-close.php'; unset($modalCloseConfig); ?></div><div class="p08-modal-body patient-instructions-modal-body"><p id="p08InstructionsText" data-narration-instructions>En esta sección registrarás los medicamentos que utilizas actualmente. Lee o escucha las instrucciones, completa los cinco datos de cada registro y guarda los cambios antes de avanzar. Puedes agregar o eliminar medicamentos y finalizar cuando hayas terminado.</p><p class="p08-voice-status patient-instructions-voice-prompt" id="p08VoiceStatus" role="status" aria-live="polite"></p><p class="patient-instructions-modal-note">Tus respuestas se guardan mientras avanzas. Puedes cerrar esta ventana sin perder tu progreso.</p></div><div class="p08-modal-actions patient-instructions-modal-actions"><?php $modalAudioConfig = ['group' => 'p08-instructions', 'listen_id' => 'p08ReadInstructionsButton', 'stop_id' => 'p08StopInstructionsButton', 'listen_class' => 'btn p08-voice-button patient-instructions-secondary', 'stop_class' => 'btn p08-voice-button patient-instructions-secondary', 'listen_attrs' => ['data-action' => 'read-question'], 'stop_attrs' => ['data-action' => 'stop-voice']]; include __DIR__ . '/partials/modal-audio-controls.php'; unset($modalAudioConfig); ?><button type="button" class="btn btn-primary" data-action="close-modal">Entendido, comenzar</button></div></div></div></div>
+<script src="<?= $audioStatusJsUrl; ?>"></script><script src="<?= RUTA_JS; ?>patient-instructions-modal.js"></script><script src="<?= RUTA_JS; ?>patient-narration-highlight.js"></script><script src="<?= $voiceUtilitiesJsUrl; ?>"></script><script src="<?= $featherJsUrl; ?>"></script><script src="<?= RUTA_PUBLIC; ?>libs/perfect-scrollbar/perfect-scrollbar.min.js"></script><script src="<?= $appJsUrl; ?>"></script><script src="<?= $mainJsUrl; ?>"></script>
 </body>
 </html>

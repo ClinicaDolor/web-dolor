@@ -20,6 +20,7 @@ $versionedAsset = static function (string $baseUrl, string $assetPath, string $p
     return $baseUrl . $assetPath . ($version === false ? '' : '?v=' . (int) $version);
 };
 $appCssUrl = $versionedAsset(RUTA_CSS, 'app.css', 'assets/css/app.css');
+$audioStatusJsUrl = $versionedAsset(RUTA_JS, 'patient-audio-status.js', 'assets/js/patient-audio-status.js');
 
 ?>
  
@@ -78,7 +79,7 @@ $appCssUrl = $versionedAsset(RUTA_CSS, 'app.css', 'assets/css/app.css');
     }
 
     function p05MarkVoiceNeedsAction(needsAction) {
-    document.querySelectorAll('.p05-voice-speak').forEach(button => {
+    document.querySelectorAll('.p05-voice-speak, [data-audio-controls-group="p05-instructions"] [data-audio-control="listen"]').forEach(button => {
     button.classList.toggle('p05-voice-needs-action', needsAction);
     });
     }
@@ -91,6 +92,7 @@ $appCssUrl = $versionedAsset(RUTA_CSS, 'app.css', 'assets/css/app.css');
     }
 
     function p05StopVoice(announce = false) {
+    const hadSpeech = p05SpeechStarted;
     const previousMode = p05SpeechMode;
     p05SpeechRequestId += 1;
     p05SpeechMode = null;
@@ -99,15 +101,18 @@ $appCssUrl = $versionedAsset(RUTA_CSS, 'app.css', 'assets/css/app.css');
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     p05SetQuestionVoiceActive(false);
     p05MarkVoiceNeedsAction(false);
-    if (!announce) return;
+    if (previousMode === 'instructions') {
+    PatientAudioControls.setState('p05-instructions', announce && hadSpeech ? 'stopped' : 'idle');
+    }
+    if (!announce || !hadSpeech) return;
 
     const status = document.getElementById('p05VoiceStatus');
     if (previousMode === 'question') {
-    if (status) status.textContent = 'Audio detenido.';
+    if (status) PatientAudioStatus.stopped(status);
     return;
     }
     const prompt = document.getElementById('p05VoicePrompt');
-    if (prompt) prompt.textContent = 'Audio detenido. Presiona Escuchar para repetir las instrucciones.';
+    if (prompt) PatientAudioStatus.stopped(prompt);
     }
 
     function p05BindVoicesChanged() {
@@ -134,6 +139,7 @@ $appCssUrl = $versionedAsset(RUTA_CSS, 'app.css', 'assets/css/app.css');
     if (prompt) prompt.textContent = 'La lectura por voz no está disponible. Puedes continuar con las instrucciones escritas.';
     p05SetQuestionVoiceActive(false);
     p05MarkVoiceNeedsAction(true);
+    if (mode === 'instructions') PatientAudioControls.unavailable('p05-instructions');
     return false;
     }
 
@@ -157,7 +163,8 @@ $appCssUrl = $versionedAsset(RUTA_CSS, 'app.css', 'assets/css/app.css');
     p05MarkVoiceNeedsAction(false);
     if (mode === 'instructions') {
     const prompt = document.getElementById('p05VoicePrompt');
-    if (prompt) prompt.textContent = 'Intentando iniciar la lectura...';
+    if (prompt) PatientAudioStatus.idle(prompt);
+    PatientAudioControls.idle('p05-instructions');
     } else {
     const status = document.getElementById('p05VoiceStatus');
     if (status) status.textContent = 'Intentando iniciar la lectura de la pregunta.';
@@ -173,7 +180,8 @@ $appCssUrl = $versionedAsset(RUTA_CSS, 'app.css', 'assets/css/app.css');
     const status = document.getElementById('p05VoiceStatus');
     if (status) status.textContent = 'Reproduciendo la pregunta activa. Puedes detenerla o repetirla.';
     } else if (prompt) {
-    prompt.textContent = 'Reproduciendo instrucciones. Puedes detenerlas o repetirlas.';
+    PatientAudioStatus.playing(prompt);
+    PatientAudioControls.playing('p05-instructions');
     }
     };
     utterance.onend = () => {
@@ -185,7 +193,8 @@ $appCssUrl = $versionedAsset(RUTA_CSS, 'app.css', 'assets/css/app.css');
     const status = document.getElementById('p05VoiceStatus');
     if (status) status.textContent = mode === 'question' ? 'Lectura de la pregunta finalizada.' : '';
     const prompt = document.getElementById('p05VoicePrompt');
-    if (mode === 'instructions' && prompt) prompt.textContent = 'Lectura finalizada. Puedes repetirla cuando quieras.';
+    if (mode === 'instructions' && prompt) PatientAudioStatus.idle(prompt);
+    if (mode === 'instructions') PatientAudioControls.ended('p05-instructions');
     };
     utterance.onerror = () => {
     if (requestId !== p05SpeechRequestId) return;
@@ -198,6 +207,7 @@ $appCssUrl = $versionedAsset(RUTA_CSS, 'app.css', 'assets/css/app.css');
     if (status && mode === 'question') status.textContent = 'No se pudo iniciar la lectura. Presiona Escuchar para intentarlo de nuevo.';
     const prompt = document.getElementById('p05VoicePrompt');
     if (prompt && mode === 'instructions') prompt.textContent = 'No se pudo iniciar la lectura. Presiona Escuchar para intentarlo de nuevo.';
+    if (mode === 'instructions') PatientAudioControls.idle('p05-instructions');
     };
     try {
     window.speechSynthesis.speak(utterance);
@@ -270,7 +280,7 @@ $appCssUrl = $versionedAsset(RUTA_CSS, 'app.css', 'assets/css/app.css');
     }
     p05StopVoice();
     p05LastFocusedElement = PatientInstructionsModal.capture(modal, document.activeElement, '.patient-nonpathological-help');
-    PatientInstructionsModal.open(modal, { opener: p05LastFocusedElement, focusSelector: '.btn-close' });
+    PatientInstructionsModal.open(modal, { opener: p05LastFocusedElement, focusSelector: '.th-modal-close' });
     p05ReadInstructions();
     }
 
@@ -1033,7 +1043,7 @@ $appCssUrl = $versionedAsset(RUTA_CSS, 'app.css', 'assets/css/app.css');
     <div class="modal-content patient-nonpathological-modal-content patient-instructions-modal-content">
     <div class="modal-header patient-instructions-modal-header">
     <h2 id="p05InstructionsTitle" class="modal-title patient-instructions-modal-title">Antes de comenzar: Antecedentes Personales No Patológicos</h2>
-    <button type="button" class="btn-close" aria-label="Cerrar instrucciones" onclick="p05CloseInstructions()"></button>
+    <?php $modalCloseConfig = ['onclick' => 'p05CloseInstructions()']; include __DIR__ . '/partials/modal-close.php'; unset($modalCloseConfig); ?>
     </div>
     <div class="modal-body patient-instructions-modal-body">
     <p id="p05InstructionsText" data-narration-instructions>En esta sección responderás preguntas sobre tus hábitos y antecedentes personales no patológicos. Lee cada pregunta, elige la respuesta disponible y completa los campos adicionales cuando aparezcan. Usa Anterior y Siguiente para avanzar o revisar tus respuestas. Al terminar, podrás compartir información adicional y guardar la sección.</p>
@@ -1041,8 +1051,7 @@ $appCssUrl = $versionedAsset(RUTA_CSS, 'app.css', 'assets/css/app.css');
     <p class="patient-nonpathological-modal-note patient-instructions-modal-note">Tus respuestas se guardan mientras avanzas. Puedes cerrar esta ventana sin perder tu progreso.</p>
     </div>
     <div class="modal-footer patient-nonpathological-modal-actions patient-instructions-modal-actions">
-    <button id="p05ReadInstructionsButton" type="button" class="btn patient-nonpathological-secondary patient-instructions-secondary p05-voice-speak" onclick="p05ReadInstructions()"><i data-feather="volume-2" aria-hidden="true"></i> <span>Escuchar</span></button>
-    <button id="p05StopInstructionsButton" type="button" class="btn patient-nonpathological-secondary patient-instructions-secondary" onclick="p05StopVoice(true)"><i data-feather="square" aria-hidden="true"></i> <span>Detener</span></button>
+    <?php $modalAudioConfig = ['group' => 'p05-instructions', 'listen_id' => 'p05ReadInstructionsButton', 'stop_id' => 'p05StopInstructionsButton', 'listen_class' => 'btn patient-nonpathological-secondary patient-instructions-secondary p05-voice-speak', 'stop_class' => 'btn patient-nonpathological-secondary patient-instructions-secondary', 'listen_attrs' => ['onclick' => 'p05ReadInstructions()'], 'stop_attrs' => ['onclick' => 'p05StopVoice(true)']]; include __DIR__ . '/partials/modal-audio-controls.php'; unset($modalAudioConfig); ?>
     <button type="button" class="btn btn-primary" onclick="p05CloseInstructions()">Entendido, comenzar</button>
     </div>
     </div>
@@ -1054,6 +1063,7 @@ $appCssUrl = $versionedAsset(RUTA_CSS, 'app.css', 'assets/css/app.css');
     </div>
 
 
+    <script src="<?=$audioStatusJsUrl;?>"></script>
     <script src="<?=RUTA_JS;?>patient-instructions-modal.js"></script>
     <script src="<?=RUTA_JS;?>patient-narration-highlight.js"></script>
     <script src="<?=RUTA_JS;?>voice-utilities.js"></script>

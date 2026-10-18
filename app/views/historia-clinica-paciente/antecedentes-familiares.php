@@ -18,6 +18,7 @@ $versionedAsset = static function (string $baseUrl, string $assetPath, string $p
 $appCssUrl = $versionedAsset(RUTA_CSS, 'app.css', 'assets/css/app.css');
 $loaderJsUrl = $versionedAsset(RUTA_JS, 'loader.js', 'assets/js/loader.js');
 $voiceUtilitiesJsUrl = $versionedAsset(RUTA_JS, 'voice-utilities.js', 'assets/js/voice-utilities.js');
+$audioStatusJsUrl = $versionedAsset(RUTA_JS, 'patient-audio-status.js', 'assets/js/patient-audio-status.js');
 $featherJsUrl = $versionedAsset(RUTA_JS, 'feather-icons/feather.min.js', 'assets/js/feather-icons/feather.min.js');
 $appJsUrl = $versionedAsset(RUTA_JS, 'app.js', 'assets/js/app.js');
 $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
@@ -54,6 +55,7 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
     let p04ContentLoading = false;
     let p04SpeechMode = null;
     let p04SpeechRequestId = 0;
+    let p04SpeechStarted = false;
     let p04VoiceFeedbackTimer = null;
     let p04VoicesChangeBound = false;
     let p04SaveMessageTimer = null;
@@ -102,7 +104,7 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
     }
 
     function p04MarkVoiceNeedsAction(needsAction) {
-    document.querySelectorAll('.p04-voice-speak').forEach(button => {
+    document.querySelectorAll('.p04-voice-speak, [data-audio-controls-group="p04-instructions"] [data-audio-control="listen"]').forEach(button => {
     button.classList.toggle('p04-voice-needs-action', needsAction);
     });
     }
@@ -115,22 +117,27 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
     }
 
     function p04StopVoice(announce = false) {
+    const hadSpeech = p04SpeechStarted;
     const previousMode = p04SpeechMode;
     p04SpeechRequestId += 1;
     p04SpeechMode = null;
+    p04SpeechStarted = false;
     p04ClearVoiceFeedbackTimer();
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     p04SetQuestionVoiceActive(false);
     p04MarkVoiceNeedsAction(false);
-    if (!announce) return;
+    if (previousMode === 'instructions') {
+    PatientAudioControls.setState('p04-instructions', announce && hadSpeech ? 'stopped' : 'idle');
+    }
+    if (!announce || !hadSpeech) return;
 
     const status = document.getElementById('p04VoiceStatus');
     if (previousMode === 'question') {
-    if (status) status.textContent = 'Audio detenido.';
+    if (status) PatientAudioStatus.stopped(status);
     return;
     }
     const prompt = document.getElementById('p04VoicePrompt');
-    if (prompt) prompt.textContent = 'Audio detenido. Presiona Escuchar para repetir las instrucciones.';
+    if (prompt) PatientAudioStatus.stopped(prompt);
     }
 
     function p04BindVoicesChanged() {
@@ -159,6 +166,7 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
     if (prompt) prompt.textContent = 'La lectura por voz no está disponible. Puedes continuar con las instrucciones escritas.';
     p04SetQuestionVoiceActive(false);
     p04MarkVoiceNeedsAction(true);
+    if (mode === 'instructions') PatientAudioControls.unavailable('p04-instructions');
     return false;
     }
 
@@ -178,16 +186,19 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
     utterance.pitch = 1;
     const requestId = p04SpeechRequestId;
     p04SpeechMode = mode;
+    p04SpeechStarted = false;
     p04MarkVoiceNeedsAction(false);
     if (mode === 'instructions') {
     const prompt = document.getElementById('p04VoicePrompt');
-    if (prompt) prompt.textContent = 'Intentando iniciar la lectura...';
+    if (prompt) PatientAudioStatus.idle(prompt);
+    PatientAudioControls.idle('p04-instructions');
     } else {
     const status = document.getElementById('p04VoiceStatus');
     if (status) status.textContent = 'Intentando iniciar la lectura de la pregunta.';
     }
     utterance.onstart = () => {
     if (requestId !== p04SpeechRequestId) return;
+    p04SpeechStarted = true;
     p04ClearVoiceFeedbackTimer();
     p04MarkVoiceNeedsAction(false);
     p04SetQuestionVoiceActive(mode === 'question');
@@ -196,29 +207,34 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
     const status = document.getElementById('p04VoiceStatus');
     if (status) status.textContent = 'Reproduciendo la pregunta activa. Puedes detenerla o repetirla.';
     } else if (prompt) {
-    prompt.textContent = 'Reproduciendo instrucciones. Puedes detenerlas o repetirlas.';
+    PatientAudioStatus.playing(prompt);
+    PatientAudioControls.playing('p04-instructions');
     }
     };
     utterance.onend = () => {
     if (requestId !== p04SpeechRequestId) return;
     p04ClearVoiceFeedbackTimer();
     p04SpeechMode = null;
+    p04SpeechStarted = false;
     p04SetQuestionVoiceActive(false);
     const status = document.getElementById('p04VoiceStatus');
     if (status) status.textContent = mode === 'question' ? 'Lectura de la pregunta finalizada.' : '';
     const prompt = document.getElementById('p04VoicePrompt');
-    if (mode === 'instructions' && prompt) prompt.textContent = 'Lectura finalizada. Puedes repetirla cuando quieras.';
+    if (mode === 'instructions' && prompt) PatientAudioStatus.idle(prompt);
+    if (mode === 'instructions') PatientAudioControls.ended('p04-instructions');
     };
     utterance.onerror = (event) => {
     if (requestId !== p04SpeechRequestId) return;
     p04ClearVoiceFeedbackTimer();
     p04SpeechMode = null;
+    p04SpeechStarted = false;
     p04SetQuestionVoiceActive(false);
     p04MarkVoiceNeedsAction(true);
     const status = document.getElementById('p04VoiceStatus');
     if (status && mode === 'question') status.textContent = 'No se pudo iniciar la lectura. Presiona Escuchar para intentarlo de nuevo.';
     const prompt = document.getElementById('p04VoicePrompt');
     if (prompt && mode === 'instructions') prompt.textContent = 'No se pudo iniciar la lectura. Presiona Escuchar para intentarlo de nuevo.';
+    if (mode === 'instructions') PatientAudioControls.idle('p04-instructions');
     };
     try {
     window.speechSynthesis.speak(utterance);
@@ -227,6 +243,7 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
     if (requestId !== p04SpeechRequestId || !('speechSynthesis' in window)) return;
     if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) {
     p04SpeechMode = null;
+    p04SpeechStarted = false;
     p04SetQuestionVoiceActive(false);
     p04MarkVoiceNeedsAction(true);
     const status = document.getElementById('p04VoiceStatus');
@@ -302,7 +319,7 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
     }
     p04StopVoice();
     p04LastFocusedElement = PatientInstructionsModal.capture(modal, document.activeElement, '.patient-family-history-help');
-    PatientInstructionsModal.open(modal, { opener: p04LastFocusedElement, focusSelector: '.btn-close' });
+    PatientInstructionsModal.open(modal, { opener: p04LastFocusedElement, focusSelector: '.th-modal-close' });
     const instructions = document.getElementById('p04InstructionsText');
     p04SpeakText(instructions ? instructions.textContent : 'Lee o escucha cada pregunta y selecciona Sí o No.');
     }
@@ -933,7 +950,7 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
     <div class="modal-content patient-family-history-modal-content patient-instructions-modal-content">
     <div class="modal-header patient-instructions-modal-header">
     <h2 id="p04InstructionsTitle" class="modal-title patient-instructions-modal-title">Antes de comenzar: Antecedentes familiares</h2>
-    <button type="button" class="btn-close" aria-label="Cerrar instrucciones" onclick="p04CloseInstructions()"></button>
+    <?php $modalCloseConfig = ['onclick' => 'p04CloseInstructions()']; include __DIR__ . '/partials/modal-close.php'; unset($modalCloseConfig); ?>
     </div>
     <div class="modal-body patient-instructions-modal-body">
     <p id="p04InstructionsText" data-narration-instructions>En esta sección te preguntaremos si tus familiares han padecido ciertas enfermedades. Lee o escucha cada pregunta y selecciona Sí o No. Si respondes Sí, indica qué familiar ha padecido esa enfermedad. Algunas respuestas pueden solicitar información adicional. Puedes regresar a una pregunta anterior si necesitas revisar tus respuestas. Al terminar, podrás añadir comentarios y finalizar la sección.</p>
@@ -941,8 +958,7 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
     <p class="patient-family-history-modal-note patient-instructions-modal-note">Tus respuestas se guardan mientras avanzas. Puedes cerrar esta ventana sin perder tu progreso.</p>
     </div>
     <div class="modal-footer patient-family-history-modal-actions patient-instructions-modal-actions">
-    <button id="p04ReadInstructionsButton" type="button" class="btn patient-family-history-secondary patient-instructions-secondary p04-voice-speak" onclick="p04ReadInstructions()"><i data-feather="volume-2" aria-hidden="true"></i> <span>Escuchar</span></button>
-    <button id="p04StopInstructionsButton" type="button" class="btn patient-family-history-secondary patient-instructions-secondary" onclick="p04StopVoice(true)"><i data-feather="square" aria-hidden="true"></i> <span>Detener</span></button>
+    <?php $modalAudioConfig = ['group' => 'p04-instructions', 'listen_id' => 'p04ReadInstructionsButton', 'stop_id' => 'p04StopInstructionsButton', 'listen_class' => 'btn patient-family-history-secondary patient-instructions-secondary p04-voice-speak', 'stop_class' => 'btn patient-family-history-secondary patient-instructions-secondary', 'listen_attrs' => ['onclick' => 'p04ReadInstructions()'], 'stop_attrs' => ['onclick' => 'p04StopVoice(true)']]; include __DIR__ . '/partials/modal-audio-controls.php'; unset($modalAudioConfig); ?>
     <button type="button" class="btn btn-primary" onclick="p04CloseInstructions()">Entendido, comenzar</button>
     </div>
     </div>
@@ -953,6 +969,7 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
     </div>
     </div>
 
+    <script src="<?=$audioStatusJsUrl;?>"></script>
     <script src="<?=RUTA_JS;?>patient-instructions-modal.js"></script>
     <script src="<?=RUTA_JS;?>patient-narration-highlight.js"></script>
     <script src="<?=$voiceUtilitiesJsUrl;?>"></script>

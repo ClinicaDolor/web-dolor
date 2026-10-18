@@ -1,9 +1,12 @@
 <?php
+use App\Services\ClinicalSummarySecurity;
+
 $escape = static fn($value) => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
 $pageTitle = $data['title'] ?? 'Evaluación del dolor';
 $patientId = (int) ($data['idPaciente'] ?? 0);
 $patientName = $data['nombre'] ?? 'Paciente';
 $patientSex = $data['sexo'] ?? '';
+$p11CsrfToken = ClinicalSummarySecurity::captureCsrfToken($patientId);
 $versionedAsset = static function (string $baseUrl, string $assetPath, string $publicPath): string {
     $filesystemPath = realpath(__DIR__ . '/../../public/' . ltrim($publicPath, '/'));
     $version = $filesystemPath !== false && is_file($filesystemPath) ? filemtime($filesystemPath) : false;
@@ -15,6 +18,7 @@ $voiceUtilitiesJsUrl = $versionedAsset(RUTA_JS, 'voice-utilities.js', 'assets/js
 $featherJsUrl = $versionedAsset(RUTA_JS, 'feather-icons/feather.min.js', 'assets/js/feather-icons/feather.min.js');
 $appJsUrl = $versionedAsset(RUTA_JS, 'app.js', 'assets/js/app.js');
 $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
+$audioStatusJsUrl = $versionedAsset(RUTA_JS, 'patient-audio-status.js', 'assets/js/patient-audio-status.js');
 $serverUrl = rtrim(SERVIDOR, '/') . '/';
 ?>
 <!DOCTYPE html>
@@ -29,12 +33,13 @@ $serverUrl = rtrim(SERVIDOR, '/') . '/';
     <link rel="stylesheet" href="<?=RUTA_PUBLIC;?>libs/perfect-scrollbar/perfect-scrollbar.css">
     <link rel="stylesheet" href="<?=$appCssUrl;?>">
     <script src="<?=$loaderJsUrl;?>"></script>
+    <script src="<?=$audioStatusJsUrl;?>"></script>
 </head>
 <body class="app-shell-body app-shell-patient patient-clinical-form p11-pain-evaluation-page">
 <div class="LoaderPage"></div>
 <div id="app">
     <?=$data['sidebar'];?>
-    <div id="main" data-rol="Paciente" data-paciente="<?=$patientId;?>" data-sexo="<?=$escape($patientSex);?>">
+    <div id="main" data-rol="Paciente" data-paciente="<?=$patientId;?>" data-sexo="<?=$escape($patientSex);?>" data-p11-csrf="<?=$escape($p11CsrfToken);?>">
         <nav class="navbar navbar-header navbar-expand navbar-light portal-topbar" aria-label="Barra de herramientas del portal del paciente">
             <button type="button" class="sidebar-toggler border-0 bg-transparent" aria-label="Abrir menú principal" aria-controls="sidebar" aria-expanded="true"><span class="navbar-toggler-icon"></span></button>
             <button class="btn navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Mostrar navegación"><span class="navbar-toggler-icon"></span></button>
@@ -68,7 +73,7 @@ $serverUrl = rtrim(SERVIDOR, '/') . '/';
                 <div class="modal-content patient-family-history-modal-content patient-instructions-modal-content">
                     <div class="modal-header patient-instructions-modal-header">
                         <h2 id="p11InstructionsTitle" class="modal-title patient-instructions-modal-title">Antes de comenzar: Evaluación del dolor</h2>
-                        <button type="button" class="btn-close" aria-label="Cerrar instrucciones" data-p11-action="close-help"></button>
+                        <?php $modalCloseConfig = ['data' => ['data-p11-action' => 'close-help']]; include __DIR__ . '/partials/modal-close.php'; unset($modalCloseConfig); ?>
                     </div>
                     <div class="modal-body patient-instructions-modal-body">
                         <p id="p11InstructionsText" data-narration-instructions>En esta sección vamos a conocer en qué partes de tu cuerpo sientes dolor o alguna otra molestia. Primero verás una imagen del cuerpo de frente y después una imagen de la espalda. Selecciona un color y marca la zona correspondiente. Finalmente responderás algunas preguntas sobre tu dolor. Puedes regresar para revisar o corregir tus respuestas antes de finalizar.</p>
@@ -76,8 +81,7 @@ $serverUrl = rtrim(SERVIDOR, '/') . '/';
                         <p class="patient-family-history-modal-note patient-instructions-modal-note">Tus respuestas y mapas se guardan mientras avanzas. Puedes cerrar esta ventana sin perder tu progreso.</p>
                     </div>
                     <div class="modal-footer patient-family-history-modal-actions patient-instructions-modal-actions">
-                        <button id="p11ReadInstructionsButton" type="button" class="btn patient-family-history-secondary patient-instructions-secondary p04-voice-speak" data-p11-action="read-help"><i data-feather="volume-2" aria-hidden="true"></i><span>Escuchar</span></button>
-                        <button id="p11StopInstructionsButton" type="button" class="btn patient-family-history-secondary patient-instructions-secondary" data-p11-action="stop-voice"><i data-feather="square" aria-hidden="true"></i><span>Detener</span></button>
+                        <?php $modalAudioConfig = ['group' => 'p11-instructions', 'listen_id' => 'p11ReadInstructionsButton', 'stop_id' => 'p11StopInstructionsButton', 'listen_class' => 'btn patient-family-history-secondary patient-instructions-secondary', 'stop_class' => 'btn patient-family-history-secondary patient-instructions-secondary', 'listen_attrs' => ['data-p11-action' => 'read-help'], 'stop_attrs' => ['data-p11-action' => 'stop-voice']]; include __DIR__ . '/partials/modal-audio-controls.php'; unset($modalAudioConfig); ?>
                         <button type="button" class="btn btn-primary" data-p11-action="close-help">Entendido, comenzar</button>
                     </div>
                 </div>
@@ -103,11 +107,12 @@ $serverUrl = rtrim(SERVIDOR, '/') . '/';
     const imageBase = server + 'historia-clinica/paciente/imagen-evaluacion-dolor/';
     const sections = { frente: 'p11-front-panel', espalda: 'p11-back-panel', cuestionario: 'p11-question-panel' };
     const state = { active: null, mapSaving: Promise.resolve(), modalOpen: false, lastFocus: null };
+    let p11SpeechStarted = false;
     const message = document.getElementById('p11-message');
 
     function setMessage(text, type) { message.textContent = text || ''; message.className = 'p11-message' + (type ? ' is-' + type : ''); }
     function requestJson(path, payload) {
-        return fetch(server + path.replace(/^\//, ''), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+        return fetch(server + path.replace(/^\//, ''), { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-M03-CSRF': root.dataset.p11Csrf || '' }, body: JSON.stringify(payload) })
             .then(async response => { const data = await response.json().catch(() => null); if (!response.ok || !data || !data.resultado) throw new Error((data && data.mensaje) || 'No se pudo completar la operación.'); return data; });
     }
     function refreshIcons() { if (window.feather) window.feather.replace(); }
@@ -162,8 +167,8 @@ $serverUrl = rtrim(SERVIDOR, '/') . '/';
         requestJson('historia-clinica/paciente/editar-evaluacion-dolor-modulo9', { idPaciente: patientId, changes }).then(() => { setMessage('Respuesta guardada.', 'success'); if (finishAfter) return finish(); }).catch(error => setMessage(error.message || 'No se pudo guardar la evaluación.', 'error')).finally(() => buttons.forEach(button => { button.disabled = false; }));
     }
     function finish() { return requestJson('historia-clinica/paciente/finalizar-modulo-paciente', { idPaciente: patientId, idModulo: 9 }).then(data => { setMessage('Módulo finalizado.', 'success'); const next = data.next_url || (server + 'historia-clinica'); window.setTimeout(() => { window.location.href = next; }, 350); }); }
-    function speak() { if (!('speechSynthesis' in window)) { setMessage('La narración no está disponible en este navegador.', 'error'); return; } window.speechSynthesis.cancel(); const utterance = new SpeechSynthesisUtterance(document.getElementById('p11InstructionsText').textContent); utterance.lang = 'es-MX'; utterance.onstart = () => { document.getElementById('p11VoicePrompt').textContent = 'Reproduciendo instrucciones. Puedes detenerlas o repetirlas.'; }; utterance.onend = () => { document.getElementById('p11VoicePrompt').textContent = 'La narración terminó.'; }; window.speechSynthesis.speak(utterance); }
-    function stopVoice() { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); document.getElementById('p11VoicePrompt').textContent = 'Narración detenida.'; }
+    function speak() { if (!('speechSynthesis' in window)) { setMessage('La narración no está disponible en este navegador.', 'error'); PatientAudioControls.unavailable('p11-instructions'); return; } window.speechSynthesis.cancel(); p11SpeechStarted = false; const prompt = document.getElementById('p11VoicePrompt'); PatientAudioControls.idle('p11-instructions'); const utterance = new SpeechSynthesisUtterance(document.getElementById('p11InstructionsText').textContent); utterance.lang = 'es-MX'; utterance.onstart = () => { p11SpeechStarted = true; PatientAudioStatus.playing(prompt); PatientAudioControls.playing('p11-instructions'); }; utterance.onend = () => { p11SpeechStarted = false; PatientAudioStatus.idle(prompt); PatientAudioControls.ended('p11-instructions'); }; utterance.onerror = () => { p11SpeechStarted = false; PatientAudioStatus.idle(prompt); PatientAudioControls.idle('p11-instructions'); setMessage('La narración no está disponible en este navegador.', 'error'); }; window.speechSynthesis.speak(utterance); }
+    function stopVoice() { const hadSpeech = p11SpeechStarted; p11SpeechStarted = false; if ('speechSynthesis' in window) window.speechSynthesis.cancel(); PatientAudioControls.setState('p11-instructions', hadSpeech ? 'stopped' : 'idle'); if (hadSpeech) PatientAudioStatus.stopped(document.getElementById('p11VoicePrompt')); }
     function openHelp() { const modal = document.getElementById('p11InstructionsModal'); state.lastFocus = PatientInstructionsModal.capture(modal, document.activeElement, '[data-p11-action="open-help"]'); state.modalOpen = true; PatientInstructionsModal.open(modal, { opener: state.lastFocus, focusSelector: '[data-p11-action="close-help"]' }); speak(); }
     function closeHelp() { const modal = document.getElementById('p11InstructionsModal'); stopVoice(); state.modalOpen = false; PatientInstructionsModal.close(modal, { returnFocus: state.lastFocus, fallbackSelector: '[data-p11-action="open-help"]' }); state.lastFocus = null; }
     document.addEventListener('click', event => { const action = event.target.closest('[data-p11-action]'); if (action) { const name = action.dataset.p11Action; if (name === 'open-help') openHelp(); if (name === 'close-help') closeHelp(); if (name === 'read-help') speak(); if (name === 'stop-voice') stopVoice(); } const modal = document.getElementById('p11InstructionsModal'); if (state.modalOpen && event.target === modal) closeHelp(); });
