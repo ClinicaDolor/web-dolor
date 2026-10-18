@@ -29,285 +29,7 @@ $model = new PacienteModulosModelo();
             display: flex;
             flex-wrap: wrap;
         }
-        .resizable {
-            transition: all 0.3s ease-in-out; /* Suaviza el cambio de tamaño */
-        }
     </style>
-
-    <script>
-
-    let clinicalTablesStarted = false;
-
-    function initializeClinicalTables(event) {
-        if (clinicalTablesStarted && !(event && event.persisted)) return;
-
-        clinicalTablesStarted = true;
-        tableNotas()
-        tableLaboratorio()
-        tableRecetas()
-        tableCofepris()
-    }
-
-    window.addEventListener("pageshow", initializeClinicalTables);
-    document.addEventListener("DOMContentLoaded", initializeClinicalTables, { once: true });
-
-    function getClinicalPatientId() {
-        const usuarioDiv = document.getElementById('main');
-        return usuarioDiv ? usuarioDiv.getAttribute('data-paciente') : null;
-    }
-
-    function setClinicalCardState(containerId, state, message) {
-        const resultsContainer = document.getElementById(containerId);
-        if (!resultsContainer) return;
-
-        resultsContainer.dataset.state = state;
-        resultsContainer.setAttribute('aria-busy', state === 'loading' ? 'true' : 'false');
-
-        const icon = state === 'error' ? 'alert-circle' : (state === 'empty' ? 'inbox' : 'loader');
-        const role = state === 'error' ? 'alert' : 'status';
-        resultsContainer.innerHTML = `<div class="patient-record-async-state patient-record-async-state-${state}" role="${role}">
-            <i data-feather="${icon}" aria-hidden="true"></i>
-            <span>${message}</span>
-        </div>`;
-
-        if (window.feather && typeof window.feather.replace === 'function') window.feather.replace();
-    }
-
-    function renderClinicalTable(containerId, html, tableSelector, emptyMessage) {
-        const resultsContainer = document.getElementById(containerId);
-        if (!resultsContainer) return false;
-
-        resultsContainer.innerHTML = html;
-        const table = resultsContainer.querySelector(tableSelector);
-        if (!table) throw new Error('Tabla clínica no disponible');
-
-        const rows = table.querySelectorAll('tbody tr');
-        if (!rows.length) {
-            setClinicalCardState(containerId, 'empty', emptyMessage);
-            return false;
-        }
-
-        resultsContainer.dataset.state = 'ready';
-        resultsContainer.setAttribute('aria-busy', 'false');
-        if (window.feather && typeof window.feather.replace === 'function') window.feather.replace();
-        return true;
-    }
-
-    function tableNotas(){
-
-        const idPaciente = getClinicalPatientId();
-        if (!idPaciente) return;
-        const referencia = 0;
-
-        setClinicalCardState('conteNotasSubsecuentes', 'loading', 'Cargando notas subsecuentes…');
-        fetch(`/buscar/tabla-notas-subsecuentes/${encodeURIComponent(idPaciente)}/${encodeURIComponent(referencia)}`)
-            .then(response => {
-            if (!response.ok) {
-            throw new Error('Respuesta no disponible');
-            }
-            return response.text();
-            })
-            .then(data => {
-                if (!renderClinicalTable('conteNotasSubsecuentes', data, '#tableNotasSubsecuentes', 'No hay notas subsecuentes registradas.')) return;
-
-                initPersistentDataTable("#tableNotasSubsecuentes", "datatableState_tableNotas", {
-                searchable: true,
-                fixedHeight: false,
-                perPageSelect: false,
-                columns: [
-                    { select: 0, sort: "desc" },
-                    { select: [2], sortable: false }
-                ]
-            });
-        }).catch(() => setClinicalCardState('conteNotasSubsecuentes', 'error', 'No se pudieron cargar las notas subsecuentes.'));
-
-    }
-
-     function tableRecetas(){
-
-        const idPaciente = getClinicalPatientId();
-        if (!idPaciente) return;
-
-        setClinicalCardState('conteRecetas', 'loading', 'Cargando recetas médicas…');
-        fetch(`/buscar/tabla-recetas/${encodeURIComponent(idPaciente)}`)
-            .then(response => {
-            if (!response.ok) {
-            throw new Error('Respuesta no disponible');
-            }
-            return response.text();
-            })
-            .then(data => {
-                if (!renderClinicalTable('conteRecetas', data, '#tableRecetas', 'No hay recetas médicas registradas.')) return;
-                initPersistentDataTable("#tableRecetas", "datatableState_tableRecetas", {
-                searchable: true,
-                fixedHeight: false,
-                perPageSelect: false,
-                columns: [
-                    { select: 0, sort: "desc" }
-                ]
-            });  
-        }).catch(() => setClinicalCardState('conteRecetas', 'error', 'No se pudieron cargar las recetas médicas.'));
-    }
-
-    function tableLaboratorio(){
-        const idPaciente = getClinicalPatientId();
-        if (!idPaciente) return;
-        const referencia = 0;
-
-        setClinicalCardState('conteLaboratorio', 'loading', 'Cargando estudios de laboratorio…');
-        fetch(`/buscar/tabla-laboratorio/${encodeURIComponent(idPaciente)}/${encodeURIComponent(referencia)}`)
-            .then(response => {
-            if (!response.ok) {
-            throw new Error('Respuesta no disponible');
-            }
-            return response.text();
-            })
-            .then(data => {
-                if (!renderClinicalTable('conteLaboratorio', data, '#tableLaboratorio', 'No hay estudios de laboratorio registrados.')) return;
-                initPersistentDataTable("#tableLaboratorio", "datatableState_tableLaboratorio", {
-                searchable: true,
-                fixedHeight: false,
-                perPageSelect: false,
-                columns: [
-                    { select: 0, sort: "desc" }
-                ]
-            });    
-        }).catch(() => setClinicalCardState('conteLaboratorio', 'error', 'No se pudieron cargar los estudios de laboratorio.'));
-    }
-
-        function NuevoPin(idPaciente){
-
-        const parametros = {
-        idPaciente : idPaciente
-        };
-
-        fetch('/clinica/paciente/insert-pin', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(parametros)
-        })
-        .then(response => response.json())
-        .then(data => {
-
-        if (data.resultado) {
-            location.reload()
-        } else {
-            document.getElementById('mensaje').textContent = 'Error: ' + data.mensaje;
-        }
-
-        });
-
-        }
-
-        function NuevaNotaSubsecuente(idPaciente,referencia){
-            window.location.href = '/clinica/nota-subsecuente/paciente/' + idPaciente + '/referencia/' + referencia;
-        }
-
-        function DetalleNota(idNota){
-            window.location.href = '/clinica/nota-subsecuente/' + idNota;
-        }
-
-        function NuevaReceta(idPaciente){
-            window.location.href = '/clinica/receta/paciente/' + idPaciente;
-        }
-
-        function DetalleReceta(idReceta){
-            window.location.href = '/clinica/receta/' + idReceta;
-        }
-
-        function NuevoLaboratorio(idPaciente){
-            window.location.href = '/clinica/laboratorio/paciente/' + idPaciente;
-        }
-
-        function DetalleLaboratorio(idLaboratorio){
-            window.location.href = '/clinica/laboratorio/' + idLaboratorio;
-        }
-
-        function tableCofepris(){
-        const idPaciente = getClinicalPatientId();
-        if (!idPaciente) return;
-        const referencia = 0;
-
-        setClinicalCardState('conteCofepris', 'loading', 'Cargando registros de COFEPRIS…');
-        fetch(`/buscar/tabla-cofepris/${encodeURIComponent(idPaciente)}`)
-            .then(response => {
-            if (!response.ok) {
-            throw new Error('Respuesta no disponible');
-            }
-            return response.text();
-            })
-            .then(data => {
-                if (!renderClinicalTable('conteCofepris', data, '#tableCofepris', 'No hay registros de COFEPRIS disponibles.')) return;
-                initPersistentDataTable("#tableCofepris", "datatableState_tableCofepris", {
-                searchable: true,
-                fixedHeight: false,
-                perPageSelect: false,
-                columns: [
-                    { select: 0, sort: "desc" },
-                    { select: [2], sortable: false }
-                ]
-            });       
-        }).catch(() => setClinicalCardState('conteCofepris', 'error', 'No se pudieron cargar los registros de COFEPRIS.'));
-        }
-
-        function NuevoCofepris(idPaciente){
-            window.location.href = '/clinica/cofepris/paciente/' + idPaciente;
-        }
-
-        function DetalleCofepris(id){
-            window.location.href = '/clinica/cofepris/' + id;
-        }
-
-    
-        function initPersistentDataTable(selector, storageKey, options = {}) {
-    const table = document.querySelector(selector);
-    if (!table || typeof simpleDatatables === 'undefined' || typeof simpleDatatables.DataTable !== 'function') return null;
-
-    let savedState = {};
-    try {
-        savedState = JSON.parse(localStorage.getItem(storageKey) || '{}') || {};
-    } catch (error) {
-        savedState = {};
-    }
-
-    const dataTable = new simpleDatatables.DataTable(table, {
-        ...options,
-        perPage: savedState.perPage || 10,
-    });
-
-    dataTable.on('datatable.init', function () {
-        if (savedState.page) dataTable.page(savedState.page);
-        if (savedState.search) {
-            dataTable.input.value = savedState.search;
-            dataTable.search(savedState.search);
-        }
-    });
-
-    dataTable.on('datatable.page', function (page) {
-        savedState.page = page;
-        localStorage.setItem(storageKey, JSON.stringify(savedState));
-    });
-
-    dataTable.on('datatable.perpage', function (perPage) {
-        savedState.perPage = perPage;
-        localStorage.setItem(storageKey, JSON.stringify(savedState));
-    });
-
-    dataTable.on('datatable.sort', function (column, direction) {
-        savedState.sort = direction;
-        localStorage.setItem(storageKey, JSON.stringify(savedState));
-    });
-
-    dataTable.on('datatable.search', function (query) {
-        savedState.search = query;
-        localStorage.setItem(storageKey, JSON.stringify(savedState));
-    });
-}
-
-    </script>
-
 
  </head>
 
@@ -344,18 +66,10 @@ $model = new PacienteModulosModelo();
         </div>
 
         <div class="patient-record-header-actions">
-            <a href="<?=SERVIDOR?>clinica/pacientes" class="btn btn-light patient-record-back">
+            <a href="<?=SERVIDOR?>clinica/pacientes" class="btn btn-light patient-record-back" data-doctor-back-action>
                 <i data-feather="arrow-left" aria-hidden="true"></i>
                 <span>Volver a pacientes</span>
             </a>
-            <a href="<?=SERVIDOR?>clinica/paciente/editar/<?=$patientId;?>" class="btn btn-primary patient-record-edit">
-                <i data-feather="edit-2" aria-hidden="true"></i>
-                <span>Editar paciente</span>
-            </a>
-            <button id="toggleButton" type="button" class="btn icon btn-light patient-record-layout-toggle" onclick="toggleSize()" aria-label="Cambiar distribución de la pantalla" title="Cambiar distribución de la pantalla">
-                <i id="toggleIcon" data-feather="columns" aria-hidden="true"></i>
-                <span>Cambiar distribución</span>
-            </button>
         </div>
     </header>
 
@@ -381,12 +95,13 @@ $model = new PacienteModulosModelo();
 
     <div class="row mt-4 patient-record-layout">
 
-    <section class="col-12 resizable patient-record-summary-section" aria-labelledby="patient-summary-title">
+    <section class="col-12 patient-record-summary-section" aria-labelledby="patient-summary-title">
     <article class="card patient-record-summary-card">
     <div class="card-header patient-record-section-header">
     <div class="float-end">
-    <a href="<?=SERVIDOR?>clinica/paciente/editar/<?=$data['idPaciente']?>" class="btn icon btn-primary text-white" aria-label="Editar información del paciente">
+    <a href="<?=SERVIDOR?>clinica/paciente/editar/<?=$data['idPaciente']?>" class="btn btn-primary patient-record-card-action" aria-label="Editar paciente" title="Editar paciente">
     <i data-feather="edit-2" aria-hidden="true"></i>
+    <span>Editar paciente</span>
     </a>
     </div>
     <p class="dashboard-eyebrow">RESUMEN DEL PACIENTE</p>
@@ -463,7 +178,7 @@ $model = new PacienteModulosModelo();
     </section>
 
     <!-- Card Historia Clínica: se mantiene antes del resto de tarjetas para priorizar seguimiento -->
-    <section class="col-12 resizable patient-record-history-section" aria-labelledby="patient-history-title">
+    <section class="col-12 patient-record-history-section" aria-labelledby="patient-history-title">
     <div class="card patient-record-history-card">
     <div class="card-header patient-record-section-header">
     <p class="dashboard-eyebrow">SEGUIMIENTO CLÍNICO</p>
@@ -601,176 +316,73 @@ $model = new PacienteModulosModelo();
     </div>
     </section>
 
-    <div class="col-12 patient-record-secondary-section" aria-label="Gestión del expediente">
-    <div class="row g-3 patient-record-secondary-grid">
-
-    <!-- Inicio PIN -->
-    <div class="col-12 col-sm-6 resizable patient-record-data-card" data-index="0">
-    <div class="card patient-record-data-panel">
-    <div class="card-header">
-    <div class="patient-record-card-heading">
-    <p class="dashboard-eyebrow">ACCESO DEL PACIENTE</p>
-    <h2 class="card-title">PIN de acceso</h2>
+    <?php
+    $moduleCounts = is_array($data['module_counts'] ?? null) ? $data['module_counts'] : [];
+    $moduleCountLabel = static function ($count): string {
+        return ((int)$count === 1) ? 'registro' : 'registros';
+    };
+    $moduleCards = [
+        [
+            'eyebrow' => 'ACCESO DEL PACIENTE',
+            'title' => 'PIN de acceso',
+            'description' => 'Administra las credenciales de acceso del paciente.',
+            'icon' => 'key',
+            'route' => SERVIDOR . 'clinica/paciente/pin/' . $patientId,
+            'count' => (int)($moduleCounts['pin'] ?? 0),
+        ],
+        [
+            'eyebrow' => 'SEGUIMIENTO CLÍNICO',
+            'title' => 'Notas subsecuentes',
+            'description' => 'Consulta la evolución y las notas clínicas del expediente.',
+            'icon' => 'clipboard',
+            'route' => SERVIDOR . 'clinica/nota-subsecuente/paciente/' . $patientId . '/referencia/' . rawurlencode((string)$data['referencia']),
+            'count' => (int)($moduleCounts['notas'] ?? 0),
+        ],
+        [
+            'eyebrow' => 'ESTUDIOS',
+            'title' => 'Laboratorio',
+            'description' => 'Revisa los estudios y archivos de laboratorio asociados.',
+            'icon' => 'activity',
+            'route' => SERVIDOR . 'clinica/laboratorio/paciente/' . $patientId,
+            'count' => (int)($moduleCounts['laboratorio'] ?? 0),
+        ],
+        [
+            'eyebrow' => 'TRATAMIENTO',
+            'title' => 'Receta médica',
+            'description' => 'Accede a las recetas médicas registradas para el paciente.',
+            'icon' => 'file-text',
+            'route' => SERVIDOR . 'clinica/receta/paciente/' . $patientId,
+            'count' => (int)($moduleCounts['recetas'] ?? 0),
+        ],
+        [
+            'eyebrow' => 'REGULACIÓN',
+            'title' => 'COFEPRIS',
+            'description' => 'Consulta los registros regulatorios asociados al expediente.',
+            'icon' => 'shield',
+            'route' => SERVIDOR . 'clinica/cofepris/paciente/' . $patientId,
+            'count' => (int)($moduleCounts['cofepris'] ?? 0),
+        ],
+    ];
+    ?>
+    <div class="col-12 patient-record-secondary-section" aria-label="Módulos del expediente">
+        <div class="patient-module-card-grid">
+            <?php foreach ($moduleCards as $moduleCard): ?>
+            <?php $moduleCount = $moduleCard['count']; ?>
+            <a class="patient-module-card" href="<?=htmlspecialchars($moduleCard['route'], ENT_QUOTES, 'UTF-8');?>" aria-label="Abrir <?=$moduleCard['title'];?>: <?=$moduleCount;?> <?=$moduleCountLabel($moduleCount);?>">
+                <span class="patient-module-card-icon" aria-hidden="true">
+                    <i data-feather="<?=$moduleCard['icon'];?>"></i>
+                </span>
+                <span class="patient-module-card-content">
+                    <span class="patient-module-card-eyebrow"><?=$moduleCard['eyebrow'];?></span>
+                    <span class="patient-module-card-title"><?=$moduleCard['title'];?></span>
+                    <span class="patient-module-card-description"><?=$moduleCard['description'];?></span>
+                    <span class="patient-module-card-count"><strong><?=$moduleCount;?></strong> <?=$moduleCountLabel($moduleCount);?></span>
+                </span>
+                <i class="patient-module-card-arrow" data-feather="arrow-right" aria-hidden="true"></i>
+            </a>
+            <?php endforeach; ?>
+        </div>
     </div>
-    <button type="button" class="btn btn-success patient-record-card-action" onclick="NuevoPin(<?=$data['idPaciente'];?>)" aria-label="Generar un nuevo PIN de acceso" aria-controls="pinAccessContent">
-        <i data-feather="plus" aria-hidden="true"></i>
-        <span>Nuevo PIN</span>
-    </button>
-    </div>
-                        <div class="card-body" id="pinAccessContent">
-
-                        <?php
-                        $hoy = new DateTime();
-                        $pinQueryFailed = false;
-                        try {
-                            $stmt = $bd->query("SELECT * FROM pc_paciente_acceso WHERE paciente_id = '".$data['idPaciente']."' ORDER BY fecha_creacion DESC");
-                            $registros = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                        } catch (PDOException $e) {
-                            $registros = [];
-                            $pinQueryFailed = true;
-                        }
-                        ?>
-
-                        <?php if ($pinQueryFailed): ?>
-                            <div class="patient-record-async-state patient-record-async-state-error" role="alert" data-state="error">
-                                <i data-feather="alert-circle" aria-hidden="true"></i>
-                                <span>No se pudo cargar el estado del PIN.</span>
-                            </div>
-                        <?php elseif (empty($registros)): ?>
-                            <div class="patient-record-async-state patient-record-async-state-empty" role="status" data-state="empty">
-                                <i data-feather="key" aria-hidden="true"></i>
-                                <span>No hay un PIN de acceso generado.</span>
-                            </div>
-                        <?php else: ?>
-                        <table class="table table-sm table-striped pb-0 mb-0" id="tablePin">
-                            <thead>
-                                <tr>
-                                    <th class="text-center">PIN</th>
-                                    <th class="text-center">Fecha creación</th>
-                                    <th class="text-center">Fecha expiración</th>
-                                    <th class="text-center">Estatus</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                            <?php
-
-                            foreach ($registros as $registro):
-                            $fechaExpiracion = new DateTime($registro['fecha_expiracion']);
-                            if ($hoy > $fechaExpiracion){
-                                $pin = '******';
-                                $estatus = '<span class="badge bg-danger">Cancelado</span>';
-                            }else{
-                                $pin = '<label class="text-primary fw-bold">cdp'.$data['idPaciente'].'</label>';
-                                $estatus = '<span class="badge bg-success">Activo</span>';
-                            }
-                            ?>
-                                <tr>
-                                    <td class="text-center align-middle"><?=$pin;?></td>
-                                    <td class="text-center align-middle"><?=(new DateTime($registro['fecha_creacion']))->format('d/m/Y');?></td>
-                                    <td class="text-center align-middle"><b><?=(new DateTime($registro['fecha_expiracion']))->format('d/m/Y');?></b></td>
-                                    <td class="text-center align-middle"><?=$estatus;?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                        <?php endif; ?>
-
-                        </div>
-    </div>
-    </div>
-    <!-- Fin PIN -->
-
-    <!-- Inicio Clinica -->
-    <div class="col-12 col-sm-6 resizable patient-record-data-card" data-index="1">
-
-    <div class="card patient-record-data-panel">
-        <div class="card-header">
-        <div class="patient-record-card-heading">
-            <p class="dashboard-eyebrow">SEGUIMIENTO CLÍNICO</p>
-            <h2 class="card-title">Nota subsecuente</h2>
-        </div>
-        <button type="button" class="btn btn-success patient-record-card-action" onclick="NuevaNotaSubsecuente(<?=$data['idPaciente'];?>,'<?=$data['referencia'];?>')" aria-controls="conteNotasSubsecuentes">
-            <i data-feather="plus" aria-hidden="true"></i>
-            <span>Nueva nota</span>
-        </button>
-
-        </div>
-        <div class="card-body">
-            <div id="conteNotasSubsecuentes"></div>
-        </div>
-        </div>
-
-        </div>
-
-        <div class="col-12 col-sm-6 resizable patient-record-data-card" data-index="2">
-        <div class="card patient-record-data-panel">
-        <div class="card-header">
-        <div class="patient-record-card-heading">
-            <p class="dashboard-eyebrow">ESTUDIOS</p>
-            <h2 class="card-title">Laboratorio</h2>
-        </div>
-        <button type="button" class="btn btn-success patient-record-card-action" onclick="NuevoLaboratorio(<?=$data['idPaciente'];?>)" aria-controls="conteLaboratorio">
-            <i data-feather="plus" aria-hidden="true"></i>
-            <span>Nuevo laboratorio</span>
-        </button>
-
-        </div>
-        <div class="card-body">
-        <div id="conteLaboratorio"></div>
-        </div>
-        </div>
-
-        </div>
-        
-        <!-- Inicio Recetas -->
-        <div class="col-12 col-sm-6 resizable patient-record-data-card" data-index="3">
-        <div class="card patient-record-data-panel">
-        <div class="card-header">
-        <div class="patient-record-card-heading">
-            <p class="dashboard-eyebrow">TRATAMIENTO</p>
-            <h2 class="card-title">Receta médica</h2>
-        </div>
-        <button type="button" class="btn btn-success patient-record-card-action" onclick="NuevaReceta(<?=$data['idPaciente'];?>)" aria-controls="conteRecetas">
-            <i data-feather="plus" aria-hidden="true"></i>
-            <span>Nueva receta</span>
-        </button>
-
-        </div>
-        <div class="card-body">
-
-        <div id="conteRecetas"></div>
-
-        </div>
-        </div>
-        <!-- Fin Recetas -->
-
-        </div>
-
-         <!-- Inicio Cofepris -->
-         <div class="col-12 col-sm-6 resizable patient-record-data-card" data-index="4">
-         <div class="card patient-record-data-panel">
-        <div class="card-header">
-        <div class="patient-record-card-heading">
-            <p class="dashboard-eyebrow">REGULACIÓN</p>
-            <h2 class="card-title">COFEPRIS</h2>
-        </div>
-        <button type="button" class="btn btn-success patient-record-card-action" onclick="NuevoCofepris(<?=$data['idPaciente'];?>)" aria-controls="conteCofepris">
-            <i data-feather="plus" aria-hidden="true"></i>
-            <span>Nuevo registro</span>
-        </button>
-
-        </div>
-        <div class="card-body">
-
-        <div id="conteCofepris"></div>
-
-        </div>
-        </div>
-        <!-- Fin Cofepris -->
-
-        </div>
-        </div>
-        </div>
 
     </div>
     </div>
@@ -791,18 +403,6 @@ $model = new PacienteModulosModelo();
     <script>
 
     const hasSimpleDataTables = typeof simpleDatatables !== 'undefined' && typeof simpleDatatables.DataTable === 'function';
-    let tablePin = document.querySelector('#tablePin');
-    let dataTablePin = tablePin && hasSimpleDataTables ? new simpleDatatables.DataTable(tablePin,{
-    fixedHeight: false,
-    perPageSelect: false,
-    searchable: false,
-    columns: [
-    {
-        select: 1, sort: "desc"
-    }
-    ]
-}) : null;
-
 let table1 = document.querySelector('#table2');
 let dataTable = table1 && hasSimpleDataTables ? new simpleDatatables.DataTable(table1,{
 	searchable: true,

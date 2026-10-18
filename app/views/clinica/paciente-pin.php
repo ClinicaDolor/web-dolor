@@ -67,95 +67,40 @@ $nombrePacienteSeguro = $nombrePaciente !== ''
     <h1 id="patient-pin-title">PIN de acceso</h1>
     <p>Administra el acceso seguro al portal del paciente.</p>
     </div>
-    <a href="<?=SERVIDOR?>clinica/paciente/<?=$data['idPaciente'];?>" class="btn btn-light doctor-page-hero-action">
+    <a href="<?=SERVIDOR?>clinica/paciente/<?=$data['idPaciente'];?>" class="btn btn-light doctor-page-hero-action" data-doctor-back-action>
         <i data-feather="arrow-left" aria-hidden="true"></i>
         <span>Volver al expediente</span>
     </a>
     </header>
 
-    <div class="row doctor-pin-grid">
-    <div class="col-12">
+    <?php
+    $hoy = new DateTime();
+    try {
+        $stmt = $bd->query("SELECT * FROM pc_paciente_acceso WHERE paciente_id = '".$data['idPaciente']."' ");
+        $registros = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        die("Error en la consulta: " . $e->getMessage());
+    }
+    $pinCount = count($registros);
+    $pinCountLabel = $pinCount === 1 ? 'registro' : 'registros';
+    ?>
 
-    <section class="card doctor-pin-card doctor-pin-patient-card" aria-labelledby="patient-pin-info-title">
-        
-    <div class="card-header doctor-pin-card-header">
-    <div>
-    <p class="dashboard-eyebrow">PACIENTE</p>
-    <h2 class="card-title" id="patient-pin-info-title">Información del paciente</h2>
-    </div>
-    </div>
-    <div class="card-body doctor-pin-card-body">
-
-    <div class="row doctor-pin-identity-grid">
-    <div class="doctor-pin-field col-12 mb-3">
-    <div class="doctor-pin-field-label">Nombre del paciente</div>
-    <h3 class="doctor-pin-field-value"><?=$nombrePacienteSeguro;?></h3>
-    </div>
-
-    <div class="doctor-pin-field col-12 col-sm-4 mb-3">
-    <div class="doctor-pin-field-label">Fecha de alta</div>
-    <h5 class="doctor-pin-field-value"><?=(new DateTime($data['fecha_alta']))->format('d/m/Y');[0];?></h5>
-    </div>
-
-    <div class="doctor-pin-field col-12 col-sm-4 mb-3">
-    <div class="doctor-pin-field-label">Fecha de nacimiento</div>
-    <h5 class="doctor-pin-field-value"><?=date("d/m/Y", strtotime($data['fecha_nacimiento']));?></h5>
-    </div>
-
-    <div class="doctor-pin-field col-12 col-sm-4 mb-3">
-    <div class="doctor-pin-field-label">Edad</div>
-    <h5 class="doctor-pin-field-value"><?=$data['edad'];?> años</h5>
-    </div>
-
-    <div class="doctor-pin-field col-12 col-sm-4 mb-3">
-    <div class="doctor-pin-field-label">Sexo</div>
-    <h5 class="doctor-pin-field-value"><?=($data['sexo'] == 'M')? 'Masculino': 'Femenino';?></h5>
-    </div>
-
-    <div class="doctor-pin-field col-12 col-sm-4 mb-3">
-    <div class="doctor-pin-field-label">Estado civil</div>
-    <h5 class="doctor-pin-field-value"><?=$data['estado_civil'];?></h5>
-    </div>
-
-    <div class="doctor-pin-field col-12 col-sm-4 mb-3">
-    <div class="doctor-pin-field-label">CURP</div>
-    <h5 class="doctor-pin-field-value"><?=$data['curp'];?></h5>
-    </div>
-
-    </div>
-
-    <h3 class="doctor-pin-subsection-title">Contacto del paciente</h3>
-
-    <div class="row doctor-pin-contact-grid">
-
-    <div class="doctor-pin-field col-12 col-sm-4">
-    <div class="doctor-pin-field-label">Email</div>
-    <h5 class="doctor-pin-field-value"><?=$data['email'];?></h5>
-    </div>
-
-    <div class="doctor-pin-field col-12 col-sm-4">
-    <div class="doctor-pin-field-label">Teléfono</div>
-    <h5 class="doctor-pin-field-value"><?=$data['telefono'];?></h5>
-    </div>
-
-    <div class="doctor-pin-field col-12 col-sm-4">
-    <div class="doctor-pin-field-label">Celular</div>
-    <h5 class="doctor-pin-field-value"><?=$data['celular'];?></h5>
-    </div>
-
-    </div>
-
-    </div>
+    <div class="doctor-pin-layout">
+    <section class="doctor-pin-patient-strip" aria-label="Paciente del expediente">
+        <span class="doctor-pin-patient-icon" aria-hidden="true"><i data-feather="user"></i></span>
+        <div class="doctor-pin-patient-context">
+            <p class="dashboard-eyebrow">PACIENTE</p>
+            <h2><?=$nombrePacienteSeguro;?></h2>
+            <p>Expediente #<?=htmlspecialchars((string)$data['idPaciente'], ENT_QUOTES, 'UTF-8');?></p>
+        </div>
     </section>
-    </div>
-                
-    <div class="col-12">
+
     <section class="card doctor-pin-card doctor-pin-access-card" aria-labelledby="patient-pin-access-title">
 
     <div class="card-header doctor-pin-card-header">
     <div class="doctor-pin-card-heading">
-    <p class="dashboard-eyebrow">CREDENCIAL DE ACCESO</p>
-    <h2 class="card-title" id="patient-pin-access-title">PIN de acceso para pacientes</h2>
+    <p class="dashboard-eyebrow" id="patient-pin-access-title">CREDENCIALES DE ACCESO</p>
+    <p class="doctor-pin-card-count"><strong><?=$pinCount;?></strong> <?=$pinCountLabel;?></p>
     </div>
     <button type="button" class="btn btn-success doctor-pin-action" onclick="NuevoPin(<?=$data['idPaciente'];?>)" aria-controls="mensaje">
         <i data-feather="plus" aria-hidden="true"></i>
@@ -167,17 +112,7 @@ $nombrePacienteSeguro = $nombrePaciente !== ''
     
     
     <div class="card-body doctor-pin-card-body">
-
-                        <?php
-                        $hoy = new DateTime();
-                        try {
-                            $stmt = $bd->query("SELECT * FROM pc_paciente_acceso WHERE paciente_id = '".$data['idPaciente']."' ");
-                            $registros = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                        } catch (PDOException $e) {
-                            die("Error en la consulta: " . $e->getMessage());
-                        }
-                        ?>
-
+        <div class="doctor-pin-table-scroll">
                         <table class="table table-striped doctor-pin-table" id="table1">
                             <thead>
                                 <tr>
@@ -216,7 +151,6 @@ $nombrePacienteSeguro = $nombrePaciente !== ''
             </section>
             </div>
 
-        </div>
         </main>
 
     <!----- FOOTER ---------->

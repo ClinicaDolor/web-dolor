@@ -16,13 +16,73 @@
     <script src="<?=RUTA_JS;?>loader.js"></script>
     <script>
     
+    let cofeprisFoliosRequestInFlight = false;
+    let cofeprisModalTrigger = null;
+
     window.addEventListener("pageshow", () => {
         tableCofeprisFolios()
     });
 
     document.addEventListener("DOMContentLoaded", function() {
-        tableCofeprisFolios()
+        tableCofeprisFolios();
+
+        const modal = document.getElementById('cofepris-config-modal');
+        const form = document.getElementById('cofepris-folios-form');
+        const openButton = document.getElementById('openCofeprisConfigModal');
+        const closeButton = document.getElementById('closeCofeprisConfigModal');
+        const cancelButton = document.getElementById('cancelCofeprisConfigModal');
+
+        if (openButton) openButton.addEventListener('click', () => abrirCofeprisConfigModal(openButton));
+        if (closeButton) closeButton.addEventListener('click', cerrarCofeprisConfigModal);
+        if (cancelButton) cancelButton.addEventListener('click', cerrarCofeprisConfigModal);
+        if (form) form.addEventListener('submit', function(event) {
+            event.preventDefault();
+            AgregarCofepris();
+        });
+        if (modal) modal.addEventListener('click', function(event) {
+            if (event.target === modal) cerrarCofeprisConfigModal();
+        });
+        document.addEventListener('keydown', function(event) {
+            if (!modal || modal.hidden) return;
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                cerrarCofeprisConfigModal();
+                return;
+            }
+            if (event.key !== 'Tab') return;
+            const focusable = modal.querySelectorAll('button:not([disabled]), input:not([disabled])');
+            if (!focusable.length) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        });
     });
+
+    function abrirCofeprisConfigModal(triggerElement = null) {
+        const modal = document.getElementById('cofepris-config-modal');
+        const closeButton = document.getElementById('closeCofeprisConfigModal');
+        if (!modal) return;
+        cofeprisModalTrigger = triggerElement || document.getElementById('openCofeprisConfigModal');
+        modal.hidden = false;
+        modal.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('doctor-cofepris-config-modal-open');
+        if (closeButton) closeButton.focus();
+    }
+
+    function cerrarCofeprisConfigModal() {
+        const modal = document.getElementById('cofepris-config-modal');
+        if (!modal || modal.hidden || cofeprisFoliosRequestInFlight) return;
+        modal.hidden = true;
+        modal.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('doctor-cofepris-config-modal-open');
+        if (cofeprisModalTrigger) cofeprisModalTrigger.focus();
+    }
 
     function tableCofeprisFolios(){
 
@@ -61,39 +121,63 @@
 
     function AgregarCofepris() {
 
+    if (cofeprisFoliosRequestInFlight) return;
+
     const referencia = 0;
     const folio = document.getElementById('Folio').value;
     const fileInput = document.getElementById('Archivo');
     const file = fileInput.files[0];
+    const submitButton = document.getElementById('submitCofeprisConfig');
+    const message = document.getElementById('mensaje');
 
     document.getElementById('Folio').style.border = "";
     document.getElementById('Archivo').style.border = "";
+    message.textContent = '';
 
     if (folio) {
     if (file) {
 
+        cofeprisFoliosRequestInFlight = true;
+        if (submitButton) submitButton.disabled = true;
         $(".LoaderPage").fadeIn(0);
        
             const formData = new FormData();
             formData.append('file', file);
             formData.append('folio', folio);
+            const csrfToken = document.getElementById('cofepris-folios-form')?.dataset.cofeprisCsrf || '';
                
             fetch('/clinica/cofepris/insert-folios', {
                     method: 'POST',
+                    headers: {
+                        'X-COFEPRIS-CSRF': csrfToken
+                    },
                     body: formData
                 })
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    return response.json();
+                })
                 .then(data => {
               
                 if (data.resultado) {
                     document.getElementById('Folio').value = "";
                     document.getElementById('Archivo').value = "";      
-                    tableCofeprisFolios();    
+                    cofeprisFoliosRequestInFlight = false;
+                    cerrarCofeprisConfigModal();
+                    tableCofeprisFolios();
                 } else {
                     $(".LoaderPage").fadeOut("slow");
-                    document.getElementById('mensaje').textContent = 'Error: ' + data.mensaje;
+                    message.textContent = 'Error: ' + data.mensaje;
                 }
 
+                })
+                .catch(() => {
+                    message.textContent = 'No fue posible guardar el registro. Intenta nuevamente.';
+                })
+                .finally(() => {
+                    cofeprisFoliosRequestInFlight = false;
+                    if (submitButton) submitButton.disabled = false;
+                    $(".LoaderPage").fadeOut("slow");
                 });
                
     } else {
@@ -129,55 +213,61 @@
 
                 <?php 
                 use App\Models\CofeprisModel;
-                $model = new CofeprisModel();     
-                $result = ( $model->cofeprisFoliosActivos() )? 'disabled' : 'enabled';
+                $model = new CofeprisModel();
+                $canCreateCofeprisFolio = !$model->cofeprisFoliosActivos();
                 ?>
 
-            <div class="row doctor-cofepris-config-grid">
-                <div class="col-12 col-xl-4">
-                    
-                <div class="card doctor-cofepris-config-card doctor-cofepris-config-entry-card">
-                    <div class="card-header doctor-cofepris-config-card-header">
-                    <div>
-                    <p class="dashboard-eyebrow">NUEVO REGISTRO</p>
-                    <h2 class="doctor-cofepris-config-card-title">Agregar folios</h2>
-                    </div>
-                    </div>
-                    <div class="card-body doctor-cofepris-config-card-body">
-                    <p class="doctor-cofepris-config-help">Carga un rango de folios y su archivo de respaldo para habilitarlo en el sistema.</p>
-                        
-                    <div class="doctor-cofepris-config-field">
-                    <label class="doctor-cofepris-config-label" for="Folio">Folio inicial</label>
-                    <input type="text" class="form-control doctor-cofepris-config-control" id="Folio" <?=$result;?> >
-                    </div>
-
-                    <div class="doctor-cofepris-config-field">
-                    <label class="doctor-cofepris-config-label" for="Archivo">Archivo PDF</label>
-                    <input type="file" class="form-control doctor-cofepris-config-control" id="Archivo" <?=$result;?> >
-                    </div>
-                    
-                    <div class="doctor-cofepris-config-actions"><button type="button" class="btn doctor-cofepris-config-submit" onclick="AgregarCofepris()" <?=$result;?> >Agregar folio <i data-feather="chevron-right" aria-hidden="true"></i></button></div>
-                    <div id="mensaje" class="doctor-cofepris-config-message" role="alert" aria-live="polite"></div>
-                    </div>
-                </div>
-
-                </div>
-                <div class="col-12 col-xl-8">
-
-                <div class="card doctor-cofepris-config-card doctor-cofepris-config-list-card">
+            <div class="card doctor-cofepris-config-card doctor-cofepris-config-list-card">
                 <div class="card-header doctor-cofepris-config-card-header">
-                <div>
-                <p class="dashboard-eyebrow">FOLIOS DISPONIBLES</p>
-                <h2 class="doctor-cofepris-config-card-title">Folios COFEPRIS</h2>
-                </div>
+                    <div>
+                        <p class="dashboard-eyebrow">REGISTROS COFEPRIS</p>
+                        <h2 class="doctor-cofepris-config-card-title">Folios COFEPRIS</h2>
+                    </div>
+                    <button type="button" class="btn doctor-cofepris-config-new-button" id="openCofeprisConfigModal" <?= $canCreateCofeprisFolio ? '' : 'disabled'; ?> aria-controls="cofepris-config-modal" aria-haspopup="dialog">
+                        <i data-feather="plus" aria-hidden="true"></i>
+                        <span>Nuevo registro</span>
+                    </button>
                 </div>
                 <div class="card-body doctor-cofepris-config-card-body">
-
-                <div id="conteCofepris" class="doctor-cofepris-config-results" aria-live="polite"></div>
-
+                    <div id="conteCofepris" class="doctor-cofepris-config-results" aria-live="polite"></div>
                 </div>
-                </div>
+            </div>
 
+            <div class="doctor-cofepris-config-modal" id="cofepris-config-modal" role="dialog" aria-modal="true" aria-labelledby="cofepris-config-modal-title" aria-hidden="true" hidden>
+                <div class="doctor-cofepris-config-modal-panel" role="document">
+                    <div class="doctor-cofepris-config-modal-header">
+                        <div>
+                            <p class="dashboard-eyebrow">NUEVO REGISTRO</p>
+                            <h2 id="cofepris-config-modal-title">Nuevo registro COFEPRIS</h2>
+                        </div>
+                        <button type="button" class="doctor-cofepris-config-modal-close" id="closeCofeprisConfigModal" aria-label="Cerrar" title="Cerrar">
+                            <i data-feather="x" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    <form id="cofepris-folios-form" class="doctor-cofepris-config-modal-form" novalidate data-cofepris-csrf="<?= htmlspecialchars((string)($data['cofepris_csrf'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                        <div class="doctor-cofepris-config-modal-body">
+                            <p class="doctor-cofepris-config-help">Carga un rango de folios y su archivo PDF de respaldo para habilitarlo en la clínica.</p>
+
+                            <div class="doctor-cofepris-config-field">
+                                <label class="doctor-cofepris-config-label" for="Folio">Folio inicial</label>
+                                <input type="text" class="form-control doctor-cofepris-config-control" id="Folio" <?= $canCreateCofeprisFolio ? '' : 'disabled'; ?> autocomplete="off">
+                            </div>
+
+                            <div class="doctor-cofepris-config-field">
+                                <label class="doctor-cofepris-config-label" for="Archivo">Archivo PDF</label>
+                                <input type="file" class="form-control doctor-cofepris-config-control" id="Archivo" accept="application/pdf,.pdf" <?= $canCreateCofeprisFolio ? '' : 'disabled'; ?> >
+                            </div>
+
+                            <div id="mensaje" class="doctor-cofepris-config-message" role="alert" aria-live="polite"></div>
+                        </div>
+                        <div class="doctor-cofepris-config-modal-footer">
+                            <button type="button" class="btn doctor-cofepris-config-cancel" id="cancelCofeprisConfigModal">Cancelar</button>
+                            <button type="submit" class="btn doctor-cofepris-config-submit" id="submitCofeprisConfig" <?= $canCreateCofeprisFolio ? '' : 'disabled'; ?>>
+                                <span>Guardar registro</span>
+                                <i data-feather="check" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                    </form>
                 </div>
             </div>
                 

@@ -1,13 +1,24 @@
 <?php 
 use App\Config\Database;
 use App\Models\LaboratorioModel;
+use App\Services\ClinicalSummarySecurity;
 $bd = Database::getInstance();
 $nombrePacienteSeguro = htmlspecialchars((string)($data['nombre_paciente'] ?? ''), ENT_QUOTES, 'UTF-8');
 $nombrePacienteVisible = $nombrePacienteSeguro !== '' ? $nombrePacienteSeguro : 'Paciente';
 $volverExpedienteUrl = htmlspecialchars(SERVIDOR . 'clinica/paciente/' . (int)$data['idPaciente'], ENT_QUOTES, 'UTF-8');
+$laboratorioCsrfToken = ClinicalSummarySecurity::captureCsrfToken((int)$data['idPaciente']);
+$laboratorioMaxUploadBytes = LaboratorioModel::MAX_UPLOAD_BYTES;
+try {
+    $stmt = $bd->query("SELECT * FROM laboratorio WHERE id_paciente = '".$data['idPaciente']."' ORDER BY fecha_hora DESC");
+    $registros = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    die("Error en la consulta: " . $e->getMessage());
+}
+$laboratorioCount = count($registros);
+$laboratorioCountLabel = $laboratorioCount === 1 ? 'registro' : 'registros';
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
 
     <meta charset="UTF-8">
@@ -23,69 +34,345 @@ $volverExpedienteUrl = htmlspecialchars(SERVIDOR . 'clinica/paciente/' . (int)$d
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="<?=RUTA_JS;?>loader.js"></script>
     <script>
+    let laboratorioGuardando = false;
+    let laboratorioModalTrigger = null;
+    let laboratorioDetalleTrigger = null;
+    let laboratorioDetalleRequest = 0;
+
+    function actualizarBloqueoScrollLaboratorio() {
+        const nuevoModal = document.getElementById('nuevo-laboratorio-modal');
+        const detalleModal = document.getElementById('detalle-laboratorio-modal');
+        const nuevoModalVisible = nuevoModal && !nuevoModal.hidden;
+        const detalleModalVisible = detalleModal && !detalleModal.hidden;
+        document.body.classList.toggle('doctor-lab-modal-open', Boolean(nuevoModalVisible || detalleModalVisible));
+    }
+
+    function abrirNuevoLaboratorioModal() {
+        const modal = document.getElementById('nuevo-laboratorio-modal');
+        const closeButton = document.getElementById('closeNuevoLaboratorioButton');
+        const trigger = document.getElementById('openNuevoLaboratorioButton');
+        if (!modal) {
+            return;
+        }
+
+        const detalleModal = document.getElementById('detalle-laboratorio-modal');
+        if (detalleModal && !detalleModal.hidden) {
+            cerrarDetalleLaboratorio();
+        }
+
+        laboratorioModalTrigger = trigger || document.activeElement;
+        modal.hidden = false;
+        modal.setAttribute('aria-hidden', 'false');
+        actualizarBloqueoScrollLaboratorio();
+        if (closeButton) {
+            closeButton.focus();
+        }
+    }
+
+    function laboratorioFormularioTieneCambios() {
+        const tituloInput = document.getElementById('Titulo');
+        const fileInput = document.getElementById('Archivo');
+        const editor = document.querySelector('#snow .ql-editor');
+        const contenido = editor ? editor.innerHTML : '';
+        return Boolean(
+            (tituloInput && tituloInput.value.trim()) ||
+            (fileInput && fileInput.files && fileInput.files.length) ||
+            (contenido && contenido !== '<p><br></p>')
+        );
+    }
+
+    function cerrarModalLaboratorio() {
+        const modal = document.getElementById('nuevo-laboratorio-modal');
+        if (!modal || modal.hidden || laboratorioGuardando) {
+            return;
+        }
+
+        if (laboratorioFormularioTieneCambios() && !window.confirm('Hay información sin guardar. ¿Deseas cerrar el formulario?')) {
+            return;
+        }
+
+        modal.hidden = true;
+        modal.setAttribute('aria-hidden', 'true');
+        actualizarBloqueoScrollLaboratorio();
+        if (laboratorioModalTrigger && typeof laboratorioModalTrigger.focus === 'function') {
+            laboratorioModalTrigger.focus();
+        }
+    }
+
+    function cerrarDetalleLaboratorio() {
+        const modal = document.getElementById('detalle-laboratorio-modal');
+        if (!modal || modal.hidden) {
+            return;
+        }
+
+        laboratorioDetalleRequest += 1;
+        modal.hidden = true;
+        modal.setAttribute('aria-hidden', 'true');
+
+        const resultsContainer = document.getElementById('detalleLaboratorioModalBody');
+        const status = document.getElementById('detalleLaboratorioModalStatus');
+        if (resultsContainer) {
+            resultsContainer.textContent = '';
+            resultsContainer.removeAttribute('aria-busy');
+        }
+        if (status) {
+            status.textContent = '';
+        }
+
+        actualizarBloqueoScrollLaboratorio();
+        const trigger = laboratorioDetalleTrigger;
+        laboratorioDetalleTrigger = null;
+        if (trigger && document.contains(trigger) && typeof trigger.focus === 'function') {
+            trigger.focus();
+            return;
+        }
+
+        const table = document.getElementById('table1');
+        if (table && typeof table.focus === 'function') {
+            table.focus();
+        }
+    }
+
+    document.addEventListener('keydown', function (event) {
+        const detalleModal = document.getElementById('detalle-laboratorio-modal');
+        const nuevoModal = document.getElementById('nuevo-laboratorio-modal');
+        const modalActivo = detalleModal && !detalleModal.hidden
+            ? detalleModal
+            : (nuevoModal && !nuevoModal.hidden ? nuevoModal : null);
+
+        if (!modalActivo) {
+            return;
+        }
+
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            if (modalActivo === detalleModal) {
+                cerrarDetalleLaboratorio();
+            } else {
+                cerrarModalLaboratorio();
+            }
+            return;
+        }
+
+        if (event.key !== 'Tab') {
+            return;
+        }
+
+        const elementosEnfocables = Array.from(modalActivo.querySelectorAll(
+            'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        ));
+        if (!elementosEnfocables.length) {
+            return;
+        }
+
+        const primero = elementosEnfocables[0];
+        const ultimo = elementosEnfocables[elementosEnfocables.length - 1];
+        if (event.shiftKey && document.activeElement === primero) {
+            event.preventDefault();
+            ultimo.focus();
+        } else if (!event.shiftKey && document.activeElement === ultimo) {
+            event.preventDefault();
+            primero.focus();
+        }
+    });
+
+    function marcarCampoLaboratorio(elemento, invalido) {
+        if (!elemento) {
+            return;
+        }
+
+        elemento.style.border = invalido ? '2px solid #d44e31' : '';
+        elemento.setAttribute('aria-invalid', invalido ? 'true' : 'false');
+    }
+
+    function eliminarSeparadorFechaHoraLaboratorio(resultsContainer) {
+        if (!resultsContainer) {
+            return;
+        }
+
+        const labels = Array.from(resultsContainer.querySelectorAll('label.text-primary'));
+        const fechaLabel = labels.find(label => label.textContent.trim().startsWith('Fecha:'));
+        const horaLabel = labels.find(label => label.textContent.trim().startsWith('Hora:'));
+        const fechaValor = fechaLabel ? fechaLabel.nextElementSibling : null;
+        if (!fechaValor || !horaLabel) {
+            return;
+        }
+
+        let separador = fechaValor.nextSibling;
+        while (separador && separador !== horaLabel) {
+            const siguiente = separador.nextSibling;
+            if (separador.nodeType === Node.TEXT_NODE && /^\s*,\s*$/.test(separador.nodeValue || '')) {
+                separador.nodeValue = separador.nodeValue.replace(',', '');
+                return;
+            }
+            separador = siguiente;
+        }
+    }
+
     function AgregarLaboratorio(idPaciente) {
-    
-    const referencia = 0;
-    const titulo = document.getElementById('Titulo').value;
-    const fileInput = document.getElementById('Archivo');
-    const file = fileInput.files[0];
-    const contenidoLaboratorio = document.querySelector('.ql-editor').innerHTML;
+        if (laboratorioGuardando) {
+            return;
+        }
 
-    document.getElementById('Archivo').style.border = "";
-    document.querySelector('.ql-editor').style.border = "";
+        const referencia = 0;
+        const tituloInput = document.getElementById('Titulo');
+        const fileInput = document.getElementById('Archivo');
+        const editor = document.querySelector('#snow .ql-editor');
+        const mensaje = document.getElementById('mensaje');
+        const submitButton = document.getElementById('agregarLaboratorioButton');
+        const titulo = tituloInput ? tituloInput.value : '';
+        const file = fileInput && fileInput.files ? fileInput.files[0] : null;
+        const contenidoLaboratorio = editor ? editor.innerHTML : '';
+        const editorVacio = !contenidoLaboratorio || contenidoLaboratorio === '<p><br></p>';
 
+        marcarCampoLaboratorio(fileInput, !file);
+        marcarCampoLaboratorio(editor, editorVacio);
 
-    if (file) {
-        if (contenidoLaboratorio !== '<p><br></p>') {
+        if (!file || editorVacio) {
+            if (mensaje) {
+                mensaje.textContent = 'Selecciona un archivo y agrega una descripción para continuar.';
+            }
+            return;
+        }
 
-            const formData = new FormData();
-            formData.append('idPaciente', idPaciente);
-            formData.append('file', file);
-            formData.append('contenidoLaboratorio', contenidoLaboratorio);
-            formData.append('referencia', referencia);
-            formData.append('titulo', titulo);
-               
-            fetch('/clinica/laboratorio/insert-laboratorio', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                
-                if (data.resultado) {
-                    location.reload()                
-                } else {
-                    document.getElementById('mensaje').textContent = 'Error: ' + data.mensaje;
+        if (file.size > <?=$laboratorioMaxUploadBytes;?>) {
+            marcarCampoLaboratorio(fileInput, true);
+            if (mensaje) {
+                mensaje.textContent = 'El archivo no puede superar los 10 MiB.';
+            }
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('idPaciente', idPaciente);
+        formData.append('file', file);
+        formData.append('contenidoLaboratorio', contenidoLaboratorio);
+        formData.append('referencia', referencia);
+        formData.append('titulo', titulo);
+
+        laboratorioGuardando = true;
+        if (submitButton) {
+            submitButton.disabled = true;
+            submitButton.setAttribute('aria-busy', 'true');
+        }
+        if (mensaje) {
+            mensaje.textContent = 'Guardando laboratorio…';
+        }
+        const laboratorioMain = document.getElementById('main');
+
+        fetch('/clinica/laboratorio/insert-laboratorio', {
+            method: 'POST',
+            headers: {
+                'X-M03-CSRF': laboratorioMain ? laboratorioMain.getAttribute('data-laboratorio-csrf') || '' : ''
+            },
+            body: formData
+        })
+            .then(response => response.json().then(data => ({ok: response.ok, data})))
+            .then(({ok, data}) => {
+                if (ok && data.resultado) {
+                    location.reload();
+                    return;
                 }
 
-                });
-               
-        } else {
-            document.querySelector('.ql-editor').style.border = "2px solid #d44e31";
-        }
-    } else {
-        document.getElementById('Archivo').style.border = "2px solid #d44e31";
+                throw new Error(data.mensaje || 'No fue posible guardar el laboratorio.');
+            })
+            .catch(error => {
+                if (mensaje) {
+                    mensaje.textContent = 'Error: ' + error.message;
+                }
+                laboratorioGuardando = false;
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.removeAttribute('aria-busy');
+                }
+            });
     }
-}
 
-    function DetalleLaboratorio(idLaboratorio){
+    function DetalleLaboratorio(idLaboratorio, trigger) {
+        const recordId = Number.parseInt(String(idLaboratorio), 10);
+        const modal = document.getElementById('detalle-laboratorio-modal');
+        const closeButton = document.getElementById('closeDetalleLaboratorioButton');
+        const resultsContainer = document.getElementById('detalleLaboratorioModalBody');
+        const status = document.getElementById('detalleLaboratorioModalStatus');
+        const nuevoModal = document.getElementById('nuevo-laboratorio-modal');
+        if (!modal || !resultsContainer || !status || !Number.isInteger(recordId) || recordId < 1 || (nuevoModal && !nuevoModal.hidden)) {
+            return;
+        }
 
-        fetch(`/buscar/laboratorio/${encodeURIComponent(idLaboratorio)}`)
-                .then(response => {
+        laboratorioDetalleTrigger = trigger || document.activeElement;
+        const requestId = ++laboratorioDetalleRequest;
+        resultsContainer.textContent = '';
+        resultsContainer.setAttribute('aria-busy', 'true');
+        status.textContent = 'Cargando detalle del laboratorio…';
+        modal.hidden = false;
+        modal.setAttribute('aria-hidden', 'false');
+        actualizarBloqueoScrollLaboratorio();
+        if (closeButton) {
+            closeButton.focus();
+        }
+
+        fetch(`/buscar/laboratorio/${encodeURIComponent(recordId)}`)
+            .then(response => {
                 if (!response.ok) {
-                throw new Error('Error en la respuesta del servidor: ' + response.status);
+                    throw new Error('Error en la respuesta del servidor: ' + response.status);
                 }
                 return response.text();
-                })
-                .then(data => {
+            })
+            .then(data => {
+                if (requestId !== laboratorioDetalleRequest) {
+                    return;
+                }
 
-                    const resultsContainer = document.getElementById('detalleReceta');
-                    resultsContainer.innerHTML = data;
+                resultsContainer.innerHTML = data;
+                eliminarSeparadorFechaHoraLaboratorio(resultsContainer);
+                status.textContent = '';
+                if (window.feather) {
                     feather.replace();
+                }
+            })
+            .catch(() => {
+                if (requestId !== laboratorioDetalleRequest) {
+                    return;
+                }
 
-                });
+                resultsContainer.textContent = '';
+                status.textContent = 'No fue posible cargar el detalle del laboratorio.';
+            })
+            .finally(() => {
+                if (requestId !== laboratorioDetalleRequest) {
+                    return;
+                }
 
-    } 
+                resultsContainer.removeAttribute('aria-busy');
+            });
+    }
+
+    function activarDetalleLaboratorioDesdeTabla(event) {
+        const elemento = event.target instanceof Element ? event.target : null;
+        const fila = elemento ? elemento.closest('tbody tr[data-laboratorio-id]') : null;
+        if (!fila || !event.currentTarget.contains(fila) || elemento.closest('a, button, input, select, textarea')) {
+            return;
+        }
+
+        if (event.type === 'keydown') {
+            if (event.key !== 'Enter' && event.key !== ' ') {
+                return;
+            }
+            event.preventDefault();
+        }
+
+        DetalleLaboratorio(fila.dataset.laboratorioId, fila);
+    }
+
+    function registrarEventosTablaLaboratorio(table) {
+        if (!table || table.dataset.detailEventsBound === 'true') {
+            return;
+        }
+
+        table.addEventListener('click', activarDetalleLaboratorioDesdeTabla);
+        table.addEventListener('keydown', activarDetalleLaboratorioDesdeTabla);
+        table.dataset.detailEventsBound = 'true';
+    }
 
     </script>
 
@@ -96,7 +383,9 @@ $volverExpedienteUrl = htmlspecialchars(SERVIDOR . 'clinica/paciente/' . (int)$d
         
         <?=$data['sidebar'];?>
 
-        <div id="main">
+        <div id="main"
+             data-paciente="<?= (int)$data['idPaciente'];?>"
+             data-laboratorio-csrf="<?=htmlspecialchars($laboratorioCsrfToken, ENT_QUOTES, 'UTF-8');?>">
             <!----- BUSCADOR DE LA BARRA DE NAVEGACION ---------->
             <?php include_once __DIR__ . '/../components/search-bar-doctor.php';?>
             
@@ -109,145 +398,134 @@ $volverExpedienteUrl = htmlspecialchars(SERVIDOR . 'clinica/paciente/' . (int)$d
                     <p>Consulta los resultados de laboratorio y agrega nueva documentación de <?=$nombrePacienteVisible;?>.</p>
                 </div>
                 <div class="doctor-page-hero-actions">
-                    <a class="btn doctor-page-hero-action" href="<?=$volverExpedienteUrl;?>">
+                    <a class="btn doctor-page-hero-action" data-doctor-back-action href="<?=$volverExpedienteUrl;?>">
                         <i data-feather="arrow-left" aria-hidden="true"></i>
                         <span>Volver al expediente</span>
                     </a>
-                    <button id="toggleButton" type="button" class="btn doctor-lab-toggle" onclick="toggleSize()" aria-label="Cambiar distribución de la pantalla" title="Cambiar distribución de la pantalla">
-                        <i id="toggleIcon" data-feather="columns" aria-hidden="true"></i>
-                        <span>Cambiar distribución</span>
-                    </button>
                 </div>
             </header>
 
-            <section class="doctor-lab-patient-context">
-            <div class="row mt-3">
-                <div class="col-12 resizable">
-                    <div class="card doctor-lab-card doctor-lab-patient-card">
-                        <div class="card-header">
-                            <h4 class="card-title">Información del paciente</h4>
-                        </div>
-                        <div class="card-body">
+            <section class="doctor-lab-patient-context" aria-label="Contexto del paciente">
+                <div class="doctor-lab-patient-strip">
+                    <span class="doctor-lab-patient-icon" aria-hidden="true">
+                        <i data-feather="user"></i>
+                    </span>
+                    <div class="doctor-lab-patient-context-copy">
+                        <p class="dashboard-eyebrow">EXPEDIENTE CLÍNICO</p>
+                        <h2><?=$nombrePacienteVisible;?></h2>
+                        <p>Expediente #<?=htmlspecialchars((string)$data['idPaciente'], ENT_QUOTES, 'UTF-8');?></p>
+                    </div>
+                </div>
+            </section>
 
-                            <div class="row">
-                                <div class="col-12 col-sm-4">
-                                <label class="text-primary"><small>Nombre Paciente:</small></label>
-                                <div class="fs-5"><?=$nombrePacienteVisible;?></div>
+            <section aria-labelledby="laboratory-section-title">
+                <div class="row doctor-lab-workspace">
+                    <div class="col-12 doctor-lab-list-column">
+                        <div class="card doctor-lab-card doctor-lab-list-card">
+                            <div class="card-header doctor-lab-section-header">
+                                <div class="doctor-lab-section-heading">
+                                    <p class="dashboard-eyebrow">REGISTROS DISPONIBLES</p>
+                                    <h2 id="laboratory-section-title" class="card-title">Laboratorios</h2>
+                                    <p id="laboratoryCount" class="doctor-lab-count" aria-live="polite">
+                                        <?=$laboratorioCount;?> <?=$laboratorioCountLabel;?>
+                                    </p>
                                 </div>
-                            
-                                <div class="col-12 col-sm-2">
-                                <label class="text-primary"><small>Fecha Alta:</small></label>
-                                <div class="fs-5"><?=(new DateTime($data['fecha_alta']))->format('d/m/Y');[0];?></div>
-                                </div>
-
-                                <div class="col-12 col-sm-2">
-                                <label class="text-primary"><small>Fecha Nacimiento:</small></label>
-                                <div class="fs-5"><?=date("d/m/Y", strtotime($data['fecha_nacimiento']));?></div>
-                                </div>
-
-                                <div class="col-12 col-sm-2">
-                                <label class="text-primary"><small>Edad:</small></label>
-                                <div class="fs-5"><?=$data['edad'];?> años</div>
-                                </div>
-                            
-                            <div class="col-12 col-sm-2">
-                            <label class="text-primary"><small>Sexo:</small></label>
-                            <div class="fs-5"><?=($data['sexo'] == 'M')? 'Masculino': 'Femenino';?></div>
+                                <button id="openNuevoLaboratorioButton" type="button" class="btn btn-success doctor-lab-new-button" aria-haspopup="dialog" aria-controls="nuevo-laboratorio-modal" onclick="abrirNuevoLaboratorioModal()">
+                                    Nuevo laboratorio <i data-feather="plus" aria-hidden="true"></i>
+                                </button>
                             </div>
-
-                            </div>                
-
+                            <div class="card-body">
+                                <div class="doctor-lab-empty-state" <?= $laboratorioCount > 0 ? 'hidden' : ''; ?> role="status">
+                                    <i data-feather="file-text" aria-hidden="true"></i>
+                                    <p>No hay estudios de laboratorio registrados.</p>
+                                </div>
+                                <div class="doctor-lab-table-region" <?= $laboratorioCount > 0 ? '' : 'hidden'; ?> >
+                                    <table class="table table-striped table-hover table-sm pb-0 mb-0" id="table1" data-has-records="<?= $laboratorioCount > 0 ? 'true' : 'false'; ?>" aria-describedby="laboratoryCount">
+                                        <thead>
+                                            <tr>
+                                                <th class="text-center">#</th>
+                                                <th>Fecha y hora</th>
+                                                <th>Título</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                        <?php foreach ($registros as $registro):
+                                            $laboratorioId = (int)$registro['id'];
+                                            $tituloLaboratorio = htmlspecialchars((string)($registro['titulo'] ?? 'Sin título'), ENT_QUOTES, 'UTF-8');
+                                            $etiquetaFila = htmlspecialchars('Ver laboratorio: ' . ((string)($registro['titulo'] ?? 'Sin título')), ENT_QUOTES, 'UTF-8');
+                                        ?>
+                                            <tr role="button" tabindex="0" data-laboratorio-id="<?=$laboratorioId;?>" aria-label="<?=$etiquetaFila;?>" aria-haspopup="dialog" aria-controls="detalle-laboratorio-modal">
+                                                <td class="text-center"><?=$laboratorioId;?></td>
+                                                <td><?=(new DateTime(datetime: $registro['fecha_hora']))->format('d/m/Y h:i a');?></td>
+                                                <td><?=$tituloLaboratorio;?></td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                 </div>
-            </div>
             </section>
 
-            <section>
-
-            <div class="row doctor-lab-workspace">
-                <div class="col-12 col-sm-5 resizable">
-
-                <div class="card doctor-lab-card doctor-lab-list-card">
-                <div class="card-header text-light">
-                <h4 class="card-title">Archivos</h4>
-                </div>
-                <div class="card-body">
-
-                <?php
-                        try {
-                            $stmt = $bd->query("SELECT * FROM laboratorio WHERE id_paciente = '".$data['idPaciente']."' ORDER BY fecha_hora DESC");
-                            $registros = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                        } catch (PDOException $e) {
-                            die("Error en la consulta: " . $e->getMessage());
-                        }
-                ?>
-
-                <table class="table table-striped table-hover table-sm pb-0 mb-0" id="table1">
-                    <thead>
-                        <tr>
-                            <th class="text-center">#</th>
-                            <th>Fecha y Hora</th>
-                            <th>Titulo</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    <?php foreach ($registros as $registro): ?>
-                        <tr onclick="DetalleLaboratorio(<?=$registro['id']?>)">
-                            <td class="text-center"><?=$registro['id']?></td>
-                            <td><?=(new DateTime(datetime: $registro['fecha_hora']))->format('d/m/Y h:i a');?></td>
-                            <td><?=$registro['titulo']?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                    </tbody>
-                </table>
-
-                </div>
-                </div>
-
-                </div>
-                <div class="col-12 col-sm-7 resizable">
-                        
-                <div class="card doctor-lab-card doctor-lab-detail-card">
-                    <div class="card-header text-light">
-                    <h4 class="card-title">Detalle del Laboratorio</h4>
-                    </div>
-                    <div class="card-body">
-                        <div id="detalleReceta" class="doctor-lab-detail-content">
-                            <?php
-                            $model = new LaboratorioModel();
-                            echo $model->ultimoLaboratorio($data['idPaciente']);
-                            ?>
+            <div id="nuevo-laboratorio-modal" class="doctor-lab-modal" role="dialog" aria-modal="true" aria-labelledby="nuevo-laboratorio-modal-title" aria-hidden="true" hidden>
+                <div class="doctor-lab-modal-content">
+                    <div class="doctor-lab-modal-header">
+                        <div>
+                            <p class="dashboard-eyebrow">REGISTRO CLÍNICO</p>
+                            <h2 id="nuevo-laboratorio-modal-title">Nuevo laboratorio</h2>
                         </div>
+                        <button id="closeNuevoLaboratorioButton" type="button" class="doctor-lab-modal-close" aria-label="Cerrar" title="Cerrar" onclick="cerrarModalLaboratorio()">
+                            <i data-feather="x" aria-hidden="true"></i>
+                        </button>
                     </div>
-                </div>
+                    <div class="doctor-lab-modal-body">
+                        <div class="doctor-lab-field">
+                            <label class="doctor-lab-field-label" for="Titulo">Título</label>
+                            <input type="text" class="form-control" id="Titulo">
+                        </div>
 
-                <div class="card doctor-lab-card doctor-lab-create-card">
-                <div class="card-header text-light">
-                <h4 class="card-title">Nueva Archivo</h4>
-                </div>
-                <div class="card-body">
+                        <div class="doctor-lab-field">
+                            <label class="doctor-lab-field-label" for="Archivo">Archivo</label>
+                            <input type="file" class="form-control" id="Archivo" accept="application/pdf,.pdf">
+                            <small class="doctor-lab-field-help">PDF, máximo 10 MiB.</small>
+                        </div>
 
-                <label class="text-primary"><small>Titulo:</small></label>
-                <input type="text" class="form-control" id="Titulo">
-                
-                <label class="text-primary mt-2"><small>Archivo:</small></label>
-                <div class="mb-3"><input type="file" class="form-control" id="Archivo"></div>
-                
-                <label class="text-primary"><small>Descripción:</small></label>
+                        <div class="doctor-lab-field">
+                            <label class="doctor-lab-field-label" for="snow">Descripción</label>
+                            <div id="snow" class="editor"></div>
+                        </div>
 
-                <div id="snow" class="editor"></div>
-                <div class="text-end mt-3 doctor-lab-submit"><button type="button" class="btn btn-success" onclick="AgregarLaboratorio(<?=$data['idPaciente'];?>)">Agregar Laboratorio <i data-feather="chevron-right" aria-hidden="true"></i></button></div>
-                <div id="mensaje"></div>
-                </div>
-                </div>
-
+                        <div id="mensaje" role="alert" aria-live="polite"></div>
+                    </div>
+                    <div class="doctor-lab-modal-actions">
+                        <button type="button" class="btn doctor-lab-modal-cancel" onclick="cerrarModalLaboratorio()">Cancelar</button>
+                        <button id="agregarLaboratorioButton" type="button" class="btn btn-success" onclick="AgregarLaboratorio(<?=$data['idPaciente'];?>)">
+                            Guardar laboratorio <i data-feather="check" aria-hidden="true"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
 
-                
-            </section>
+            <div id="detalle-laboratorio-modal" class="doctor-lab-modal" role="dialog" aria-modal="true" aria-labelledby="detalleLaboratorioModalTitle" aria-describedby="detalleLaboratorioModalStatus" aria-hidden="true" hidden>
+                <div class="doctor-lab-modal-content doctor-lab-detail-modal-content">
+                    <div class="doctor-lab-modal-header">
+                        <div>
+                            <p class="dashboard-eyebrow">REGISTRO CLÍNICO</p>
+                            <h2 id="detalleLaboratorioModalTitle">Detalle del laboratorio</h2>
+                        </div>
+                        <button id="closeDetalleLaboratorioButton" type="button" class="doctor-lab-modal-close" aria-label="Cerrar" title="Cerrar" onclick="cerrarDetalleLaboratorio()">
+                            <i data-feather="x" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    <div class="doctor-lab-modal-body doctor-lab-detail-modal-body">
+                        <p id="detalleLaboratorioModalStatus" class="doctor-lab-modal-status" role="status" aria-live="polite"></p>
+                        <div id="detalleLaboratorioModalBody" class="doctor-lab-detail-content" aria-live="polite"></div>
+                    </div>
+                </div>
+            </div>
 
 
         </div>
@@ -265,30 +543,32 @@ $volverExpedienteUrl = htmlspecialchars(SERVIDOR . 'clinica/paciente/' . (int)$d
     
     <script>
 
-    let table1 = document.querySelector('#table1');
-    let dataTable = new simpleDatatables.DataTable(table1,{
-        searchable: true,
-        fixedHeight: true,
-        perPageSelect: false,
-        searchable: true,
-        columns: [
-        {
-            select: 1, sort: "desc"
-        }
-        ]
-    });
-
-        var snow = new Quill('#snow', {
-        theme: 'snow',
-        modules: {
-            toolbar: [
-                ['bold', 'italic'], 
-                [{ 'list': 'ordered'}, { 'list': 'bullet' }]
-            ],
-        },
-        bounds: '#snow',
-        height: '500px',
+    const table1 = document.querySelector('#table1');
+    registrarEventosTablaLaboratorio(table1);
+    if (table1 && table1.dataset.hasRecords === 'true' && window.simpleDatatables) {
+        new simpleDatatables.DataTable(table1, {
+            searchable: true,
+            fixedHeight: false,
+            perPageSelect: false,
+            columns: [
+                {select: 1, sort: 'desc'}
+            ]
         });
+    }
+
+    const snowElement = document.querySelector('#snow');
+    if (snowElement && window.Quill) {
+        new Quill('#snow', {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    ['bold', 'italic'],
+                    [{list: 'ordered'}, {list: 'bullet'}]
+                ]
+            },
+            bounds: '#snow'
+        });
+    }
 
     </script>
 </body>

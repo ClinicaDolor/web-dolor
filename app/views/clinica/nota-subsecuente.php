@@ -1,7 +1,9 @@
 <?php
 $nombrePacienteSeguro = htmlspecialchars((string)($data['nombre_paciente'] ?? ''), ENT_QUOTES, 'UTF-8');
 $nombrePacienteVisible = $nombrePacienteSeguro !== '' ? $nombrePacienteSeguro : 'Paciente';
-$volverExpedienteUrl = htmlspecialchars(SERVIDOR . 'clinica/paciente/' . (int)($data['idPaciente'] ?? 0), ENT_QUOTES, 'UTF-8');
+$backUrlDefault = SERVIDOR . 'clinica/paciente/' . (int)($data['idPaciente'] ?? 0);
+$backUrl = htmlspecialchars((string)($data['back_url'] ?? $backUrlDefault), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+$backLabel = htmlspecialchars((string)($data['back_label'] ?? 'Volver al expediente'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -80,13 +82,12 @@ select: 0, sort: "desc"
 <p>Consulta la evolución clínica y la documentación asociada de <?=$nombrePacienteVisible;?>.</p>
 </div>
 <div class="doctor-page-hero-actions">
-<a class="btn doctor-page-hero-action" href="<?=$volverExpedienteUrl;?>">
+<a class="btn doctor-page-hero-action" data-doctor-back-action href="<?=$backUrl;?>">
 <i data-feather="arrow-left" aria-hidden="true"></i>
-<span>Volver al expediente</span>
+<span><?=$backLabel;?></span>
 </a>
-<button id="toggleButton" type="button" class="btn doctor-followup-toggle" onclick="toggleSize()" aria-label="Cambiar distribución de la pantalla" title="Cambiar distribución de la pantalla">
+<button id="toggleButton" type="button" class="btn doctor-followup-toggle" onclick="toggleSize()" aria-label="Cambiar distribución" title="Cambiar distribución">
 <i id="toggleIcon" data-feather="columns" aria-hidden="true"></i>
-<span>Cambiar distribución</span>
 </button>
 </div>
 </header>

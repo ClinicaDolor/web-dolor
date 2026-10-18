@@ -108,7 +108,7 @@
                     <p>Consulta el estado de los folios y gestiona el surtido de los registros disponibles.</p>
                 </div>
                 <div class="doctor-page-hero-actions doctor-cofepris-folios-hero-actions">
-                    <a href="<?=SERVIDOR?>clinica/cofepris" class="btn doctor-page-hero-action">
+                    <a href="<?=SERVIDOR?>clinica/cofepris" class="btn doctor-page-hero-action" data-doctor-back-action>
                         <i data-feather="arrow-left" aria-hidden="true"></i>
                         <span>Volver a configuración</span>
                     </a>

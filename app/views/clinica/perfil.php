@@ -53,7 +53,7 @@
             <p>Consulta la información institucional y los datos de contacto de la clínica.</p>
         </div>
         <div class="doctor-page-hero-actions doctor-profile-hero-actions">
-            <a href="<?=SERVIDOR?>clinica/pacientes" class="btn doctor-page-hero-action">
+            <a href="<?=SERVIDOR?>clinica/pacientes" class="btn doctor-page-hero-action" data-doctor-back-action>
                 <i data-feather="arrow-left" aria-hidden="true"></i>
                 <span>Volver a pacientes</span>
             </a>

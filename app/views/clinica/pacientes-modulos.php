@@ -44,7 +44,7 @@ $model = new PacienteModulosModelo();
     <h1 id="clinical-modules-title"><?=$nombrePacienteSeguro;?></h1>
     <p>Consulta y revisa el avance de su historia clínica.</p>
     </div>
-    <a href="<?=SERVIDOR?>clinica/paciente/<?=$data['id_paciente'];?>" class="btn btn-light doctor-page-hero-action">
+    <a href="<?=SERVIDOR?>clinica/paciente/<?=$data['id_paciente'];?>" class="btn btn-light doctor-page-hero-action" data-doctor-back-action>
         <i data-feather="arrow-left" aria-hidden="true"></i>
         <span>Volver al expediente</span>
     </a>
