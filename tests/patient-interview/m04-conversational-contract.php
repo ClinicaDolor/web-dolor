@@ -8,6 +8,7 @@ $m05File = file_get_contents($root . '/app/Services/ConversationalM05Adapter.php
 $controller = file_get_contents($root . '/app/Controllers/PatientInterviewController.php');
 $routes = file_get_contents($root . '/app/Config/routes.php');
 $view = file_get_contents($root . '/app/views/paciente/entrevista.php');
+$migration = file_get_contents($root . '/database/migrations/20261018_m04_negative_declaration.sql');
 $assert = static function (bool $condition, string $message): void { if (!$condition) throw new RuntimeException($message); };
 $assert(str_contains($adapterFile, 'pc_antecedentes_quirurgicos'), 'M04 no usa su tabla original.');
 $assert(str_contains($adapterFile, 'public function interpret'), 'Falta interpretación M04.');
@@ -21,10 +22,13 @@ $positive = $m04->interpret('Me operaron de la vesícula hace cinco años');
 $negative = $m04->interpret('Nunca he tenido cirugías');
 $clarification = $m04->interpret('Sí');
 $assert(($positive['kind'] ?? '') === 'm04_proposal' && ($positive['surgery'] ?? '') !== '', 'No se preparó propuesta M04 positiva.');
-$assert(($negative['kind'] ?? '') === 'm04_negative_review', 'No se reconoció negación M04.');
+$assert(($negative['kind'] ?? '') === 'm04_negative_proposal', 'No se reconoció negación M04.');
+$assert(($negative['direct_save'] ?? false) === true, 'La negación explícita no usa el flujo de guardado único.');
+$assert(($negative['semantic_state'] ?? '') === 'NEGATIVE_DECLARED', 'Falta el estado negativo canónico.');
 $assert(($clarification['kind'] ?? '') === 'clarification', 'No se solicitó aclaración M04.');
-$invalidNegative = $m04->capture(9302, $negative, null);
-$assert((int)($invalidNegative['resultado'] ?? 0) === 422, 'La negación M04 no debe crear un registro.');
+$assert(str_contains($adapterFile, 'pc_antecedentes_quirurgicos_estado'), 'Falta la representación durable de la declaración negativa.');
+$assert(str_contains($adapterFile, 'M04_NEGATIVE_STATE_SCHEMA_REQUIRED'), 'El esquema no migrado no puede simular persistencia.');
+$assert(str_contains($migration, 'CREATE TABLE IF NOT EXISTS pc_antecedentes_quirurgicos_estado'), 'Falta la migración aditiva M04.');
 $env = [];
 foreach (file($root . '/.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
     $line = trim($line);

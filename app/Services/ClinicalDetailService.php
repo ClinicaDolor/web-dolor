@@ -8,6 +8,7 @@ use PDO;
 final class ClinicalDetailService
 {
     private PDO $db;
+    private array $columnAvailability = [];
 
     public function __construct(?PDO $db = null) { $this->db = $db ?: Database::getInstance(); }
 
@@ -16,6 +17,15 @@ final class ClinicalDetailService
         if ($patientId < 1) throw new \InvalidArgumentException('PATIENT_INVALID');
         $patient = $this->one('SELECT fecha_alta, fecha_nacimiento, edad, sexo, estado_civil, lugar_origen, lugar_residencia, ocupacion, motivo_atencion, ultima_actualizacion FROM pc_paciente WHERE id = :id LIMIT 1', $patientId);
         if (!$patient) throw new \RuntimeException('PATIENT_NOT_FOUND');
+
+        $m03Rows = $this->many('SELECT t.tema, q.pregunta, r.respuesta, ' . ($this->hasColumn('pac_respuestas_paciente_modulo_3', 'estado_respuesta') ? 'r.estado_respuesta' : 'NULL') . ' AS estado_respuesta, ' . ($this->hasColumn('pac_respuestas_paciente_modulo_3', 'origen_respuesta') ? 'r.origen_respuesta' : 'NULL') . ' AS origen_respuesta FROM pac_respuestas_paciente_modulo_3 r INNER JOIN pac_preguntas_modulo_3 q ON q.id = r.id_pregunta INNER JOIN pac_temas_modulo_3 t ON t.id = q.id_tema WHERE r.id_paciente = :id ORDER BY t.id, q.id', $patientId);
+        foreach ($m03Rows as &$m03Row) {
+            if ($m03Row['estado_respuesta'] === null || trim((string)$m03Row['estado_respuesta']) === '') {
+                $textualState = \App\Models\AntecedentesNoPatologicosModel::canonicalM03UnknownState((string)($m03Row['respuesta'] ?? ''));
+                if ($textualState !== null) $m03Row['estado_respuesta'] = $textualState;
+            }
+        }
+        unset($m03Row);
 
         $m01Records = [[
             'groups' => [
@@ -34,8 +44,8 @@ final class ClinicalDetailService
                 'M02' => $this->moduleFromRows('M02', 'Antecedentes familiares', $this->many('SELECT enfermedad, tipo, detalle, especificar FROM pc_antecedentes_familiares WHERE id_paciente = :id ORDER BY id ASC', $patientId), [
                     'enfermedad' => 'Enfermedad', 'tipo' => 'Tipo de diabetes', 'detalle' => 'Respuesta documentada', 'especificar' => 'Parentesco especificado'
                 ]),
-                'M03' => $this->moduleFromRows('M03', 'Antecedentes personales no patológicos', $this->many('SELECT t.tema, q.pregunta, r.respuesta FROM pac_respuestas_paciente_modulo_3 r INNER JOIN pac_preguntas_modulo_3 q ON q.id = r.id_pregunta INNER JOIN pac_temas_modulo_3 t ON t.id = q.id_tema WHERE r.id_paciente = :id ORDER BY t.id, q.id', $patientId), [
-                    'tema' => 'Tema', 'pregunta' => 'Pregunta', 'respuesta' => 'Respuesta'
+                'M03' => $this->moduleFromRows('M03', 'Antecedentes personales no patológicos', $m03Rows, [
+                    'tema' => 'Tema', 'pregunta' => 'Pregunta', 'respuesta' => 'Respuesta', 'estado_respuesta' => 'Estado de respuesta', 'origen_respuesta' => 'Procedencia'
                 ]),
                 'M04' => $this->moduleFromRows('M04', 'Antecedentes quirúrgicos', $this->many('SELECT fecha, cirugia, observaciones FROM pc_antecedentes_quirurgicos WHERE id_paciente = :id ORDER BY fecha DESC, id DESC', $patientId), [
                     'cirugia' => 'Procedimiento', 'fecha' => 'Fecha', 'observaciones' => 'Observaciones'
@@ -49,7 +59,7 @@ final class ClinicalDetailService
                 'M06' => $this->moduleFromRows('M06', 'Medicación actual', $this->many('SELECT medicamento, descripcion, tiempo_uso, dosis, medico FROM pac_medicacion_actual_modulo_6 WHERE id_paciente = :id ORDER BY id ASC', $patientId), [
                     'medicamento' => 'Medicamento', 'descripcion' => 'Información complementaria', 'tiempo_uso' => 'Tiempo de uso', 'dosis' => 'Dosis', 'medico' => 'Médico registrado'
                 ]),
-                'M07' => $this->moduleFromRows('M07', 'Tratamientos farmacológicos para el dolor', $this->many('SELECT t.tema, q.pregunta, r.respuesta, r.dosis, r.resultados, r.descripcion, r.consumo FROM pac_respuestas_paciente_modulo_7 r INNER JOIN pac_preguntas_modulo_7 q ON q.id = r.id_pregunta INNER JOIN pac_temas_modulo_7 t ON t.id = q.id_tema WHERE r.id_paciente = :id ORDER BY t.id, q.id', $patientId), [
+                'M07' => $this->canonicalM07Module($patientId) ?? $this->moduleFromRows('M07', 'Tratamientos farmacológicos para el dolor', $this->many('SELECT t.tema, q.pregunta, r.respuesta, r.dosis, r.resultados, r.descripcion, r.consumo FROM pac_respuestas_paciente_modulo_7 r INNER JOIN pac_preguntas_modulo_7 q ON q.id = r.id_pregunta INNER JOIN pac_temas_modulo_7 t ON t.id = q.id_tema WHERE r.id_paciente = :id ORDER BY t.id, q.id', $patientId), [
                     'tema' => 'Tema', 'pregunta' => 'Pregunta', 'respuesta' => 'Respuesta', 'dosis' => 'Dosis', 'resultados' => 'Resultado documentado', 'descripcion' => 'Información complementaria', 'consumo' => 'Consumo registrado'
                 ]),
                 'M08' => $this->moduleFromRows('M08', 'Procedimientos para el dolor', array_merge(
@@ -63,6 +73,91 @@ final class ClinicalDetailService
                 ]),
             ],
         ];
+    }
+
+    /**
+     * Doctor and summary readers must consume the same M07 DTO as the
+     * conversational and P09 readers whenever the canonical extension exists.
+     * A legacy projection remains only as an explicit compatibility fallback
+     * for databases that have not received the additive schema.
+     */
+    private function canonicalM07Module(int $patientId): ?array
+    {
+        $patient = $this->one('SELECT id_clinica FROM pc_paciente WHERE id = :id LIMIT 1', $patientId);
+        $clinicId = (int)($patient['id_clinica'] ?? 0);
+        if ($clinicId < 1) return null;
+
+        try {
+            $state = (new M07CanonicalService($this->db))->read($patientId, $clinicId, 'doctor');
+        } catch (M07CanonicalException $exception) {
+            if ($exception->codeName === 'M07_SCHEMA_UNAVAILABLE') return null;
+            throw $exception;
+        }
+
+        $records = [];
+        foreach ($state['records'] ?? [] as $record) {
+            $fields = is_array($record['fields'] ?? null) ? $record['fields'] : [];
+            $records[] = [
+                'meta' => [
+                    'source' => 'M07CanonicalService',
+                    'source_kind' => $record['source'] ?? 'CATALOG',
+                    'response_id' => (int)($record['id'] ?? 0),
+                    'question_id' => (int)($record['question_id'] ?? 0),
+                    'theme_id' => (int)($record['theme_id'] ?? 0),
+                    'status' => $record['status'] ?? 'pending',
+                    'pending_reason' => $record['pending_reason'] ?? null,
+                    'version' => (int)($record['version'] ?? 0),
+                    'states' => $record['states'] ?? [],
+                ],
+                'groups' => [[
+                    'title' => (string)($record['legacy_projection']['theme'] ?? 'M07'),
+                    'fields' => $this->fields([
+                        'pregunta' => $record['name'] ?? '',
+                        'respuesta' => $fields['respuesta'] ?? '',
+                        'dosis' => $fields['dosis'] ?? '',
+                        'resultados' => $fields['resultados'] ?? '',
+                        'descripcion' => $fields['descripcion'] ?? '',
+                        'consumo' => $fields['consumo'] ?? '',
+                        'eficacia' => $record['efficacy']['code'] ?? null,
+                        'tolerabilidad' => $record['tolerability']['code'] ?? null,
+                    ], [
+                        'pregunta' => 'Pregunta',
+                        'respuesta' => 'Respuesta',
+                        'dosis' => 'Dosis',
+                        'resultados' => 'Resultado documentado',
+                        'descripcion' => 'Información complementaria',
+                        'consumo' => 'Consumo registrado',
+                        'eficacia' => 'Eficacia',
+                        'tolerabilidad' => 'Tolerabilidad',
+                    ]),
+                ]],
+            ];
+        }
+
+        foreach ($state['other_medications'] ?? [] as $other) {
+            $records[] = [
+                'meta' => [
+                    'source' => 'M07CanonicalService',
+                    'source_kind' => 'NON_CATALOGUED',
+                    'entry_key' => $other['entry_key'] ?? null,
+                    'theme_id' => (int)($other['theme_id'] ?? 0),
+                    'status' => $other['status'] ?? 'pending',
+                    'version' => (int)($other['version'] ?? 0),
+                ],
+                'groups' => [[
+                    'title' => 'Medicamento no catalogado',
+                    'fields' => $this->fields([
+                        'nombre' => $other['name'] ?? $other['nombre'] ?? '',
+                        'estado' => $other['status'] ?? 'pending',
+                    ], [
+                        'nombre' => 'Nombre registrado',
+                        'estado' => 'Estado canónico',
+                    ]),
+                ]],
+            ];
+        }
+
+        return $this->module('M07', 'Tratamientos farmacológicos para el dolor', $records);
     }
 
     private function module(string $key, string $title, array $records): array
@@ -92,6 +187,19 @@ final class ClinicalDetailService
             $fields[] = ['label' => $label, 'value' => mb_substr(strip_tags((string)$value), 0, 2000)];
         }
         return $fields;
+    }
+
+    private function hasColumn(string $table, string $column): bool
+    {
+        $key = $table . '.' . $column;
+        if (array_key_exists($key, $this->columnAvailability)) return $this->columnAvailability[$key];
+        try {
+            $stmt = $this->db->prepare('SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = :table_name AND column_name = :column_name');
+            $stmt->execute([':table_name' => $table, ':column_name' => $column]);
+            return $this->columnAvailability[$key] = (int)$stmt->fetchColumn() === 1;
+        } catch (\Throwable) {
+            return $this->columnAvailability[$key] = false;
+        }
     }
 
     private function date($value): string

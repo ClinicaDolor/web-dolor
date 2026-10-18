@@ -138,7 +138,7 @@ final class ConversationalM02Adapter
 
     private function proposal(string $disease, array $context): array
     {
-        return ['mode' => 'deterministic', 'kind' => 'm02_read_only_proposal', 'disease' => $disease, 'context' => $context, 'detail' => $context['detail'], 'relative' => $context['relative'], 'diabetes_type' => $context['diabetes_type'], 'can_confirm' => false, 'write_enabled' => false, 'message' => 'Propuesta preparada. La respuesta sólo se guarda después de una confirmación explícita.'];
+        return ['mode' => 'deterministic', 'kind' => 'm02_read_only_proposal', 'disease' => $disease, 'context' => $context, 'detail' => $context['detail'], 'relative' => $context['relative'], 'diabetes_type' => $context['diabetes_type'], 'can_confirm' => false, 'direct_save' => true, 'write_enabled' => false, 'message' => 'Respuesta M02 validada para guardado directo.'];
     }
 
     public function capture(int $patientId, string $disease, array $proposal, ?string $expectedVersion): array
