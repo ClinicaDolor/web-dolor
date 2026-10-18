@@ -1,0 +1,27 @@
+{
+  "repository": "Systran/faster-whisper-small",
+  "snapshot_revision": "536b0662742c02347bc0e980a01041f333bce120",
+  "snapshot_path": "C:\\xampp\\htdocs\\clinica-dolor\\tests\\voice-stt-01\\model-cache\\models--Systran--faster-whisper-small\\snapshots\\536b0662742c02347bc0e980a01041f333bce120",
+  "license_file": null,
+  "license_sha256": null,
+  "files": [
+    {
+      "name": "config.json",
+      "bytes": 2370
+    },
+    {
+      "name": "model.bin",
+      "bytes": 483546902
+    },
+    {
+      "name": "tokenizer.json",
+      "bytes": 2203239
+    },
+    {
+      "name": "vocabulary.txt",
+      "bytes": 459861
+    }
+  ],
+  "downloaded_with_network": true,
+  "subsequent_benchmark_mode": "local_snapshot_only"
+}

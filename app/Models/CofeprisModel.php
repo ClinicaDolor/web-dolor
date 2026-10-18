@@ -362,94 +362,126 @@ class CofeprisModel{
     }
 
     public function guardarFolio($folio,$fileName,$fileData,$fileSize,$fileExtension){
-        
+
         $folio_inicial = $folio;
-        $fecha = date("Ymd"); 
-        $aleatorio = rand(1000, 9999);
-        $nombre_carpeta = $fecha . $aleatorio;
-
-        // Carpeta destino para las páginas separadas
-        $uploadDir = $_SERVER['DOCUMENT_ROOT'] . '/public/storage/cofepris/';
-        $destino = $_SERVER['DOCUMENT_ROOT'] . '/public/storage/cofepris/' . $nombre_carpeta . '/';
-
-        if (!file_exists($destino)) {
-            mkdir($destino, 0777, true);
-        }
-
-        $filePath = $uploadDir . basename($fileName);
-        if (move_uploaded_file($fileData, $filePath)) {
-
-         // Usar el archivo recibido, no uno fijo
-         $archivoOriginal = $_SERVER['DOCUMENT_ROOT'] . '/public/storage/cofepris/' . $fileName;
-
-          // Verificar que sea un PDF válido
         if (strtolower($fileExtension) !== 'pdf') {
-            throw new \Exception("El archivo debe ser un PDF.");
+            return array('resultado' => 401,'mensaje' => 'El archivo debe ser un PDF.');
         }
 
-        $tempPdf = new Fpdi();
-        $pageCount = $tempPdf->setSourceFile($archivoOriginal); // Contar páginas
-
-        for ($i = 1; $i <= $pageCount; $i++) {
-            $pdf = new Fpdi();
-        
-            $pdf->setPrintHeader(false);
-            $pdf->setPrintFooter(false);
-            $pdf->SetMargins(0, 0, 0);
-        
-            $pdf->setSourceFile($archivoOriginal);
-            $templateId = $pdf->importPage($i);
-            $size = $pdf->getTemplateSize($templateId);
-        
-            $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
-            $pdf->useTemplate($templateId, 0, 0, $size['width'], $size['height']);
-        
-            $nombreArchivo = $destino . $folio . '.pdf';
-            $pdf->Output($nombreArchivo, 'F');
-        
-            $folio++; // Incrementar folio para el siguiente archivo
+        $uploadDir = rtrim((string)($_SERVER['DOCUMENT_ROOT'] ?? ''), '/\\') . '/public/storage/cofepris/';
+        if (!is_dir($uploadDir) && !mkdir($uploadDir, 0750, true) && !is_dir($uploadDir)) {
+            return array('resultado' => 401,'mensaje' => '¡Error al guardar el archivo!');
         }
-    
-        $folio_final = ($pageCount == 1) ? $folio_inicial : ($folio_inicial + ($pageCount-1));
 
-        $sql = "INSERT INTO cofepris_folio (
-            folio_inicial,
-            folio_final,
-            carpeta,
-            total_folio,
-            estado
-        ) VALUES (
-            :folio_inicial,
-            :folio_final,
-            :carpeta,
-            :total_folio,
-            :estado
-        )";
+        $destino = '';
+        $archivoOriginal = null;
+        $archivosGenerados = [];
+        $cleanup = function () use (&$archivosGenerados, &$archivoOriginal, &$destino): void {
+            foreach ($archivosGenerados as $archivoGenerado) {
+                if (is_file($archivoGenerado)) {
+                    @unlink($archivoGenerado);
+                }
+            }
+            if (is_string($archivoOriginal) && is_file($archivoOriginal)) {
+                @unlink($archivoOriginal);
+            }
+            if ($destino !== '' && is_dir($destino)) {
+                @rmdir($destino);
+            }
+        };
 
-        $stmt = $this->bd->prepare($sql);         
+        try {
+            // Mantener la carpeta numérica que usan los endpoints existentes,
+            // pero generar el sufijo con un CSPRNG en lugar de rand().
+            $nombre_carpeta = '';
+            $directorioCreado = false;
+            for ($intento = 0; $intento < 5; $intento++) {
+                $nombre_carpeta = date('Ymd') . random_int(1000, 9999);
+                $destino = $uploadDir . $nombre_carpeta . '/';
+                if (mkdir($destino, 0750, true)) {
+                    $directorioCreado = true;
+                    break;
+                }
+            }
+            if (!$directorioCreado) {
+                return array('resultado' => 401,'mensaje' => '¡Error al guardar el archivo!');
+            }
 
-        $datos = [
-            ':folio_inicial' => $folio_inicial,
-            ':folio_final' => $folio_final,
-            ':carpeta' => $nombre_carpeta,
-            'total_folio' => $pageCount,
-            ':estado' => 0
+            $archivoOriginal = $uploadDir . 'source_' . bin2hex(random_bytes(16)) . '.pdf';
+
+            if (!move_uploaded_file($fileData, $archivoOriginal)) {
+                $cleanup();
+                return array('resultado' => 401,'mensaje' => '¡Error al guardar el archivo!');
+            }
+
+            $tempPdf = new Fpdi();
+            $pageCount = $tempPdf->setSourceFile($archivoOriginal);
+            if ($pageCount < 1) {
+                throw new \RuntimeException('El PDF no contiene páginas.');
+            }
+
+            for ($i = 1; $i <= $pageCount; $i++) {
+                $pdf = new Fpdi();
+
+                $pdf->setPrintHeader(false);
+                $pdf->setPrintFooter(false);
+                $pdf->SetMargins(0, 0, 0);
+
+                $pdf->setSourceFile($archivoOriginal);
+                $templateId = $pdf->importPage($i);
+                $size = $pdf->getTemplateSize($templateId);
+
+                $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                $pdf->useTemplate($templateId, 0, 0, $size['width'], $size['height']);
+
+                $nombreArchivo = $destino . $folio . '.pdf';
+                $pdf->Output($nombreArchivo, 'F');
+                $archivosGenerados[] = $nombreArchivo;
+
+                $folio++;
+            }
+
+            $folio_final = ($pageCount == 1) ? $folio_inicial : ($folio_inicial + ($pageCount - 1));
+
+            $sql = "INSERT INTO cofepris_folio (
+                folio_inicial,
+                folio_final,
+                carpeta,
+                total_folio,
+                estado
+            ) VALUES (
+                :folio_inicial,
+                :folio_final,
+                :carpeta,
+                :total_folio,
+                :estado
+            )";
+
+            $stmt = $this->bd->prepare($sql);
+            $datos = [
+                ':folio_inicial' => $folio_inicial,
+                ':folio_final' => $folio_final,
+                ':carpeta' => $nombre_carpeta,
+                ':total_folio' => $pageCount,
+                ':estado' => 0
             ];
-        
-            if ($stmt->execute($datos)) {
-                return array('resultado' => 200,'mensaje' => 'OK');
-    
-            } else {
+
+            if (!$stmt->execute($datos)) {
+                $cleanup();
                 return array('resultado' => 401,'mensaje' => '¡Error al agregar nuevos folios!');
             }
 
-        }else{
+            if (is_file($archivoOriginal)) {
+                @unlink($archivoOriginal);
+            }
 
-            return array('resultado' => 401,'mensaje' => '¡Error al guardar el archivo!');
-
+            return array('resultado' => 200,'mensaje' => 'OK');
+        } catch (\Throwable $exception) {
+            if (isset($cleanup)) {
+                $cleanup();
+            }
+            return array('resultado' => 401,'mensaje' => 'No fue posible procesar el archivo PDF.');
         }
-
-            
     }
 
     public function getCofeprisFolios(){

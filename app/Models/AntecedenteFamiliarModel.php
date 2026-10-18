@@ -403,22 +403,34 @@ $this->bd = Database::getInstance();
         
     }
 
+    public function obtenerPacienteDeEnfermedad($idEnfermedad){
+
+    $stmt = $this->bd->prepare('SELECT id_paciente FROM pc_antecedentes_familiares WHERE id = :id_enfermedad LIMIT 1');
+    $stmt->execute([':id_enfermedad' => $idEnfermedad]);
+    $idPaciente = $stmt->fetchColumn();
+
+    return $idPaciente === false ? null : (int)$idPaciente;
+    }
+
     public function eliminarEnfermedadPaciente($data){
 
-    $sql = "DELETE FROM pc_antecedentes_familiares WHERE id = :id_enfermedad";
+    $sql = "DELETE FROM pc_antecedentes_familiares WHERE id = :id_enfermedad AND id_paciente = :id_paciente";
     $stmt = $this->bd->prepare($sql);                    
         
     $datos = [
-    ':id_enfermedad' => $data['idEnfermedad']
+    ':id_enfermedad' => $data['idEnfermedad'],
+    ':id_paciente' => $data['idPaciente']
     ];
     
-    if ($stmt->execute($datos)) {
-    return array('resultado' => 200,'mensaje' => '¡Se elimino la enfermedad correctamente!');
-    
-    } else {
+    if (!$stmt->execute($datos)) {
     return array('resultado' => 401,'mensaje' => '¡Error al eliminar la enfermedad de la lista!');
     }
-    
+
+    if ($stmt->rowCount() !== 1) {
+    return array('resultado' => 404,'mensaje' => 'No se encontró el antecedente solicitado.');
+    }
+
+    return array('resultado' => 200,'mensaje' => '¡Se elimino la enfermedad correctamente!');
     }
 
     //---------- AGREGA ENFERMEDADES AL INICIAR ----------//

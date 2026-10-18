@@ -1,13 +1,14 @@
 <?php
 namespace App\Models;
 use App\Config\Database;
+use PDO;
 
 class EvaluacionDolorModel{
 
     private $bd;
 
-    public function __construct(){
-    $this->bd = Database::getInstance();
+    public function __construct(?PDO $db = null){
+    $this->bd = $db ?: Database::getInstance();
     
     }
 

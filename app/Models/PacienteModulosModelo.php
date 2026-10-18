@@ -1,12 +1,13 @@
 <?php
 namespace App\Models;
 use App\Config\Database;
+use PDO;
 
 class PacienteModulosModelo{
     private $bd;
 
-    public function __construct(){
-    $this->bd = Database::getInstance();
+    public function __construct(?PDO $db = null){
+    $this->bd = $db ?: Database::getInstance();
     
     }
 
@@ -150,12 +151,14 @@ class PacienteModulosModelo{
     return array('resultado' => 422,'mensaje' => 'Datos de finalización no válidos.');
     }
 
+    $isMysql = strtolower((string) $this->bd->getAttribute(PDO::ATTR_DRIVER_NAME)) === 'mysql';
     $lockName = 'clinica_p06_finalizacion_' . $idPaciente;
+    $lockAcquired = false;
+    if ($isMysql) {
     $lockStatement = $this->bd->prepare('SELECT GET_LOCK(:lock_name, 5)');
     $lockStatement->execute([':lock_name' => $lockName]);
     $lockAcquired = (int) $lockStatement->fetchColumn() === 1;
-    if (!$lockAcquired) {
-    return array('resultado' => 409,'mensaje' => 'No fue posible confirmar la finalización.');
+    if (!$lockAcquired) return array('resultado' => 409,'mensaje' => 'No fue posible confirmar la finalización.');
     }
 
     try {
@@ -181,9 +184,13 @@ class PacienteModulosModelo{
         ':id_paciente' => $idPaciente,
     ]);
     return array('resultado' => 200,'mensaje' => '¡Se finalizo el modulo correctamente!');
+    } catch (\Throwable) {
+    return array('resultado' => 500,'mensaje' => '¡Error al finalizar el modulo!');
     } finally {
+    if ($isMysql && $lockAcquired) {
     $releaseStatement = $this->bd->prepare('SELECT RELEASE_LOCK(:lock_name)');
     $releaseStatement->execute([':lock_name' => $lockName]);
+    }
     }
     }
 

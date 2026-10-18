@@ -2,12 +2,13 @@
 namespace App\Models;
 use App\Config\Database;
 use App\Models\PacienteModulosModelo;
+use PDO;
 
 class MedicacionActualModel{
 private $bd;
 
-public function __construct(){
-$this->bd = Database::getInstance();
+public function __construct(?PDO $db = null){
+$this->bd = $db ?: Database::getInstance();
 
 } 
 
