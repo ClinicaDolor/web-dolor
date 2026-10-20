@@ -212,7 +212,8 @@ final class ConversationalM02Adapter
                 if ((int)($result['resultado'] ?? 0) !== 200) throw new \RuntimeException('M02 relative failed');
             }
             $db->commit();
-            return ['resultado' => 200, 'mensaje' => 'Antecedente M02 guardado.', 'record' => $this->findRecord($patientId, $disease)];
+            $readbackRecord = $this->findRecord($patientId, $disease);
+            return ['resultado' => 200, 'mensaje' => 'Antecedente M02 guardado.', 'record' => $readbackRecord, 'readback' => true];
         } catch (\Throwable) {
             if ($db->inTransaction()) $db->rollBack();
             return ['resultado' => 422, 'mensaje' => 'No fue posible guardar el antecedente M02.'];

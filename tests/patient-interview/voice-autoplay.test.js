@@ -102,6 +102,10 @@ const wait = milliseconds => new Promise(resolve => setTimeout(resolve, millisec
     const notPausedController = new synchronousBlocked.Controller({speechApi: synchronousBlockedSpeech, utteranceConstructor: MockUtterance});
     assert(notPausedController.resume() === false, 'Reanudar no debe actuar como sustituto de Activar audio cuando no existe una pausa real.');
 
+    const invalidStartupController = new automatic.Controller({speechApi: automaticSpeech, utteranceConstructor: MockUtterance});
+    assert(invalidStartupController.activateStartup({type: 'FIRST_START', text: 'Introducción.'}, null) === false, 'Un arranque sin pregunta debe rechazarse.');
+    assert(invalidStartupController.state === automatic.States.VOICE_ERROR, 'Un fallo de resolución no debe dejar el panel en activación indefinida.');
+
     console.log('VOICE_AUTOPLAY_TEST: PASS');
     console.log('AUTOMATIC_ACTIVATION: PASS');
     console.log('AUTOPLAY_BLOCKED_FALLBACK: PASS');

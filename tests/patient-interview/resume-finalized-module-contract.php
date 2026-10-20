@@ -103,6 +103,9 @@ $assert(($m02FinalizationModule['completion']['complete'] ?? true) === false, 'M
 $assert(($m02FinalizationModule['completion']['resolution'] ?? '') === 'AUTHORIZED_FINALIZATION_REQUIRED', 'M02 without finalization must expose its authorized resolution');
 $assert(($m02FinalizationModule['conversation_state']['state'] ?? '') === 'READY_TO_FINALIZE', 'documented M02 must resolve to READY_TO_FINALIZE');
 $assert(($m02FinalizationModule['conversation_state']['action'] ?? '') === 'FINALIZE', 'documented M02 must expose an explicit finalization action');
+$assert(array_key_exists('stable_id', $m02FinalizationModule['conversation_state'] ?? []) && $m02FinalizationModule['conversation_state']['stable_id'] === null, 'M02 finalization must not reuse a clinical question stable_id');
+$assert(($m02FinalizationModule['conversation_state']['action_id'] ?? '') === 'M02:action:finalize', 'M02 finalization must expose a validated action id');
+$assert(trim((string)($m02FinalizationModule['conversation_state']['voice_text'] ?? '')) !== '', 'M02 finalization must expose action narration text');
 $assert(($m02NeedsFinalization['interview_progress']['first_pending_module_id'] ?? null) === 'M02', 'M02 requiring authorized finalization must remain the server-selected resume module');
 $assert(($m02NeedsFinalization['interview_progress']['first_pending_stable_id'] ?? null) === null, 'M02 finalization action must not invent a pending question stable_id');
 
@@ -191,6 +194,8 @@ $assert(is_string($view) && str_contains($view, 'Finalizar antecedentes familiar
 $assert(is_string($view) && str_contains($view, 'finalize: true'), 'M02 finalization must be an explicit POST action');
 $assert(is_string($view) && str_contains($view, 'data.finalization_readback !== true'), 'M02 finalization must require server readback before advancing');
 $assert(is_string($view) && str_contains($view, 'keep requests enabled'), 'M02 finalization action must not enter the coordinator blocked state');
+$assert(is_string($view) && str_contains($view, 'setActionTarget(resolver.action_id'), 'M02 finalization must use a validated action target rather than a clinical question id');
+$assert(is_string($view) && str_contains($view, "event.action_id !== current"), 'M02 action narration must validate its action context');
 $assert(is_string($controllerSource) && str_contains($controllerSource, 'ConversationalModuleFinalizationService'), 'M02 finalization must reuse the canonical finalization service');
 $assert(is_string($controllerSource) && str_contains($controllerSource, 'validCaptureCsrf'), 'M02 finalization must require capture CSRF');
 $assert(is_string($controllerSource) && str_contains($controllerSource, "'readback' => \$readback"), 'M02 finalization must expose generic coordinator readback');

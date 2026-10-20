@@ -26,7 +26,7 @@ $assert(str_contains($view, 'data-module="M01"') && str_contains($view, 'M01 con
 
 $assert(str_contains($m02, 'FIXED_DISEASES') && str_contains($m02, 'expectedVersion'), 'M02 catalog/version contract missing');
 $assert(str_contains($controller, 'interpretM02') && str_contains($controller, 'captureM02'), 'M02 controller integration missing');
-$assert(str_contains($view, 'data-m02-defer') && str_contains($view, 'No se guardó ni se convirtió en «No»'), 'M02 pending action is not non-destructive');
+$assert(str_contains($view, 'patient-interview-question patient-interview-active-question') && !str_contains($view, 'data-m02-defer') && !str_contains($view, 'Responder después'), 'M02 must use one answerable question card without a defer action');
 $assert(str_contains($view, "data-m02-safe-no") && str_contains($view, 'fastNo:true'), 'M02 explicit negative action missing');
 $assert(str_contains($m02, 'No convertiré la duda en “No”'), 'M02 unknown state must not become negative');
 

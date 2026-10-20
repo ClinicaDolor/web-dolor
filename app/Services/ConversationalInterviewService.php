@@ -119,8 +119,8 @@ final class ConversationalInterviewService
 
     /**
      * Progress used for the initial narration is derived only from the
-     * server-side conversational projection. Read-only M01 and blocked M07
-     * are deliberately excluded so historical data cannot turn a new
+     * server-side conversational projection. Read-only M01 is deliberately
+     * excluded so historical data cannot turn a new
      * interview into a resume flow. A module that has answers but still
      * requires an explicit authorized finalization is also actionable
      * progress, even though it has no pending question stable_id.
@@ -129,7 +129,7 @@ final class ConversationalInterviewService
     {
         $progressModuleIds = array_values(array_filter(
             $moduleOrder,
-            static fn(string $moduleId): bool => !in_array($moduleId, ['M01', 'M07'], true)
+            static fn(string $moduleId): bool => $moduleId !== 'M01'
         ));
         $hasConfirmedResponses = false;
         $firstPendingModuleId = null;
@@ -176,11 +176,11 @@ final class ConversationalInterviewService
     private function contractModule(string $moduleId, array $state, array $questions): array
     {
         $required = array_values(array_filter($questions, static fn(array $question): bool => ($question['required'] ?? true) !== false));
-        $pending = array_values(array_filter($required, static fn(array $question): bool => !in_array(($question['response']['status'] ?? 'pending'), ['documented', 'read_only'], true)));
+        $pending = array_values(array_filter($required, static fn(array $question): bool => !in_array(($question['response']['status'] ?? 'pending'), ['documented', 'read_only', 'not_applicable'], true)));
         $isReadOnly = $moduleId === 'M01';
-        $canonicalBlocked = $moduleId === 'M07';
         $writeEnabled = (bool)($state['write_enabled'] ?? false);
         $finalized = (bool)($state['finalized'] ?? false);
+        $canonicalBlocked = $moduleId === 'M07' && !$writeEnabled && !$finalized;
         $writeBlocker = $state['write_blocker'] ?? null;
         // A finalized module is complete but no longer ordinarily editable;
         // the edit lock must not make a successfully closed module appear
@@ -364,6 +364,11 @@ final class ConversationalInterviewService
                 'reason' => 'AUTHORIZED_FINALIZATION_REQUIRED',
                 'question' => null,
                 'stable_id' => null,
+                // This is an executable conversational action, not a
+                // clinical question. Keep its identity separate from the
+                // question index so clients cannot invent a question target.
+                'action_id' => $moduleId . ':action:finalize',
+                'voice_text' => 'Tus antecedentes familiares están registrados. Puedes finalizar esta sección y continuar.',
                 'write_enabled' => $writeEnabled,
                 'next_action' => 'EXPLICIT_FINALIZATION_AND_READBACK',
             ];
@@ -419,7 +424,7 @@ final class ConversationalInterviewService
             'write_enabled' => $writeEnabled,
         ];
 
-        return [
+        $question = [
             'module_id' => $moduleId,
             'stable_id' => $stableId,
             'question_id' => $data['question_id'] ?? null,
@@ -469,11 +474,15 @@ final class ConversationalInterviewService
             ],
             'completion' => $data['completion'] ?? [
                 'required' => true,
-                'status' => in_array(($response['status'] ?? 'pending'), ['documented', 'read_only'], true) ? 'complete' : 'pending',
+                'status' => in_array(($response['status'] ?? 'pending'), ['documented', 'read_only', 'not_applicable'], true) ? 'complete' : 'pending',
             ],
+            'eligibility' => $data['eligibility'] ?? ['eligible' => true, 'state' => 'not_applicable'],
             'required' => ($data['required'] ?? true) !== false,
             'source' => $data['source'] ?? 'conversational_adapter',
         ];
+        if (array_key_exists('active', $data)) $question['active'] = $data['active'] === true;
+        if (array_key_exists('active_field', $data)) $question['active_field'] = $data['active_field'];
+        return $question;
     }
 
     private function contractResponse(mixed $value, ?string $status = null, bool $persisted = false, array $extra = []): array
@@ -748,12 +757,34 @@ final class ConversationalInterviewService
         foreach (($state['questions'] ?? []) as $row) {
             $questionId = (int)($row['question_id'] ?? 0);
             $value = trim((string)($row['respuesta'] ?? ''));
+            $eligible = ($row['eligible'] ?? true) === true;
+            $dependencyState = (string)($row['dependency_state'] ?? 'not_applicable');
+            $parentQuestionId = (int)($row['dependency_parent_question_id'] ?? 0);
+            $historicalPreserved = ($row['historical_preserved'] ?? false) === true;
+            $notApplicable = !$eligible && $value === '';
+            $responseStatus = $notApplicable ? 'not_applicable' : ($value !== '' ? 'documented' : 'pending');
             $questions[] = $this->contractQuestion('M05', 'M05:v1:' . $questionId, (string)($row['pregunta'] ?? ''), [
                 'question_id' => $questionId,
+                'theme_id' => (int)($row['theme_id'] ?? 0),
+                'theme' => (string)($row['tema'] ?? ''),
                 'variant' => 'v1',
                 'instruction' => (string)($row['tipo'] ?? '') === 'select' ? 'Responde Sí o No.' : 'Expresa la respuesta completa y pulsa Enviar para validarla.',
                 'options' => (string)($row['tipo'] ?? '') === 'select' ? ['Si', 'No'] : [],
-                'response' => $this->contractResponse($value !== '' ? $value : null, $value !== '' ? 'documented' : 'pending', (int)($row['response_id'] ?? 0) > 0 && $value !== ''),
+                'dependencies' => $parentQuestionId > 0 ? [['when' => 'M05:v1:' . $parentQuestionId . '=Si', 'requires' => ['response']]] : [],
+                'eligibility' => [
+                    'eligible' => $eligible,
+                    'state' => $dependencyState,
+                    'parent_question_id' => $parentQuestionId > 0 ? $parentQuestionId : null,
+                    'historical_preserved' => $historicalPreserved,
+                ],
+                'required' => !$notApplicable,
+                'response' => $this->contractResponse($value !== '' ? $value : null, $responseStatus, (int)($row['response_id'] ?? 0) > 0 && $value !== '', [
+                    'eligibility' => [
+                        'eligible' => $eligible,
+                        'state' => $dependencyState,
+                        'historical_preserved' => $historicalPreserved,
+                    ],
+                ]),
                 'write_enabled' => (bool)($state['write_enabled'] ?? false),
                 'confirmation' => $this->contractConfirmation($state),
             ]);
@@ -780,11 +811,25 @@ final class ConversationalInterviewService
     private function contractM06Questions(array $state): array
     {
         $records = $state['records'] ?? [];
+        if (($state['finalized'] ?? false) === true && $records === []) {
+            return [$this->contractQuestion('M06', 'M06:current-medication:new', '¿Tomas actualmente algún medicamento?', [
+                'visible_text' => '¿Tomas actualmente algún medicamento?',
+                'instruction' => 'No se registró medicación actual. Esta declaración quedó confirmada por el servidor.',
+                'response' => $this->contractResponse(null, 'not_applicable', true, [
+                    'source' => 'clinical_finalization',
+                    'semantic_state' => 'NEGATIVE_DECLARED',
+                ]),
+                'write_enabled' => false,
+                'confirmation' => $this->contractConfirmation(['write_enabled' => false], false),
+            ])];
+        }
         if ($records === []) {
-            return [$this->contractQuestion('M06', 'M06:current-medication:new', '¿Qué medicamento utilizas actualmente?', [
-                'instruction' => 'Indica medicamento, motivo, duración, dosis y médico que lo indicó.',
+            return [$this->contractQuestion('M06', 'M06:current-medication:new', '¿Tomas actualmente algún medicamento?', [
+                'visible_text' => '¿Tomas actualmente algún medicamento?',
+                'instruction' => 'Responde Sí o No. Si respondes Sí, la entrevista solicitará nombre, motivo de uso, duración, dosis y médico, uno por uno.',
                 'help' => 'Si falta un campo, la entrevista solicitará sólo esa aclaración.',
                 'clarification_conditions' => ['missing_field', 'ambiguous'],
+                'options' => ['Sí', 'No, continuar'],
                 'response' => $this->contractResponse(null, 'pending', false),
                 'write_enabled' => (bool)($state['write_enabled'] ?? false),
                 'confirmation' => $this->contractConfirmation($state),
@@ -793,13 +838,44 @@ final class ConversationalInterviewService
         $questions = [];
         foreach ($records as $record) {
             $fields = [];
-            foreach (['descripcion', 'medicamento', 'tiempo_uso', 'dosis', 'medico'] as $field) $fields[$field] = trim((string)($record[$field] ?? ''));
-            $complete = count(array_filter($fields, static fn(string $value): bool => $value === '')) === 0;
-            $questions[] = $this->contractQuestion('M06', 'M06:current-medication:' . (int)($record['id'] ?? 0), '¿Qué medicamento utilizas actualmente?', [
+            foreach (['medicamento', 'descripcion', 'tiempo_uso', 'dosis', 'medico'] as $field) $fields[$field] = trim((string)($record[$field] ?? ''));
+            $pendingFields = is_array($record['pending_fields'] ?? null)
+                ? array_values(array_intersect(['medicamento', 'descripcion', 'tiempo_uso', 'dosis', 'medico'], $record['pending_fields']))
+                : array_values(array_filter(array_keys($fields), static fn(string $field): bool => $fields[$field] === ''));
+            $fieldStates = is_array($record['field_states'] ?? null) ? $record['field_states'] : [];
+            $complete = $pendingFields === [] && $fields['medicamento'] !== '';
+            $fieldLabels = [
+                'medicamento' => '¿Qué medicamento tomas?',
+                'descripcion' => '¿Para qué lo utilizas?',
+                'tiempo_uso' => '¿Desde cuándo lo utilizas?',
+                'dosis' => '¿Qué dosis utilizas?',
+                'medico' => '¿Qué médico te lo indicó?',
+            ];
+            $missingField = $pendingFields[0] ?? null;
+            $questionText = $missingField !== null ? $fieldLabels[$missingField] : '¿Quieres agregar otro medicamento?';
+            $questions[] = $this->contractQuestion('M06', 'M06:current-medication:' . (int)($record['id'] ?? 0), $questionText, [
+                'visible_text' => $questionText,
                 'question_id' => (int)($record['id'] ?? 0),
                 'instruction' => 'Conserva medicamento, motivo de uso, duración, dosis y médico que lo indicó.',
                 'clarification_conditions' => ['missing_field', 'ambiguous'],
-                'response' => $this->contractResponse($fields, $complete ? 'documented' : 'pending', $complete && (int)($record['id'] ?? 0) > 0, ['missing' => array_keys(array_filter($fields, static fn(string $value): bool => $value === ''))]),
+                'response' => $this->contractResponse($fields, $complete ? 'documented' : 'pending', $complete && (int)($record['id'] ?? 0) > 0, ['missing' => $pendingFields, 'field_states' => $fieldStates, 'omissions' => $record['omissions'] ?? []]),
+                'write_enabled' => (bool)($state['write_enabled'] ?? false),
+                'confirmation' => $this->contractConfirmation($state),
+            ]);
+        }
+        if (($state['finalized'] ?? false) !== true && !array_filter($records, static function (array $record): bool {
+            if (is_array($record['pending_fields'] ?? null)) return $record['pending_fields'] !== [];
+            foreach (['medicamento', 'descripcion', 'tiempo_uso', 'dosis', 'medico'] as $field) {
+                if (trim((string)($record[$field] ?? '')) === '') return true;
+            }
+            return false;
+        })) {
+            $questions[] = $this->contractQuestion('M06', 'M06:current-medication:new', '¿Quieres agregar otro medicamento?', [
+                'visible_text' => '¿Quieres agregar otro medicamento?',
+                'variant' => 'add_another',
+                'instruction' => 'Puedes agregar otro medicamento o elegir No, continuar para finalizar M06.',
+                'options' => ['Sí, agregar otro', 'No, continuar'],
+                'response' => $this->contractResponse(null, 'pending', false),
                 'write_enabled' => (bool)($state['write_enabled'] ?? false),
                 'confirmation' => $this->contractConfirmation($state),
             ]);
@@ -810,16 +886,29 @@ final class ConversationalInterviewService
     private function contractM07Questions(array $state): array
     {
         $questions = [];
+        $active = is_array($state['active_question'] ?? null) ? $state['active_question'] : null;
+        $writeEnabled = (bool)($state['write_enabled'] ?? false);
         foreach (($state['categories'] ?? []) as $category) {
             foreach (($category['items'] ?? []) as $item) {
                 $questionId = (int)($item['question_id'] ?? 0);
                 $status = (string)($item['status'] ?? 'pending');
-                if (($item['other_blocked'] ?? false) === true) $status = 'blocked';
+                $stableId = 'M07:question:' . $questionId;
+                $isActive = $writeEnabled && $active !== null
+                    && ($active['stable_id'] ?? null) === $stableId
+                    && $status === 'pending';
+                $otherFlow = !empty($item['other_flow']);
                 $questions[] = $this->contractQuestion('M07', 'M07:question:' . $questionId, (string)($item['question'] ?? ''), [
                     'question_id' => $questionId,
-                    'instruction' => 'Selecciona Sí o No y completa dosis, resultado y consumo sólo cuando corresponda.',
-                    'help' => 'Un dato desconocido queda pendiente. “Otro” conserva su bloqueo clínico y no se convierte en texto libre persistible.',
-                    'options' => ['respuesta' => ['Si', 'No'], 'resultados' => ['Funciono', 'No funciono', 'Tuve efectos adversos'], 'consumo' => ['Si', 'No']],
+                    'theme_id' => (int)($category['theme_id'] ?? 0),
+                    'theme' => (string)($category['theme'] ?? ''),
+                    'variant' => $otherFlow ? 'other_medication' : 'catalog_medication',
+                    'instruction' => $otherFlow
+                        ? 'Responde Sí o No. Si respondes Sí, registra el nombre y después documenta cada dato solicitado.'
+                        : 'Responde Sí o No. Si respondes Sí, completa los datos solicitados para este medicamento antes de guardar.',
+                    'help' => $otherFlow
+                        ? 'Los medicamentos adicionales se registran en su estructura canónica vinculada a esta pregunta.'
+                        : 'Un dato desconocido permanece pendiente; nunca se interpreta como una respuesta negativa.',
+                    'options' => $active['options'] ?? ['respuesta' => ['Si', 'No'], 'resultados' => ['Funciono', 'No funciono', 'Tuve efectos adversos'], 'consumo' => ['Si', 'No']],
                     'dependencies' => [['when' => 'respuesta=Si', 'requires' => ['dosis', 'resultados', 'consumo']], ['when' => 'resultados=Tuve efectos adversos', 'requires' => ['descripcion']]],
                     'response' => $this->contractResponse($item['fields'] ?? [], $status, (int)($item['response_id'] ?? 0) > 0 && $status === 'complete', [
                         'pending_reason' => $item['pending_reason'] ?? null,
@@ -829,9 +918,12 @@ final class ConversationalInterviewService
                         'source' => $item['source'] ?? 'CATALOG',
                         'version' => $item['version'] ?? null,
                     ]),
-                    'write_enabled' => false,
-                    'confirmation' => ['required' => true, 'can_confirm' => false, 'backend_required' => true, 'write_enabled' => false, 'blocked_reason' => 'M07_CANONICAL_DISABLED'],
-                    'advance' => ['after' => 'canonical_write_enabled_and_confirmed', 'on_failure' => 'stay_on_question', 'enabled' => false],
+                    'active' => $isActive,
+                    'active_field' => $isActive ? ($active['field'] ?? 'respuesta') : null,
+                    'visible_text' => $isActive ? (string)($active['prompt'] ?? $item['question'] ?? '') : (string)($item['question'] ?? ''),
+                    'write_enabled' => $isActive,
+                    'confirmation' => ['required' => true, 'can_confirm' => $isActive, 'backend_required' => true, 'write_enabled' => $isActive, 'blocked_reason' => $isActive ? null : ($state['write_blocker'] ?? 'M07_CANONICAL_DISABLED')],
+                    'advance' => ['after' => 'canonical_write_and_independent_readback', 'on_failure' => 'stay_on_question', 'enabled' => $isActive],
                 ]);
             }
         }
@@ -1058,7 +1150,7 @@ final class ConversationalInterviewService
      * The existing M06 adapter remains the deterministic fallback and the
      * existing captureM06 endpoint remains the only persistence path.
      */
-    public function interpretM06(string $utterance, array $context = []): array
+    public function interpretM06(string $utterance, array $context = [], ?string $activeField = null): array
     {
         $utterance = trim($utterance);
         if ($utterance === '') {
@@ -1067,8 +1159,8 @@ final class ConversationalInterviewService
 
         $context = $this->safeM06Context($context);
         $adapter = new ConversationalM06Adapter();
-        $fallback = function () use ($adapter, $utterance, $context): array {
-            $proposal = $adapter->interpret($utterance);
+        $fallback = function () use ($adapter, $utterance, $context, $activeField): array {
+            $proposal = $adapter->interpret($utterance, $activeField);
             return $this->normalizeM06Proposal(
                 is_array($proposal['fields'] ?? null) ? $proposal['fields'] : [],
                 $proposal,
@@ -1096,6 +1188,7 @@ final class ConversationalInterviewService
                 'question_type' => 'current_medication',
                 'utterance' => $utterance,
                 'context' => $context,
+                'active_field' => $activeField,
                 'allowed_values' => [],
             ]);
             $this->emitTrace('M06', 'provider_response', 'response_received', false, $started);
@@ -1245,7 +1338,7 @@ final class ConversationalInterviewService
             if (!is_array($proposal['fields'] ?? null)) {
                 throw new \RuntimeException('GEMINI_INVALID_JSON');
             }
-            $fields = ['descripcion', 'medicamento', 'tiempo_uso', 'dosis', 'medico'];
+            $fields = ['medicamento', 'descripcion', 'tiempo_uso', 'dosis', 'medico'];
             foreach ($fields as $field) {
                 if (!array_key_exists($field, $proposal['fields']) || !is_string($proposal['fields'][$field])) {
                     throw new \RuntimeException('GEMINI_INVALID_JSON');
@@ -1310,7 +1403,7 @@ final class ConversationalInterviewService
         }
 
         if ($module === 'M06') {
-            foreach (['descripcion', 'medicamento', 'tiempo_uso', 'dosis', 'medico'] as $field) {
+            foreach (['medicamento', 'descripcion', 'tiempo_uso', 'dosis', 'medico'] as $field) {
                 $value = trim((string)($proposal['fields'][$field] ?? ''));
                 if ($value !== '' && !$this->evidenceContains($value, $text, $contextText)) {
                     throw new \RuntimeException('GEMINI_EVIDENCE_NOT_FOUND');
@@ -1342,7 +1435,7 @@ final class ConversationalInterviewService
     private function safeM06Context(array $context): array
     {
         $safe = [];
-        foreach (['descripcion', 'medicamento', 'tiempo_uso', 'dosis', 'medico'] as $field) {
+        foreach (['medicamento', 'descripcion', 'tiempo_uso', 'dosis', 'medico'] as $field) {
             if (is_scalar($context[$field] ?? null)) {
                 $value = trim((string)$context[$field]);
                 if ($value !== '') $safe[$field] = mb_substr($value, 0, 500, 'UTF-8');
@@ -1354,25 +1447,33 @@ final class ConversationalInterviewService
     private function normalizeM06Proposal(array $proposalFields, array $proposal, string $utterance, array $context, string $mode): array
     {
         $fields = [];
-        foreach (['descripcion', 'medicamento', 'tiempo_uso', 'dosis', 'medico'] as $field) {
-            $value = $proposalFields[$field] ?? ($context[$field] ?? '');
+        foreach (['medicamento', 'descripcion', 'tiempo_uso', 'dosis', 'medico'] as $field) {
+            $candidate = $proposalFields[$field] ?? '';
+            $fallback = $context[$field] ?? '';
+            // A clarification carries empty placeholders for fields that were
+            // not present in the current utterance. Preserve the confirmed
+            // conversational context instead of replacing it with an empty
+            // value on every turn.
+            $value = is_scalar($candidate) && trim((string)$candidate) !== '' ? $candidate : $fallback;
             $fields[$field] = is_scalar($value) ? mb_substr(trim((string)$value), 0, 500, 'UTF-8') : '';
         }
 
         $missing = array_values(array_filter(array_keys($fields), static fn(string $field): bool => $fields[$field] === ''));
+        $hasMedicationName = $fields['medicamento'] !== '';
         $normalized = [
             'mode' => $mode,
-            'kind' => $missing === [] ? 'm06_proposal' : 'clarification',
+            'kind' => $hasMedicationName ? 'm06_proposal' : 'clarification',
             'target' => 'm06',
             'fields' => $fields,
             'context' => $fields,
-            'structured_value' => $missing === [] ? $fields : null,
-            'interpretation' => $missing === [] ? (string)($proposal['interpretation'] ?? 'Propuesta M06 preparada con los cinco campos expresados.') : null,
+            'structured_value' => $hasMedicationName ? $fields : null,
+            'interpretation' => $hasMedicationName ? (string)($proposal['interpretation'] ?? 'Nombre de medicamento reconocido; los demás datos pueden completarse después.') : null,
             'missing' => $missing,
-            'clarification' => $missing === [] ? null : (string)($proposal['clarification'] ?? 'Para continuar, indica los campos faltantes sin inventar datos.'),
+            'clarification' => $hasMedicationName ? null : (string)($proposal['clarification'] ?? 'Indica al menos el nombre del medicamento.'),
             'requires_confirmation' => false,
-            'can_confirm' => false,
-            'direct_save' => $missing === [],
+            'can_confirm' => $hasMedicationName,
+            'direct_save' => $hasMedicationName,
+            'partial' => $hasMedicationName && $missing !== [],
         ];
         if (isset($proposal['_gemini_meta']) && is_array($proposal['_gemini_meta'])) {
             $normalized['provider_meta'] = $proposal['_gemini_meta'];

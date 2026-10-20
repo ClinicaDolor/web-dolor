@@ -40,16 +40,16 @@ $assert(($unknownDate['kind'] ?? null) === 'clarification', 'M04 unknown date wa
 $m06 = new App\Services\ConversationalM06Adapter();
 $complete = $m06->interpret('Tomo ibuprofeno para dolor durante 2 semanas, dosis 400 mg, médico López');
 $assert(($complete['kind'] ?? null) === 'm06_proposal', 'M06 complete utterance was not accepted');
-$assert(($complete['fields']['descripcion'] ?? null) === 'ibuprofeno', 'M06 medication name mapping changed');
-$assert(($complete['fields']['medicamento'] ?? null) === 'dolor', 'M06 reason mapping changed');
+$assert(($complete['fields']['medicamento'] ?? null) === 'ibuprofeno', 'M06 medication name mapping changed');
+$assert(($complete['fields']['descripcion'] ?? null) === 'dolor', 'M06 reason mapping changed');
 $assert(($complete['fields']['tiempo_uso'] ?? null) === '2 semanas', 'M06 duration mapping failed');
 $assert(($complete['fields']['dosis'] ?? null) === '400 mg', 'M06 dose mapping failed');
 $assert(($complete['fields']['medico'] ?? null) === 'López', 'M06 prescriber mapping failed');
 
 $unknownDose = $m06->interpret('Tomo ibuprofeno para dolor durante 2 semanas, no recuerdo la dosis, médico López');
-$assert(($unknownDose['kind'] ?? null) === 'clarification', 'M06 unknown dose was accepted as complete');
+$assert(($unknownDose['kind'] ?? null) === 'm06_proposal', 'M06 unknown dose must preserve the medication as a partial proposal');
 $assert(in_array('dosis', $unknownDose['unknown_fields'] ?? [], true), 'M06 unknown dose was not identified explicitly');
-$assert(($unknownDose['requires_confirmation'] ?? true) === false, 'M06 incomplete response became confirmable');
+$assert(($unknownDose['direct_save'] ?? false) === true && in_array('dosis', $unknownDose['missing'] ?? [], true), 'M06 unknown dose must remain saveable without inventing a dose');
 
 // M04 preserves precision, confirmation, versioning and readback at the
 // persistence boundary; M06 reuses pending drafts and rejects duplicates.

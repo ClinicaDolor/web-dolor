@@ -16,7 +16,7 @@ use PDO;
  */
 final class ConversationalModuleFinalizationService
 {
-    public function __construct(private ?PDO $db = null) {}
+    public function __construct(private ?PDO $db = null, private ?M07CanonicalService $m07Canonical = null) {}
 
     private function connection(): PDO
     {
@@ -28,7 +28,7 @@ final class ConversationalModuleFinalizationService
      * A 200/not-ready result is intentionally non-final: the caller may keep
      * collecting answers without advancing the module.
      */
-    public function finalizeIfComplete(int $patientId, int $moduleId): array
+    public function finalizeIfComplete(int $patientId, int $moduleId, bool $allowEmptyM06 = false): array
     {
         if ($patientId < 1 || $moduleId < 1 || $moduleId > 9) {
             return ['resultado' => 422, 'mensaje' => 'Datos de finalización no válidos.', 'finalized' => false];
@@ -37,7 +37,11 @@ final class ConversationalModuleFinalizationService
             return ['resultado' => 200, 'mensaje' => 'M01 es de solo lectura.', 'finalized' => false, 'finalization_attempted' => false, 'readback' => true, 'code' => 'READ_ONLY_MODULE'];
         }
         if ($moduleId === 7) {
-            return ['resultado' => 409, 'mensaje' => 'La finalización M07 permanece deshabilitada.', 'finalized' => false, 'finalization_attempted' => false, 'code' => 'M07_CANONICAL_DISABLED'];
+            try {
+                return (new ConversationalM07Adapter($this->connection(), $this->m07Canonical))->finalize($patientId, null);
+            } catch (\Throwable) {
+                return ['resultado' => 503, 'mensaje' => 'No fue posible verificar el estado canónico de M07.', 'finalized' => false, 'finalization_attempted' => false, 'readback' => false, 'code' => 'M07_STATE_UNAVAILABLE'];
+            }
         }
 
         try {
@@ -53,8 +57,12 @@ final class ConversationalModuleFinalizationService
         } catch (\Throwable) {
             return ['resultado' => 503, 'mensaje' => 'No fue posible comprobar el estado del módulo.', 'finalized' => false, 'finalization_attempted' => false, 'readback' => false, 'code' => 'MODULE_STATE_UNAVAILABLE'];
         }
-        if (!$this->isComplete($moduleId, $state)) {
-            return ['resultado' => 200, 'mensaje' => 'El módulo conserva respuestas pendientes.', 'finalized' => false, 'finalization_attempted' => false, 'readback' => false, 'code' => 'MODULE_NOT_READY_TO_FINALIZE'];
+        if (!$this->isComplete($moduleId, $state, $allowEmptyM06)) {
+            $pendingFields = $moduleId === 6 ? $this->m06PendingFields($state) : [];
+            $message = $pendingFields !== []
+                ? 'M06 no puede finalizar todavía. Completa: ' . implode(', ', $pendingFields) . '.'
+                : 'El módulo conserva respuestas pendientes.';
+            return ['resultado' => 200, 'mensaje' => $message, 'finalized' => false, 'finalization_attempted' => false, 'readback' => false, 'code' => 'MODULE_NOT_READY_TO_FINALIZE', 'pending_fields' => $pendingFields];
         }
 
         try {
@@ -94,7 +102,7 @@ final class ConversationalModuleFinalizationService
         };
     }
 
-    private function isComplete(int $moduleId, array $state): bool
+    private function isComplete(int $moduleId, array $state, bool $allowEmptyM06 = false): bool
     {
         if (($state['finalized'] ?? false) === true) return true;
         return match ($moduleId) {
@@ -102,7 +110,7 @@ final class ConversationalModuleFinalizationService
             3 => $this->m03Complete($state),
             4 => $this->m04Complete($state),
             5 => $this->m05Complete($state),
-            6 => $this->m06Complete($state),
+            6 => $this->m06Complete($state, $allowEmptyM06),
             8 => $this->m08Complete($state),
             9 => $this->m09Complete($state),
             default => false,
@@ -146,16 +154,64 @@ final class ConversationalModuleFinalizationService
         $questions = $state['questions'] ?? [];
         $diseases = $state['diseases'] ?? [];
         if ($questions === [] && $diseases === []) return false;
-        foreach (array_merge($questions, $diseases) as $row) if (trim((string)($row['respuesta'] ?? '')) === '') return false;
+        foreach ($questions as $row) {
+            // A dependent V1 question skipped by an explicit parent No is
+            // complete by contract even though its historical value remains
+            // empty. Only eligible questions can block completion.
+            if (($row['eligible'] ?? true) !== true) continue;
+            if (($row['needs_clarification'] ?? false) === true) return false;
+            if (trim((string)($row['respuesta'] ?? '')) === '') return false;
+        }
+        foreach ($diseases as $row) {
+            $response = trim((string)($row['respuesta'] ?? ''));
+            if ($response === '') return false;
+            $requiresDetails = in_array((string)($row['enfermedad'] ?? ''), ['Diabetes Mellitus', 'Enfermedad pulmonar'], true);
+            if ($response === 'Si' && $requiresDetails
+                && (trim((string)($row['tipo'] ?? '')) === '' || trim((string)($row['year_diagnostico'] ?? '')) === '')) {
+                return false;
+            }
+        }
         return true;
     }
 
-    private function m06Complete(array $state): bool
+    private function m06Complete(array $state, bool $allowEmpty = false): bool
     {
         $records = $state['records'] ?? [];
-        if ($records === []) return false;
-        foreach ($records as $record) foreach (['descripcion', 'medicamento', 'tiempo_uso', 'dosis', 'medico'] as $field) if (trim((string)($record[$field] ?? '')) === '') return false;
+        if ($records === []) return $allowEmpty;
+        foreach ($records as $record) {
+            if (trim((string)($record['medicamento'] ?? '')) === '') return false;
+            if (!empty($record['pending_fields'])) return false;
+            foreach (['descripcion', 'tiempo_uso', 'dosis', 'medico'] as $field) {
+                $stateValue = $record['field_states'][$field] ?? null;
+                if ($stateValue === null && trim((string)($record[$field] ?? '')) === '') return false;
+                if ($stateValue !== null && !in_array($stateValue, ['ANSWERED', 'UNKNOWN', 'SKIPPED'], true)) return false;
+            }
+        }
         return true;
+    }
+
+    /** Return only contract field labels; never expose stored clinical values. */
+    private function m06PendingFields(array $state): array
+    {
+        $labels = [
+            'medicamento' => 'nombre del medicamento',
+            'descripcion' => 'motivo de uso',
+            'tiempo_uso' => 'tiempo de uso',
+            'dosis' => 'dosis',
+            'medico' => 'médico que lo indicó',
+        ];
+        $pending = [];
+        foreach (($state['records'] ?? []) as $record) {
+            foreach ($labels as $field => $label) {
+                $fieldState = $record['field_states'][$field] ?? null;
+                if (($record['pending_fields'] ?? null) !== null) {
+                    if (in_array($field, $record['pending_fields'], true)) $pending[$field] = $label;
+                } elseif ($fieldState === null && trim((string)($record[$field] ?? '')) === '') {
+                    $pending[$field] = $label;
+                }
+            }
+        }
+        return array_values($pending);
     }
 
     private function m08Complete(array $state): bool

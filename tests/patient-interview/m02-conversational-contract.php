@@ -20,6 +20,8 @@ $assertions = [
     str_contains($routes, "'/entrevista/capturar-m02', ['PatientInterviewController', 'captureM02']"),
     str_contains($view, 'data-module="M02"'),
     str_contains($view, 'data-m02-interpret'),
+    str_contains($adapter, "'readback' => true"),
+    str_contains($controller, "'readback' => \$result['readback'] ?? false"),
     str_contains(file_get_contents($root . '/app/Services/ConversationalM04Adapter.php'), 'pc_antecedentes_quirurgicos'),
 ];
 

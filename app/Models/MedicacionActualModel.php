@@ -7,6 +7,9 @@ use PDO;
 class MedicacionActualModel{
 private $bd;
 
+private const M06_OMISSION_FIELDS = ['descripcion', 'tiempo_uso', 'dosis', 'medico'];
+private const M06_OMISSION_STATES = ['UNKNOWN', 'SKIPPED'];
+
 public function __construct(?PDO $db = null){
 $this->bd = $db ?: Database::getInstance();
 
@@ -112,7 +115,7 @@ $result .= '<div class="col-12">
 <div class="text-secondary fw-bold mb-1">¿Cuál es el nombre del medicamento?</div>
 <div class="row">
 <div class="col-12">
-<input type="text" onchange="editarMedicamento('.$idMedicamento.', this, 1, \''.$idRol.'\')" class="form-control mb-3" value="'.$descripcion.'" placeholder="Escribe aquí el nombre del medicamento...">
+<input type="text" onchange="editarMedicamento('.$idMedicamento.', this, 1, \''.$idRol.'\')" class="form-control mb-3" value="'.$medicamento.'" placeholder="Escribe aquí el nombre del medicamento...">
 </div>
 
 </div>
@@ -120,7 +123,7 @@ $result .= '<div class="col-12">
 
 $result .= '<div class="col-12">
 <div class="text-secondary fw-bold mb-1">¿Para qué lo utiliza?</div>
-<input type="text" onchange="editarMedicamento('.$idMedicamento.', this, 2, \''.$idRol.'\')" class="form-control mb-3" value="'.$medicamento.'" placeholder="Escribe aquí el motivo de medicación...">
+<input type="text" onchange="editarMedicamento('.$idMedicamento.', this, 2, \''.$idRol.'\')" class="form-control mb-3" value="'.$descripcion.'" placeholder="Escribe aquí el motivo de medicación...">
 </div>';
 
 $result .= '<div class="col-12">
@@ -269,13 +272,13 @@ $medico = $pregunta['medico'];
 $result.= '<tr>';
    
 $result .= '<td class="text-center align-middle p-2">
-<span class="d-none search-value">'.$descripcion.'</span>
-<input type="text" onchange="editarMedicamento('.$idMedicamento.', this, 1, \''.$idRol.'\')" class="form-control text-center align-middle" value="'.$descripcion.'" placeholder="Escribe aquí el nombre del medicamento...">
+<span class="d-none search-value">'.$medicamento.'</span>
+<input type="text" onchange="editarMedicamento('.$idMedicamento.', this, 1, \''.$idRol.'\')" class="form-control text-center align-middle" value="'.$medicamento.'" placeholder="Escribe aquí el nombre del medicamento...">
 </td>';
 
 $result .= '<td class="text-center align-middle p-2">
-<span class="d-none search-value">'.$medicamento.'</span>
-<input type="text" onchange="editarMedicamento('.$idMedicamento.', this, 2, \''.$idRol.'\')" class="form-control text-center align-middle" value="'.$medicamento.'" placeholder="Escribe aquí el motivo de medicación...">
+<span class="d-none search-value">'.$descripcion.'</span>
+<input type="text" onchange="editarMedicamento('.$idMedicamento.', this, 2, \''.$idRol.'\')" class="form-control text-center align-middle" value="'.$descripcion.'" placeholder="Escribe aquí el motivo de medicación...">
 </td>';
 
 $result .= '<td class="text-center align-middle p-2">
@@ -368,8 +371,8 @@ return $result;
                 . '<p class="p08-record-help">Completa los cinco datos del medicamento y guarda los cambios antes de continuar.</p>'
                 . '<div class="p08-fields">';
             $fields = [
-                'descripcion' => ['Nombre del medicamento', 'Escribe el nombre del medicamento'],
-                'medicamento' => ['¿Para qué lo utiliza?', 'Escribe el motivo de uso'],
+                'medicamento' => ['Nombre del medicamento', 'Escribe el nombre del medicamento'],
+                'descripcion' => ['¿Para qué lo utiliza?', 'Escribe el motivo de uso'],
                 'tiempo_uso' => ['Tiempo en tratamiento', 'Escribe el tiempo de tratamiento'],
                 'dosis' => ['Dosis actual', 'Escribe la dosis actual'],
                 'medico' => ['Nombre del médico que lo recetó', 'Escribe el nombre del médico'],
@@ -404,20 +407,110 @@ $idPaciente = filter_var($data['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['opt
 if ($idPaciente === false) {
 return ['resultado' => 422, 'mensaje' => 'Datos de paciente no válidos.'];
 }
-$sql = "INSERT INTO pac_medicacion_actual_modulo_6 (id_paciente) VALUES (:id_paciente)"; 
-$stmt = $this->bd->prepare($sql);                    
-        
-$datos = [
-':id_paciente' => $idPaciente
-];
-    
+$allowed = ['medicamento', 'descripcion', 'tiempo_uso', 'dosis', 'medico'];
+$columns = ['id_paciente'];
+$placeholders = [':id_paciente'];
+$datos = [':id_paciente' => $idPaciente];
+foreach ($allowed as $column) {
+    $value = is_array($data['fields'] ?? null) && array_key_exists($column, $data['fields'])
+        ? trim((string)$data['fields'][$column])
+        : '';
+    $columns[] = $column;
+    $placeholders[] = ':' . $column;
+    $datos[':' . $column] = $value;
+}
+$sql = 'INSERT INTO pac_medicacion_actual_modulo_6 (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $placeholders) . ')';
+$stmt = $this->bd->prepare($sql);
 if ($stmt->execute($datos)) {
-return array('resultado' => 200,'mensaje' => '¡Se habilito una nuevo medicamento correctamente!');
+return array('resultado' => 200, 'mensaje' => '¡Se habilitó un nuevo medicamento correctamente!', 'id' => (int)$this->bd->lastInsertId());
     
 } else {
 return array('resultado' => 401,'mensaje' => '¡Error al agregar la nueva cirugia a la lista!');
 }
     
+}
+
+/**
+ * Persist a patient's explicit M06 omission without changing the original
+ * medication table. The caller owns the transaction and the M06 lock.
+ */
+public function upsertM06Omission(int $idPaciente, int $idMedicacion, string $campo, string $estado): void
+{
+    if ($idPaciente < 1 || $idMedicacion < 1 || !in_array($campo, self::M06_OMISSION_FIELDS, true) || !in_array($estado, self::M06_OMISSION_STATES, true)) {
+        throw new \InvalidArgumentException('M06_OMISSION_INVALID');
+    }
+
+    $owned = $this->bd->prepare(
+        'SELECT id FROM pac_medicacion_actual_modulo_6
+         WHERE id = :id AND id_paciente = :id_paciente LIMIT 1'
+    );
+    $owned->execute([':id' => $idMedicacion, ':id_paciente' => $idPaciente]);
+    if ($owned->fetchColumn() === false) {
+        throw new \RuntimeException('M06_MEDICATION_NOT_OWNED');
+    }
+
+    $statement = $this->bd->prepare(
+        'INSERT INTO pac_medicacion_omisiones_m06
+            (id_paciente, id_medicacion, campo, estado, creado_en, actualizado_en)
+         VALUES (:id_paciente, :id_medicacion, :campo, :estado, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+         ON DUPLICATE KEY UPDATE
+            estado = VALUES(estado), actualizado_en = CURRENT_TIMESTAMP'
+    );
+    $statement->execute([
+        ':id_paciente' => $idPaciente,
+        ':id_medicacion' => $idMedicacion,
+        ':campo' => $campo,
+        ':estado' => $estado,
+    ]);
+}
+
+/**
+ * Resolve omissions after a confirmed clinical value is written. The caller
+ * keeps this statement in the same transaction as the clinical UPDATE.
+ */
+public function resolveM06Omissions(int $idPaciente, int $idMedicacion, array $fields): void
+{
+    if ($idPaciente < 1 || $idMedicacion < 1) throw new \InvalidArgumentException('M06_OMISSION_SCOPE_INVALID');
+    $fields = array_values(array_unique(array_intersect(self::M06_OMISSION_FIELDS, $fields)));
+    if ($fields === []) return;
+
+    $owned = $this->bd->prepare(
+        'SELECT id FROM pac_medicacion_actual_modulo_6
+         WHERE id = :id AND id_paciente = :id_paciente LIMIT 1'
+    );
+    $owned->execute([':id' => $idMedicacion, ':id_paciente' => $idPaciente]);
+    if ($owned->fetchColumn() === false) throw new \RuntimeException('M06_MEDICATION_NOT_OWNED');
+
+    $placeholders = [];
+    $values = [':id_paciente' => $idPaciente, ':id_medicacion' => $idMedicacion];
+    foreach ($fields as $index => $field) {
+        $placeholder = ':campo_' . $index;
+        $placeholders[] = $placeholder;
+        $values[$placeholder] = $field;
+    }
+    $statement = $this->bd->prepare(
+        'DELETE FROM pac_medicacion_omisiones_m06
+         WHERE id_paciente = :id_paciente
+           AND id_medicacion = :id_medicacion
+           AND campo IN (' . implode(', ', $placeholders) . ')'
+    );
+    $statement->execute($values);
+}
+
+/** Read only the omission rows joined to medication rows owned by the patient. */
+public function readM06Omissions(int $idPaciente): array
+{
+    if ($idPaciente < 1) throw new \InvalidArgumentException('PATIENT_INVALID');
+    $statement = $this->bd->prepare(
+        'SELECT o.id, o.id_medicacion, o.campo, o.estado, o.creado_en, o.actualizado_en
+         FROM pac_medicacion_omisiones_m06 o
+         INNER JOIN pac_medicacion_actual_modulo_6 m
+           ON m.id = o.id_medicacion AND m.id_paciente = o.id_paciente
+         WHERE o.id_paciente = :id_paciente
+         ORDER BY o.id_medicacion, o.campo'
+    );
+    $statement->execute([':id_paciente' => $idPaciente]);
+    return $statement->fetchAll(\PDO::FETCH_ASSOC);
 }
 
 //----- ELIMINAR MEDICACION PACIENTE ----------
@@ -433,7 +526,7 @@ $owned->execute([':id' => $idMedicamento, ':id_paciente' => $idPaciente]);
 $current = $owned->fetch(\PDO::FETCH_ASSOC);
 if (!$current) return ['resultado' => 403, 'mensaje' => 'No tienes autorización para modificar este registro.'];
 
-$columns = ['descripcion', 'medicamento', 'tiempo_uso', 'dosis', 'medico'];
+$columns = ['medicamento', 'descripcion', 'tiempo_uso', 'dosis', 'medico'];
 $updates = [];
 if (isset($data['fields']) && is_array($data['fields'])) {
     foreach ($columns as $column) {
@@ -441,7 +534,7 @@ if (isset($data['fields']) && is_array($data['fields'])) {
     }
 
 } elseif (isset($data['edicion'])) {
-    $legacyMap = [1 => 'descripcion', 2 => 'medicamento', 3 => 'tiempo_uso', 4 => 'dosis', 5 => 'medico'];
+    $legacyMap = [1 => 'medicamento', 2 => 'descripcion', 3 => 'tiempo_uso', 4 => 'dosis', 5 => 'medico'];
     $option = filter_var($data['edicion'], FILTER_VALIDATE_INT);
     if (!isset($legacyMap[$option])) return ['resultado' => 422, 'mensaje' => 'Campo de medicación no válido.'];
     $updates[$legacyMap[$option]] = trim((string)($data['detalle'] ?? ''));
@@ -469,16 +562,27 @@ return ['resultado' => 200, 'mensaje' => 'Información guardada correctamente.']
     {
         $idPaciente = filter_var($data['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         if ($idPaciente === false) return ['resultado' => 422, 'mensaje' => 'Datos de paciente no válidos.'];
-        $existing = $this->bd->prepare(
-            'SELECT id FROM pac_historia_clinica_finalizar WHERE id_paciente = :id_paciente AND id_modulo = 6 LIMIT 1'
-        );
-        $existing->execute([':id_paciente' => $idPaciente]);
-        if ($existing->fetchColumn() !== false) return ['resultado' => 200, 'mensaje' => 'El módulo ya estaba finalizado.'];
-        $insert = $this->bd->prepare(
-            'INSERT INTO pac_historia_clinica_finalizar (id_modulo, id_paciente) VALUES (6, :id_paciente)'
-        );
-        $insert->execute([':id_paciente' => $idPaciente]);
-        return ['resultado' => 200, 'mensaje' => 'Módulo finalizado correctamente.'];
+        $lockName = 'clinica_m06_finalizacion_' . $idPaciente;
+        $lock = $this->bd->prepare('SELECT GET_LOCK(:lock_name, 5)');
+        $lock->execute([':lock_name' => $lockName]);
+        if ((int)$lock->fetchColumn() !== 1) return ['resultado' => 409, 'mensaje' => 'No fue posible confirmar la finalización.'];
+        try {
+            $existing = $this->bd->prepare(
+                'SELECT id FROM pac_historia_clinica_finalizar WHERE id_paciente = :id_paciente AND id_modulo = 6 LIMIT 1'
+            );
+            $existing->execute([':id_paciente' => $idPaciente]);
+            if ($existing->fetchColumn() !== false) return ['resultado' => 200, 'mensaje' => 'El módulo ya estaba finalizado.'];
+            $insert = $this->bd->prepare(
+                'INSERT INTO pac_historia_clinica_finalizar (id_modulo, id_paciente) VALUES (6, :id_paciente)'
+            );
+            $insert->execute([':id_paciente' => $idPaciente]);
+            return ['resultado' => 200, 'mensaje' => 'Módulo finalizado correctamente.'];
+        } catch (\Throwable) {
+            return ['resultado' => 500, 'mensaje' => 'No fue posible finalizar M06.'];
+        } finally {
+            $release = $this->bd->prepare('SELECT RELEASE_LOCK(:lock_name)');
+            $release->execute([':lock_name' => $lockName]);
+        }
     }
 
 //----- ELIMINAR MEDICACION PACIENTE ----------

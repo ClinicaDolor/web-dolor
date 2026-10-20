@@ -33,6 +33,7 @@ $editSection = $section($controller, 'public function pacienteEditarCuestionario
 $finalizeSection = $section($controller, 'public function pacienteFinalizarModulo', 'public function ');
 $readSection = $section($model, 'public function mostrarPreguntasM7Paciente', 'public function ');
 $writeSection = $section($model, 'public function editarCuestionarioM7Paciente', 'public function ');
+$gate = $read('app/Services/M07CanonicalActivationGate.php');
 
 $check($checks, 'csrf_legacy_write_controller', str_contains($editSection, 'validCaptureCsrf') && str_contains($editSection, 'HTTP_X_M03_CSRF'));
 $check($checks, 'csrf_legacy_finalize_controller', str_contains($finalizeSection, 'validCaptureCsrf') && str_contains($finalizeSection, 'HTTP_X_M03_CSRF'));
@@ -48,7 +49,11 @@ $check($checks, 'legacy_guard_before_write', strpos($writeSection, 'validateLega
 $check($checks, 'legacy_finalize_guard', str_contains($finalizeSection, 'validateLegacyM07Finalization') && str_contains($finalizeSection, '409'));
 $check($checks, 'omitted_fields_not_converted', str_contains($model, 'm07_') && !str_contains($writeSection, "m07_respuesta_state = ''"));
 $check($checks, 'read_has_no_initializer', !str_contains($readSection, 'medicacionDolorQuest(') && !str_contains($readSection, 'INSERT INTO'));
-$check($checks, 'canonical_gate_remains_closed', str_contains($canonical, 'new M07CanonicalActivationGate(false)'));
+$check($checks, 'canonical_gate_remains_closed',
+    str_contains($canonical, 'M07CanonicalActivationGate::fromTrustedServerConfiguration()')
+    && str_contains($gate, 'getenv(\'M07_LOCAL_CANONICAL_ENABLED\') === \'1\'')
+    && str_contains($gate, 'private bool $enabled = false')
+    && str_contains($gate, 'private bool $syntheticScopeOnly = false'));
 
 $failed = array_keys(array_filter($checks, static fn(string $status): bool => $status !== 'PASS'));
 echo json_encode([

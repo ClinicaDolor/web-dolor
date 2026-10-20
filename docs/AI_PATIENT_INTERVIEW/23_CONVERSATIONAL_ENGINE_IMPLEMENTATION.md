@@ -2324,3 +2324,10 @@ REMAINING_BLOCKERS: "Aceptación autenticada en Chrome/Edge, dictado local real 
 OWNER_APPROVAL_REQUIRED: "Prueba manual del propietario con fixture sintética; no se requiere autorización para llamadas Gemini porque no se ejecutarán"
 NEXT_ACTION: "Ejecutar protocolo manual sintético en Chrome/Edge cuando esté disponible; no habilitar Gemini ni datos reales"
 ```
+## Addendum — M06 captura progresiva por nombre de medicamento (2026-10-19)
+
+La captura conversacional de M06 conserva el contrato de la tabla existente, pero ya no exige los cinco campos para crear el registro. El nombre se persiste como medicamento; descripcion (motivo), tiempo_uso, dosis y medico son opcionales y permanecen NULL cuando todavía no fueron informados. La aplicación devuelve el identificador generado y hace readback antes de permitir completar el registro o iniciar otro medicamento.
+
+Una respuesta afirmativa inicial no crea una fila vacía: solicita primero el nombre. Las respuestas parciales quedan pendientes y no pueden finalizar M06; la finalización continúa sujeta a la política existente. La edición posterior actualiza el mismo registro, mientras que la acción explícita de agregar otro crea un registro independiente. Esta corrección no modifica el esquema, la compuerta M07 ni la política de finalización.
+
+La validación estática y SQLite/local-doubles cubren nombre solamente, frase compuesta, multi-turno, respuesta desconocida, readback contractual e idempotencia. La validación funcional contra MySQL/HTTP/Chrome queda pendiente del entorno local autorizado.

@@ -4,6 +4,8 @@ param(
     [ValidateSet('ValidateExisting')]
     [string]$Mode = 'ValidateExisting',
     [switch]$AllowSyntheticWrites,
+    [switch]$PendingDmlOnly,
+    [string]$ApprovedBaselinePath = 'C:\Users\silvi\AppData\Local\ClinicaDolor\M07-baselines\m07-clinical-baseline-20261019T202549Z-91820e37.json',
     [switch]$FocalProcessTest
 )
 
@@ -215,6 +217,30 @@ function Invoke-JsonPhp {
     return [PSCustomObject]@{ ExitCode = $exitCode; Json = $json; StdOut = $stdout; StdErr = $stderr }
 }
 
+function Invoke-ExpectedPriorBaselineDiff {
+    param([string]$PhpScript, [string]$DatabaseName, [int]$SyntheticPatientA, [int]$SyntheticPatientB, [string]$SnapshotFile)
+    $invocation = Invoke-NativeProcess -FilePath $PhpPath -Arguments @($PhpScript, '--mode=forensic-diff', "--database=$DatabaseName", "--patient-a=$SyntheticPatientA", "--patient-b=$SyntheticPatientB", "--snapshot=$SnapshotFile")
+    try { $json = ([string]$invocation.StdOut | ConvertFrom-Json -ErrorAction Stop) } catch { return [PSCustomObject]@{ Pass = $false; ExitCode = [int]$invocation.ExitCode; Json = $null } }
+    $expected = @{
+        'pac_respuestas_paciente_modulo_7' = @{ baseline = 1; current = 2; added = 1; questions = '2' }
+        'pac_m07_medicamentos_no_catalogados' = @{ baseline = 0; current = 6; added = 6; questions = '8,15,22,30,37,46' }
+        'pac_m07_operaciones' = @{ baseline = 0; current = 27; added = 27; questions = '' }
+        'pac_m07_revision_clinica' = @{ baseline = 0; current = 0; added = 0; questions = '' }
+    }
+    $pass = [int]$invocation.ExitCode -eq 1 -and [string]$json.status -eq 'FORENSIC_DIFFERENCE_FOUND' -and [string]$json.database_effective -eq $DatabaseName -and [string]$json.synthetic_patients -eq '9301_9302_ONLY' -and $json.table_reports.Count -eq 4
+    foreach ($tableReport in $json.table_reports) {
+        $tableName = [string]$tableReport.table
+        if (-not $expected.ContainsKey($tableName)) { $pass = $false; continue }
+        $spec = $expected[$tableName]
+        $questions = @($tableReport.affected_question_ids | ForEach-Object { [string]$_ } | Sort-Object) -join ','
+        $patients = @($tableReport.affected_patient_ids | ForEach-Object { [int]$_ } | Sort-Object) -join ','
+        $expectedQuestions = @($spec.questions -split ',' | Where-Object { $_ -ne '' } | Sort-Object) -join ','
+        $expectedPatients = if ([int]$spec.added -gt 0) { '9301' } else { '' }
+        if ([int]$tableReport.baseline_rows -ne [int]$spec.baseline -or [int]$tableReport.current_rows -ne [int]$spec.current -or [int]$tableReport.rows_added -ne [int]$spec.added -or [int]$tableReport.rows_removed -ne 0 -or [int]$tableReport.rows_modified -ne 0 -or [int]$tableReport.duplicate_keys_detected -ne 0 -or $questions -ne $expectedQuestions -or $patients -ne $expectedPatients) { $pass = $false }
+    }
+    return [PSCustomObject]@{ Pass = $pass; ExitCode = [int]$invocation.ExitCode; Json = $json }
+}
+
 function Invoke-TextProcess {
     param([string]$Step, [string]$FilePath, [string[]]$Arguments)
     try {
@@ -264,6 +290,187 @@ function Get-RestorationStatus {
     if ($value -eq 'PASS_FOCAL') { return 'PASS' }
     if ([string]$Invocation.Json.status -match '(?i)BLOCK') { return 'BLOCKED' }
     return 'FAIL'
+}
+
+function Invoke-PendingDmlOnlyRun {
+    $baselineTool = Join-Path $root 'tests\patient-interview\m07-durable-clinical-baseline.php'
+    $pendingTests = Join-Path $root 'tests\patient-interview\m07-shared-canonical-integration.php'
+    $requiredScripts = @(
+        $PhpPath,
+        $validator,
+        $baselineTool,
+        $pendingTests,
+        $sharedContract,
+        (Join-Path $root 'tests\patient-interview\m07-other-medication-sql-contract.php'),
+        (Join-Path $root 'tests\patient-interview\m06-conversational-flow-contract.php'),
+        (Join-Path $root 'tests\patient-interview\m06-omission-contract.php'),
+        (Join-Path $root 'tests\patient-interview\m04-m06-functional-contract.php')
+    )
+    $result = [ordered]@{
+        PHASE = 'M07_PENDING_DML_FINAL_INTEGRATION_V1'
+        MODE = '--pending-dml-only'
+        DATABASE = $database
+        SERVER = 'NOT_VERIFIED'
+        PORT = 'NOT_VERIFIED'
+        DATABASE_GUARD = 'NOT_REACHED'
+        SCHEMA_PREFLIGHT = 'NOT_REACHED'
+        APPROVED_BASELINE_COMPARE_BEFORE = 'NOT_REACHED'
+        PRE_RUN_SNAPSHOT = 'NOT_CREATED'
+        PRE_RUN_SNAPSHOT_VERIFIED = 'NOT_REACHED'
+        APPROVED_BASELINE_COMPARE_AFTER_SNAPSHOT = 'NOT_REACHED'
+        PREVIOUS_ROWS_EXPECTED = 34
+        PREVIOUS_ROWS_PRESERVED = 'NOT_REACHED'
+        PREVIOUS_AUDIT_PRESERVED = 'NOT_REACHED'
+        DML_01_IDEMPOTENCY_CONFLICT = 'NOT_REACHED'
+        DML_02_STALE_VERSION = 'NOT_REACHED'
+        DML_03_APPEND_ONLY_AUDIT = 'NOT_REACHED'
+        DML_04_SQL_ROLLBACK = 'NOT_REACHED'
+        NEW_MEDICATION_ROWS = 'NOT_REACHED'
+        NEW_AUDIT_ROWS = 'NOT_REACHED'
+        OTHER_NEW_ROWS = 'NOT_REACHED'
+        NEW_ROW_IDS = @()
+        POST_RUN_INTEGRITY = 'NOT_REACHED'
+        M07_GATE = 'NOT_REACHED'
+        M06_REGRESSION = 'NOT_REACHED'
+        STATIC_TESTS = 'NOT_REACHED'
+        MYSQL_DML = 'NOT_REACHED'
+        FAILURE_STAGE = 'NONE'
+        ERROR_SANITIZED = 'NONE'
+        FINAL_STATUS = 'BLOCKED'
+    }
+    $stage = 'startup'
+    $snapshotPath = ''
+    $child = $null
+    $childAttempted = $false
+    $postDiff = $null
+    $postSchema = $null
+    $staticResults = @{}
+    try {
+        if ($AllowSyntheticWrites) { throw 'No se combina el modo acotado con el modo amplio de escrituras.' }
+        foreach ($required in $requiredScripts) {
+            if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw 'Falta un ejecutable o arnés requerido.' }
+        }
+        if (-not (Test-Path -LiteralPath $ApprovedBaselinePath -PathType Leaf)) { throw 'Falta el baseline durable previamente aprobado.' }
+        if ($PSVersionTable.PSVersion.Major -ne 5 -or $PSVersionTable.PSVersion.Minor -ne 1) { throw 'El modo acotado requiere Windows PowerShell 5.1.' }
+        $approvedFullPath = (Resolve-Path -LiteralPath $ApprovedBaselinePath).Path
+        $requiredApprovedPath = 'C:\Users\silvi\AppData\Local\ClinicaDolor\M07-baselines\m07-clinical-baseline-20261019T202549Z-91820e37.json'
+        if (-not [string]::Equals($approvedFullPath, $requiredApprovedPath, [StringComparison]::OrdinalIgnoreCase)) { throw 'El modo acotado sólo admite el baseline aprobado explícito.' }
+        $integrity = (& whoami.exe /groups /fo csv /nh 2>$null | Out-String)
+        if ($integrity -notmatch '(?i)Medium Mandatory Level') { throw 'El modo de escritura requiere PowerShell normal con integridad Medium.' }
+
+        $stage = 'gate_closed_static_contract'
+        $gateContract = Invoke-TextProcess $stage $PhpPath @($sharedContract)
+        if ($gateContract.ExitCode -ne 0) { throw 'El contrato estático no confirma que M07 permanezca cerrado.' }
+        $result.M07_GATE = 'CLOSED_STATIC_CONTRACT_PASS'
+
+        $stage = 'read_only_schema_validation'
+        $schemaResult = Invoke-JsonPhp $stage $validator @("--database=$database", "--patient-a=$patientA", "--patient-b=$patientB")
+        if ($schemaResult.ExitCode -ne 0 -or [string]$schemaResult.Json.status -ne 'PASS_READ_ONLY_EXISTING_SCHEMA' -or [string]$schemaResult.Json.database_effective -ne 'PASS' -or [string]$schemaResult.Json.schema_integrity -ne 'PASS' -or [string]$schemaResult.Json.clinical_state_integrity -ne 'PASS') { throw 'El preflight read-only de esquema e integridad no pasó.' }
+        $result.SCHEMA_PREFLIGHT = 'PASS_READ_ONLY_EXISTING_SCHEMA'
+        $result.DATABASE_GUARD = 'PASS_EFFECTIVE_DATABASE_EXACT'
+        $result.SERVER = 'PC'
+        $result.PORT = 3306
+
+        $stage = 'approved_baseline_expected_prior_delta_before'
+        $oldDiff = Invoke-ExpectedPriorBaselineDiff $baselineTool $database $patientA $patientB $approvedFullPath
+        if (-not $oldDiff.Pass) { throw 'El estado previo no coincide con las 34 diferencias sintéticas previamente autorizadas.' }
+        $result.APPROVED_BASELINE_COMPARE_BEFORE = 'PASS_EXACT_PREVIOUS_34_ROW_DELTA'
+
+        $stage = 'pre_run_snapshot_create'
+        $snapshotResult = Invoke-JsonPhp $stage $baselineTool @('--mode=create', "--database=$database", "--patient-a=$patientA", "--patient-b=$patientB")
+        if ($snapshotResult.ExitCode -ne 0 -or [string]$snapshotResult.Json.status -ne 'PASS_DURABLE_BASELINE_CREATED' -or [string]$snapshotResult.Json.database_effective -ne $database -or [string]$snapshotResult.Json.consistent_snapshot -ne 'PASS_DOUBLE_READ_SAME_TRANSACTION' -or [string]$snapshotResult.Json.snapshot_file_readback -ne 'PASS') { throw 'No se pudo verificar un snapshot pre-run durable.' }
+        $snapshotPath = [string]$snapshotResult.Json.snapshot_path
+        if ([string]::IsNullOrWhiteSpace($snapshotPath) -or -not (Test-Path -LiteralPath $snapshotPath -PathType Leaf)) { throw 'El archivo del snapshot pre-run no está disponible.' }
+        $result.PRE_RUN_SNAPSHOT = $snapshotPath
+        $result.PRE_RUN_SNAPSHOT_VERIFIED = 'PASS_FULL_ROWS_MANIFEST_READBACK'
+
+        $stage = 'approved_baseline_expected_prior_delta_after_snapshot'
+        $oldDiffAfterSnapshot = Invoke-ExpectedPriorBaselineDiff $baselineTool $database $patientA $patientB $approvedFullPath
+        if (-not $oldDiffAfterSnapshot.Pass) { throw 'El estado cambió durante la creación del snapshot; no se iniciará DML.' }
+        $result.APPROVED_BASELINE_COMPARE_AFTER_SNAPSHOT = 'PASS_EXACT_PREVIOUS_34_ROW_DELTA'
+
+        $stage = 'pending_dml_only'
+        $childAttempted = $true
+        $child = Invoke-JsonPhp $stage $pendingTests @('--allow-synthetic-write', '--pending-dml-only', "--database=$database", "--patient-a=$patientA", "--patient-b=$patientB", "--snapshot=$snapshotPath")
+        $testNames = @{
+            DML_01_IDEMPOTENCY_CONFLICT = 'other_medication_idempotency_payload_conflict'
+            DML_02_STALE_VERSION = 'other_medication_stale_version_conflict'
+            DML_03_APPEND_ONLY_AUDIT = 'append_only_operation_audit'
+            DML_04_SQL_ROLLBACK = 'other_medication_atomic_rollback'
+        }
+        foreach ($key in $testNames.Keys) {
+            $result[$key] = if ([string]$child.Json.tests.($testNames[$key]) -eq 'PASS') { 'PASS' } elseif ([string]$child.Json.tests.($testNames[$key]) -eq 'FAIL') { 'FAIL' } else { 'NOT_REACHED' }
+        }
+        $result.PREVIOUS_ROWS_PRESERVED = if ([string]$child.Json.original_baseline_preserved -eq 'PASS_PRE_RUN_SNAPSHOT_ROWS_UNCHANGED' -and [string]$child.Json.authorized_synthetic_rows_retained -eq 'PASS' -and [string]$child.Json.previous_rows_verified -eq '34') { 'PASS' } else { 'FAIL' }
+        $result.PREVIOUS_AUDIT_PRESERVED = if ([string]$child.Json.authorized_synthetic_rows_retained -eq 'PASS' -and [string]$child.Json.original_baseline_preserved -eq 'PASS_PRE_RUN_SNAPSHOT_ROWS_UNCHANGED') { 'PASS' } else { 'FAIL' }
+        $result.NEW_MEDICATION_ROWS = [string]$child.Json.new_medication_rows
+        $result.NEW_AUDIT_ROWS = [string]$child.Json.new_audit_rows
+        $result.OTHER_NEW_ROWS = [string]$child.Json.other_new_rows
+        $result.NEW_ROW_IDS = @($child.Json.retained_test_records | Where-Object { $_.change -eq 'CREATED' } | ForEach-Object { [PSCustomObject]@{ table = $_.table; id = $_.id } })
+        $result.MYSQL_DML = if ($child.ExitCode -eq 0) { 'PASS' } elseif ($child.ExitCode -eq 2) { 'BLOCKED' } else { 'FAIL' }
+        if ($child.ExitCode -ne 0 -or [string]$child.Json.status -ne 'PASS_PENDING_SYNTHETIC_DML_CASES' -or [string]$child.Json.pending_dml_write_budget -ne 'PASS_ONE_MEDICATION_ONE_AUDIT_NO_OTHER_ROWS' -or [string]$result.PREVIOUS_ROWS_PRESERVED -ne 'PASS') { throw 'La integración DML limitada no pasó todos los contratos.' }
+    } catch {
+        $result.FAILURE_STAGE = $stage
+        $result.ERROR_SANITIZED = switch ($stage) {
+            'read_only_schema_validation' { 'Preflight read-only de esquema o integridad fallido.' }
+            'approved_baseline_compare_before' { 'El estado previo difiere del baseline aprobado.' }
+            'pre_run_snapshot_create' { 'Snapshot durable pre-run no verificado.' }
+            'approved_baseline_compare_after_snapshot' { 'Diferencia detectada antes de DML; ejecución detenida.' }
+            'pending_dml_only' { 'Una o más pruebas DML limitadas fallaron o fueron bloqueadas.' }
+            default { 'Precondición del ejecutor no satisfecha.' }
+        }
+    } finally {
+        if ($childAttempted -and -not [string]::IsNullOrWhiteSpace($snapshotPath) -and (Test-Path -LiteralPath $snapshotPath -PathType Leaf)) {
+            try {
+                $stage = 'post_run_forensic_diff'
+                $diffInvocation = Invoke-NativeProcess -FilePath $PhpPath -Arguments @($baselineTool, '--mode=forensic-diff', "--database=$database", "--patient-a=$patientA", "--patient-b=$patientB", "--snapshot=$snapshotPath")
+                $postDiff = ([string]$diffInvocation.StdOut | ConvertFrom-Json -ErrorAction Stop)
+                $result.POST_RUN_FORENSIC_DIFF_EXIT_CODE = [int]$diffInvocation.ExitCode
+                $expectedByTable = @{
+                    'pac_respuestas_paciente_modulo_7' = 0
+                    'pac_m07_medicamentos_no_catalogados' = 1
+                    'pac_m07_operaciones' = 1
+                    'pac_m07_revision_clinica' = 0
+                }
+                $diffMatches = $true
+                foreach ($tableReport in $postDiff.table_reports) {
+                    if (-not $expectedByTable.ContainsKey([string]$tableReport.table) -or [int]$tableReport.rows_added -ne $expectedByTable[[string]$tableReport.table] -or [int]$tableReport.rows_removed -ne 0 -or [int]$tableReport.rows_modified -ne 0 -or [int]$tableReport.duplicate_keys_detected -ne 0) { $diffMatches = $false }
+                }
+                $result.POST_RUN_INTEGRITY = if ($diffMatches -and $postDiff.table_reports.Count -eq 4) { 'PASS_EXPECTED_ONE_MEDICATION_ONE_AUDIT' } else { 'FAIL_UNEXPECTED_POST_RUN_DELTA' }
+            } catch {
+                $result.POST_RUN_INTEGRITY = 'FAIL_NOT_VERIFIABLE'
+                if ($result.FAILURE_STAGE -eq 'NONE') { $result.FAILURE_STAGE = 'post_run_forensic_diff'; $result.ERROR_SANITIZED = 'No se pudo completar la comparación forense de solo lectura.' }
+            }
+            try {
+                $stage = 'post_run_schema_validation'
+                $postSchema = Invoke-JsonPhp $stage $validator @("--database=$database", "--patient-a=$patientA", "--patient-b=$patientB")
+                $result.POST_RUN_SCHEMA_PREFLIGHT = if ($postSchema.ExitCode -eq 0 -and [string]$postSchema.Json.status -eq 'PASS_READ_ONLY_EXISTING_SCHEMA' -and [string]$postSchema.Json.database_effective -eq 'PASS' -and [string]$postSchema.Json.schema_integrity -eq 'PASS' -and [string]$postSchema.Json.clinical_state_integrity -eq 'PASS') { 'PASS' } else { 'FAIL' }
+            } catch {
+                $result.POST_RUN_SCHEMA_PREFLIGHT = 'FAIL_NOT_VERIFIABLE'
+            }
+        }
+        foreach ($contractPath in @(
+            $sharedContract,
+            (Join-Path $root 'tests\patient-interview\m07-other-medication-sql-contract.php'),
+            (Join-Path $root 'tests\patient-interview\m06-conversational-flow-contract.php'),
+            (Join-Path $root 'tests\patient-interview\m06-omission-contract.php'),
+            (Join-Path $root 'tests\patient-interview\m04-m06-functional-contract.php')
+        )) {
+            try {
+                $contractResult = Invoke-TextProcess 'post_dml_static_regression' $PhpPath @($contractPath)
+                $staticResults[[IO.Path]::GetFileName($contractPath)] = if ($contractResult.ExitCode -eq 0) { 'PASS' } else { 'FAIL' }
+            } catch { $staticResults[[IO.Path]::GetFileName($contractPath)] = 'FAIL' }
+        }
+        $result.STATIC_TESTS = if (@($staticResults.Values | Where-Object { $_ -ne 'PASS' }).Count -eq 0) { 'PASS' } else { 'FAIL' }
+        $result.M06_REGRESSION = if ($staticResults['m06-conversational-flow-contract.php'] -eq 'PASS' -and $staticResults['m06-omission-contract.php'] -eq 'PASS' -and $staticResults['m04-m06-functional-contract.php'] -eq 'PASS') { 'PASS_STATIC' } else { 'FAIL' }
+        $result.STATIC_TEST_DETAILS = $staticResults
+    }
+    if ($result.FAILURE_STAGE -eq 'NONE' -and $result.POST_RUN_INTEGRITY -eq 'PASS_EXPECTED_ONE_MEDICATION_ONE_AUDIT' -and $result.POST_RUN_SCHEMA_PREFLIGHT -eq 'PASS' -and $result.STATIC_TESTS -eq 'PASS') {
+        $result.FINAL_STATUS = 'M07_MYSQL_INTEGRATION_ACCEPTED_SYNTHETIC'
+    } else {
+        $result.FINAL_STATUS = if ($result.FAILURE_STAGE -match 'precondition|schema_validation|baseline|snapshot') { 'BLOCKED' } else { 'PARTIAL_WITH_BLOCKERS' }
+    }
+    return [PSCustomObject]$result
 }
 
 function Assert-Focal {
@@ -355,6 +562,13 @@ if ($FocalProcessTest) {
         Write-Output ([ordered]@{ FOCAL_PROCESS_CLASSIFICATION = 'FAIL'; ERROR = 'Prueba focal no superada.' } | ConvertTo-Json -Compress)
         exit 1
     }
+}
+
+if ($PendingDmlOnly) {
+    $pendingResult = Invoke-PendingDmlOnlyRun
+    Write-Output ($pendingResult | ConvertTo-Json -Depth 10)
+    if ([string]$pendingResult.FINAL_STATUS -eq 'M07_MYSQL_INTEGRATION_ACCEPTED_SYNTHETIC') { exit 0 }
+    exit 2
 }
 
 try {

@@ -101,11 +101,19 @@
             };
         }
 
+        reportError(error = {}) {
+            this.pendingActivation = null;
+            this.clearPlaybackTimer();
+            this.activeUtterance = null;
+            this.setState(STATES.VOICE_ERROR);
+            this.onError(error);
+            return false;
+        }
+
         activateStartup(introEvent, questionEvent, options = {}) {
             const startup = this.startupEvent(introEvent, questionEvent);
             if (!startup) {
-                this.onError({code: !String(questionEvent?.text || '').trim() ? 'QUESTION_TEXT_MISSING' : 'STARTUP_INTRO_MISSING'});
-                return false;
+                return this.reportError({code: !String(questionEvent?.text || '').trim() ? 'QUESTION_TEXT_MISSING' : 'STARTUP_INTRO_MISSING'});
             }
             const after = () => {
                 this.lastEvent = questionEvent;
@@ -119,8 +127,7 @@
         speakStartup(introEvent, questionEvent, options = {}) {
             const startup = this.startupEvent(introEvent, questionEvent);
             if (!startup) {
-                this.onError({code: !String(questionEvent?.text || '').trim() ? 'QUESTION_TEXT_MISSING' : 'STARTUP_INTRO_MISSING'});
-                return false;
+                return this.reportError({code: !String(questionEvent?.text || '').trim() ? 'QUESTION_TEXT_MISSING' : 'STARTUP_INTRO_MISSING'});
             }
             const after = () => {
                 this.lastEvent = questionEvent;

@@ -1,7 +1,8 @@
 param(
     [int]$Port = 8117,
     [int]$TimeoutSeconds = 15,
-    [string]$ApacheExe = 'C:\xampp\apache\bin\httpd.exe'
+    [string]$ApacheExe = 'C:\xampp\apache\bin\httpd.exe',
+    [switch]$ApplicationReadOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -38,6 +39,7 @@ $httpFailureType = 'NOT_REACHED'
 $httpResult = 'NOT_REACHED'
 $http503Source = 'NOT_REACHED'
 $httpGuardCode = 'NOT_REACHED'
+$httpCaseResults = @()
 $cleanupStatus = 'NOT_REACHED'
 $cleanupFailureDetail = 'NOT_REACHED'
 $cleanupChecks = @()
@@ -110,7 +112,7 @@ function Find-RecoveredRuntime {
             $candidate = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
             if ([string]$candidate.database -eq $database -and
                 [int]$candidate.port -eq $Port -and
-                [bool]$candidate.preflightOnly -and
+                ([bool]$candidate.preflightOnly -eq (-not [bool]$ApplicationReadOnly)) -and
                 $directory.FullName.StartsWith($baseFull, [StringComparison]::OrdinalIgnoreCase)) {
                 return $directory.FullName
             }
@@ -129,7 +131,7 @@ function Read-And-ValidateRuntime([string]$RuntimePath) {
     $candidate = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
     if ([string]$candidate.database -ne $database) { throw 'La base del runtime no es la sintética autorizada.' }
     if ([int]$candidate.port -ne $Port) { throw 'El puerto del runtime no coincide.' }
-    if (-not [bool]$candidate.preflightOnly) { throw 'El runtime no está en modo PreflightOnly.' }
+    if ([bool]$candidate.preflightOnly -eq [bool]$ApplicationReadOnly) { throw 'El modo del runtime no coincide con el modo solicitado.' }
     if ([string]$candidate.executable -ne $expectedApachePath) { throw 'El ejecutable del runtime no coincide.' }
     if (-not [bool]$candidate.stdoutRedirected -or -not [bool]$candidate.stderrRedirected) { throw 'El runtime no confirma redirección a archivos.' }
 
@@ -235,11 +237,88 @@ function Invoke-HttpPreflight {
     }
 }
 
+function Invoke-AnonymousApplicationReadOnly {
+    $cases = @(
+        @{ path = '/'; expectedStatus = 200; expectedRedirect = 'NONE' },
+        @{ path = '/historia-clinica/acceso'; expectedStatus = 200; expectedRedirect = 'NONE' },
+        @{ path = '/historia-clinica/entrevista'; expectedStatus = 302; expectedRedirect = 'PATIENT_ACCESS' },
+        @{ path = '/clinica/acceso'; expectedStatus = 200; expectedRedirect = 'NONE' }
+    )
+    $failedCases = 0
+    foreach ($case in $cases) {
+        $request = [System.Net.HttpWebRequest]::Create('http://127.0.0.1:' + $Port + $case.path)
+        $request.Method = 'GET'
+        $request.AllowAutoRedirect = $false
+        $request.Timeout = 7000
+        $request.ReadWriteTimeout = 7000
+        $request.CookieContainer = $null
+        $watch = [Diagnostics.Stopwatch]::StartNew()
+        $response = $null
+        $transport = 'HTTP_RESPONSE'
+        try {
+            $response = [System.Net.HttpWebResponse]$request.GetResponse()
+        } catch [System.Net.WebException] {
+            $response = $_.Exception.Response
+            if ($null -eq $response) { $transport = 'TRANSPORT_ERROR' }
+        }
+        $watch.Stop()
+        if ($null -eq $response) {
+            $script:httpCaseResults += [ordered]@{ path=$case.path; status='NO_RESPONSE'; database_guard='NOT_CONFIRMED'; redirect='NONE'; latency_ms=$watch.ElapsedMilliseconds; result='FAIL' }
+            $failedCases++
+            continue
+        }
+        $status = [int]$response.StatusCode
+        $guard = [string]$response.Headers['X-M07-Database-Guard']
+        $location = [string]$response.Headers['Location']
+        $redirectClass = if ($location -match '/historia-clinica/acceso') { 'PATIENT_ACCESS' } elseif ($location -match '/clinica/acceso') { 'CLINIC_ACCESS' } elseif ([string]::IsNullOrEmpty($location)) { 'NONE' } else { 'OTHER_REDACTED' }
+        $response.Dispose()
+        $pass = $transport -eq 'HTTP_RESPONSE' -and $status -eq [int]$case.expectedStatus -and $guard -eq 'PASS' -and $redirectClass -eq [string]$case.expectedRedirect
+        if (-not $pass) { $failedCases++ }
+        $script:httpCaseResults += [ordered]@{
+            path = $case.path
+            status = $status
+            database_guard = if ($guard -eq 'PASS') { 'PASS' } else { 'NOT_CONFIRMED' }
+            redirect = $redirectClass
+            latency_ms = $watch.ElapsedMilliseconds
+            result = if ($pass) { 'PASS' } else { 'FAIL' }
+        }
+    }
+    $script:httpResult = if ($failedCases -eq 0) { 'PASS' } else { 'FAIL' }
+    $script:httpStatus = 'MULTI_CASE'
+    $script:httpBody = 'NOT_CAPTURED'
+    $script:httpBodyClass = 'NOT_CAPTURED'
+    $script:httpFailureType = 'HTTP_READ_ONLY_CASES'
+    if ($failedCases -gt 0) { Add-Failure 'Una o más rutas HTTP anónimas no cumplieron el contrato de solo lectura.' }
+}
+
+function Get-SyntheticProcessRecordsForState([object]$RuntimeState) {
+    $expectedPath = [IO.Path]::GetFullPath([string]$RuntimeState.executable)
+    $configPath = [IO.Path]::GetFullPath([string]$RuntimeState.config)
+    $records = @(Get-CimInstance Win32_Process -Filter "Name = 'httpd.exe'" -ErrorAction Stop)
+    return @($records | Where-Object {
+        try {
+            [IO.Path]::GetFullPath([string]$_.ExecutablePath) -eq $expectedPath -and
+                ([string]$_.CommandLine).IndexOf($configPath, [StringComparison]::OrdinalIgnoreCase) -ge 0
+        } catch { $false }
+    })
+}
+
+function Test-IndependentRuntimeCleanup([object]$RuntimeState) {
+    try {
+        $rootProcess = Get-Process -Id ([int]$RuntimeState.pid) -ErrorAction SilentlyContinue
+        $listener = Get-NetTCPConnection -State Listen -LocalAddress '127.0.0.1' -LocalPort $Port -ErrorAction SilentlyContinue | Select-Object -First 1
+        $ownedProcesses = @(Get-SyntheticProcessRecordsForState $RuntimeState)
+        return ($null -eq $rootProcess -and $null -eq $listener -and $ownedProcesses.Count -eq 0)
+    } catch {
+        return $false
+    }
+}
+
 try {
     $wrapperLines = @(
         '$ErrorActionPreference = ''Stop'''
         'try {'
-        ('    & ' + (ConvertTo-PowerShellLiteral $startScript) + ' -Port ' + [string]$Port + ' -PreflightOnly')
+        ('    & ' + (ConvertTo-PowerShellLiteral $startScript) + ' -Port ' + [string]$Port + $(if ($ApplicationReadOnly) { '' } else { ' -PreflightOnly' }))
         ('    [ordered]@{ completed = $true; status = ''START_COMPLETED'' } | ConvertTo-Json -Compress | Set-Content -LiteralPath ' + (ConvertTo-PowerShellLiteral $statusPath) + ' -Encoding UTF8')
         '    exit 0'
         '} catch {'
@@ -312,7 +391,7 @@ try {
     } else {
         try {
             $state = Read-And-ValidateRuntime $runtime
-            Invoke-HttpPreflight
+            if ($ApplicationReadOnly) { Invoke-AnonymousApplicationReadOnly } else { Invoke-HttpPreflight }
         } catch {
             Add-Failure $_.Exception.Message
         }
@@ -325,15 +404,25 @@ try {
             if ($null -eq $state) {
                 $state = Get-Content -LiteralPath (Join-Path $runtime 'process.json') -Raw | ConvertFrom-Json
             }
-            $cleanupStopOutput = @(& $stopScript -Runtime $runtime)
-            $stopOutputText = ($cleanupStopOutput | ForEach-Object { [string]$_ }) -join ' '
+            try {
+                $cleanupStopOutput = @(& $stopScript -Runtime $runtime)
+                $stopOutputText = ($cleanupStopOutput | ForEach-Object { [string]$_ }) -join ' '
+            } catch {
+                $stopOutputText = Sanitize-Diagnostic $_.Exception.Message
+            }
             $stopOutputPass = $stopOutputText -match 'PROCESS_STATUS=(STOPPED_CLEAN|ALREADY_EXITED_VERIFIED|ALREADY_EXITED_CLEAN)'
             if ($stopOutputPass) {
                 $stopObserved = 'VERIFIED_CLEAN_STOP'
                 $stopResult = 'PASS'
             } else {
-                $stopObserved = Sanitize-Diagnostic $stopOutputText
-                $stopResult = 'FAIL'
+                if (Test-IndependentRuntimeCleanup $state) {
+                    $stopObserved = 'INDEPENDENTLY_VERIFIED_ALREADY_CLEAN'
+                    $stopResult = 'PASS'
+                    $stopOutputPass = $true
+                } else {
+                    $stopObserved = Sanitize-Diagnostic $stopOutputText
+                    $stopResult = 'FAIL'
+                }
             }
             Add-CleanupCheck 'APACHE_STOP_SCRIPT' 'owned Apache runtime' 'verified clean stop' $stopObserved $stopResult 'stop-m07-apache.ps1 output'
             if (-not $stopOutputPass) {
@@ -341,6 +430,7 @@ try {
             }
             $remainingProcess = Get-Process -Id ([int]$state.pid) -ErrorAction SilentlyContinue
             $remainingListener = Get-NetTCPConnection -State Listen -LocalAddress '127.0.0.1' -LocalPort $Port -ErrorAction SilentlyContinue | Select-Object -First 1
+            $remainingSyntheticProcesses = @(Get-SyntheticProcessRecordsForState $state)
             if ($null -eq $remainingProcess) {
                 $processObserved = 'NO_OWNED_ROOT_PROCESS'
                 $processResult = 'PASS'
@@ -356,8 +446,11 @@ try {
                 $listenerResult = 'FAIL'
             }
             Add-CleanupCheck 'APACHE_PROCESS_EXIT' 'recorded Apache PID' 'NO_OWNED_PROCESS_ALIVE' $processObserved $processResult ('process.json pid=' + [string]$state.pid)
+            $treeObserved = if ($remainingSyntheticProcesses.Count -eq 0) { 'NO_RUNTIME_PROCESSES' } else { 'RUNTIME_PROCESS_REMAINS' }
+            $treeResult = if ($remainingSyntheticProcesses.Count -eq 0) { 'PASS' } else { 'FAIL' }
+            Add-CleanupCheck 'APACHE_PROCESS_TREE_EXIT' 'process.json executable and config' 'NO_RUNTIME_PROCESSES' $treeObserved $treeResult 'Win32_Process executable/config identity'
             Add-CleanupCheck 'PORT_8117_RELEASE' '127.0.0.1:8117' 'FREE' $listenerObserved $listenerResult 'Get-NetTCPConnection'
-            if ($null -eq $remainingProcess -and $null -eq $remainingListener) {
+            if ($null -eq $remainingProcess -and $null -eq $remainingListener -and $remainingSyntheticProcesses.Count -eq 0) {
                 $cleanupStatus = 'PASS'
             } else {
                 $cleanupStatus = 'FAIL'
@@ -399,6 +492,7 @@ try {
     HTTP_RESULT = $httpResult
     HTTP_503_SOURCE = $http503Source
     HTTP_GUARD_FAILURE_CODE = $httpGuardCode
+    HTTP_CASE_RESULTS = ($httpCaseResults | ConvertTo-Json -Compress)
     CLEANUP = $cleanupStatus
     CLEANUP_FAILURE_DETAIL = $cleanupFailureDetail
     CLEANUP_CHECKS = ($cleanupChecks | ConvertTo-Json -Compress)

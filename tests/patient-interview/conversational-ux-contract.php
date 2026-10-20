@@ -4,8 +4,10 @@ declare(strict_types=1);
 $root = dirname(__DIR__, 2);
 $view = file_get_contents($root . '/app/views/paciente/entrevista.php');
 $coordinator = file_get_contents($root . '/public/assets/js/patient-interview-coordinator.js');
+$m07Gate = file_get_contents($root . '/app/Services/M07CanonicalActivationGate.php');
+$finalizer = file_get_contents($root . '/app/Services/ConversationalModuleFinalizationService.php');
 
-if ($view === false || $coordinator === false) {
+if ($view === false || $coordinator === false || $m07Gate === false || $finalizer === false) {
     throw new RuntimeException('CONVERSATIONAL_UX_FILES_NOT_READABLE');
 }
 
@@ -44,7 +46,9 @@ $checks = [
     'hidden_voice_targets_ignored' => str_contains($view, ':not([hidden]):not(.chat-stage-hidden)') && str_contains($view, "closest('[hidden], .chat-stage-hidden')"),
     'session_scoped_voice_preference' => !str_contains($view, 'localStorage') && str_contains($view, 'sessionStorage') && !str_contains($coordinator, 'localStorage') && !str_contains($coordinator, 'sessionStorage'),
     'no_external_voice_engine' => !str_contains($view, 'MediaRecorder') && !str_contains($view, 'fetch(' . "'https://"),
-    'canonical_gate_preserved' => str_contains($view, 'M07_CANONICAL_DISABLED'),
+    'canonical_gate_preserved' => str_contains($m07Gate, 'private bool $enabled = false')
+        && str_contains($m07Gate, 'if (!$this->enabled)')
+        && str_contains($finalizer, 'M07_CANONICAL_DISABLED'),
 ];
 
 foreach ($checks as $name => $passed) {

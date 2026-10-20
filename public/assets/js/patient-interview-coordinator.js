@@ -81,6 +81,18 @@
             return module?.questions?.[0] || null;
         }
 
+        actionContract(target = this.currentTarget) {
+            const key = this.targetKey(target);
+            if (!key || !this.contract?.modules) return null;
+            for (const [moduleId, module] of Object.entries(this.contract.modules)) {
+                const state = module?.conversation_state;
+                if (state && String(state.action_id || '') === key) {
+                    return {...state, module_id: moduleId, module_title: module.title || moduleId};
+                }
+            }
+            return null;
+        }
+
         stableIdForQuestion(moduleId, questionId) {
             const expectedModule = String(moduleId || '').trim();
             const expectedQuestion = String(questionId ?? '').trim();
@@ -93,19 +105,21 @@
 
         contextFor(target = this.currentTarget) {
             const key = this.targetKey(target);
+            const action = this.actionContract(key);
             const question = this.questionContract(key);
-            const moduleId = question?.module_id || this.moduleContractId(key);
+            const moduleId = action?.module_id || question?.module_id || this.moduleContractId(key);
             const module = this.contract?.modules?.[moduleId] || null;
             return {
                 module_id: moduleId || null,
                 theme_id: question?.theme_id ?? null,
                 theme: question?.theme ?? null,
                 question_id: question?.question_id ?? null,
-                stable_id: question?.stable_id || (key.includes(':') && key !== 'interview:current' ? key : null),
+                stable_id: question?.stable_id || (action ? null : (key.includes(':') && key !== 'interview:current' ? key : null)),
+                action_id: action?.action_id || null,
                 version: question?.version ?? module?.version ?? this.contract?.version ?? null,
                 revision: this.revision,
                 operation_generation: this.sequence,
-                visible_text: question?.visible_text || null,
+                visible_text: question?.visible_text || action?.voice_text || null,
                 instruction: question?.instruction || null,
                 help: question?.help || null,
             };
@@ -117,6 +131,7 @@
         }
 
         voiceEvent(type, target = this.currentTarget, notify = true) {
+            const action = this.actionContract(target);
             const question = this.questionContract(target);
             const key = this.targetKey(target);
             const questionLike = key.includes(':') && key !== 'interview:current';
@@ -125,10 +140,15 @@
             const moduleVoice = module?.voice || {};
             const contractVoice = this.contract?.voice || {};
             const aliases = type === 'COMPLETION' ? ['COMPLETION', 'MODULE_COMPLETED'] : [type];
-            const text = aliases.map(voiceKey => questionVoice[voiceKey] || (!questionLike ? moduleVoice[voiceKey] : null) || contractVoice[voiceKey]).find(Boolean) || null;
+            const text = action
+                ? ((type === 'ACTION' || type === 'QUESTION')
+                    ? action.voice_text || null
+                    : aliases.map(voiceKey => moduleVoice[voiceKey] || contractVoice[voiceKey]).find(Boolean) || null)
+                : aliases.map(voiceKey => questionVoice[voiceKey] || (!questionLike ? moduleVoice[voiceKey] : null) || contractVoice[voiceKey]).find(Boolean) || null;
             const event = {
                 type,
-                stable_id: question?.stable_id || target || null,
+                stable_id: question?.stable_id || (action ? null : target || null),
+                action_id: action?.action_id || null,
                 text,
                 state: this.state,
                 patient_id: this.patientId,
@@ -176,7 +196,19 @@
 
         setTarget(target) {
             const key = this.targetKey(target);
-            if (this.currentTarget === key) return key;
+            const action = this.actionContract(key);
+            if (this.currentTarget === key) {
+                // A progressive module may keep the same stable_id while
+                // moving from one confirmed field to the next. Re-arm the
+                // question state before accepting the next submission; an
+                // otherwise valid request must not be mislabeled as a
+                // duplicate merely because the target id did not change.
+                if (this.state === STATES.RESPONSE_SAVED) {
+                    this.transition(STATES.NAVIGATING, {target: key, reason: 'target_refreshed'});
+                    this.transition(STATES.ASKING, {target: key, reason: 'next_question'});
+                }
+                return key;
+            }
             this.invalidate('target_changed');
             this.currentTarget = key;
             this.currentContext = this.contextFor(key);
@@ -188,8 +220,14 @@
             } else if (this.state === STATES.MODULE_BLOCKED) {
                 this.onStateChange({previous: this.state, state: this.state, metadata: {target: key}, revision: this.revision});
             }
-            this.voiceEvent('QUESTION', key);
+            this.voiceEvent(action ? 'ACTION' : 'QUESTION', key);
             return key;
+        }
+
+        setActionTarget(target) {
+            const key = this.targetKey(target);
+            if (!this.actionContract(key)) return null;
+            return this.setTarget(key);
         }
 
         invalidate(reason = 'invalidated') {
@@ -274,26 +312,32 @@
             if (!operation) return jsonResponse({resultado: false, code: this.paused ? 'COORDINATOR_PAUSED' : 'COORDINATOR_DUPLICATE_REQUEST', mensaje: this.paused ? 'La entrevista está pausada.' : 'Ya existe una operación en curso.'});
             const requestInit = {...init};
             if (operation.controller) requestInit.signal = operation.controller.signal;
+            let failureReason = 'network';
             try {
                 const response = await this.fetcher(url, requestInit);
                 if (!this.isCurrent(operation)) return jsonResponse({resultado: false, code: 'COORDINATOR_STALE_RESPONSE', mensaje: 'La respuesta llegó después de cambiar de pregunta.'});
-                const json = typeof response.json === 'function' ? response.json.bind(response) : async () => ({});
-                response.json = async () => {
-                    let payload;
-                    try { payload = await json(); } catch (error) {
-                        this.activeOperation = null;
-                        this.transition(normalizedAction === 'save' ? STATES.SAVE_FAILED : STATES.WAITING_FOR_RESPONSE, {operationId: operation.id, reason: 'invalid_json'});
-                        throw error;
-                    }
-                    this.settle(operation, response, payload);
-                    return payload;
-                };
+                if (!response || typeof response.clone !== 'function' || typeof response.json !== 'function') {
+                    failureReason = 'invalid_response';
+                    throw new TypeError('La respuesta de fetch no implementa la interfaz Response.');
+                }
+                // Inspect a native clone so the original Response remains
+                // untouched for the caller. This preserves the internal
+                // receiver required by ok/status/headers/json/clone while
+                // still settling the coordinator before the next request.
+                let payload;
+                try {
+                    payload = await response.clone().json();
+                } catch (error) {
+                    failureReason = 'invalid_json';
+                    throw error;
+                }
+                this.settle(operation, response, payload);
                 return response;
             } catch (error) {
                 const stale = !this.isCurrent(operation) || error?.name === 'AbortError';
                 if (this.isCurrent(operation)) {
                     this.activeOperation = null;
-                    this.transition(normalizedAction === 'save' ? STATES.SAVE_FAILED : STATES.WAITING_FOR_RESPONSE, {operationId: operation.id, reason: 'network'});
+                    this.transition(normalizedAction === 'save' ? STATES.SAVE_FAILED : STATES.WAITING_FOR_RESPONSE, {operationId: operation.id, reason: failureReason});
                 }
                 if (stale) return jsonResponse({resultado: false, code: 'COORDINATOR_STALE_RESPONSE', mensaje: 'La respuesta llegó después de cambiar de pregunta.'});
                 throw error;

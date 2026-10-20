@@ -41,8 +41,9 @@ if ($firstPending >= count($questionList) && $questionList) {
     <link rel="stylesheet" href="<?=$appCssUrl;?>">
     <style>
         body.patient-interview-page { overflow-x:clip; }
+        body.patient-interview-page { min-width:0; }
         .patient-interview-page { background:#f4f0ff; }
-        .patient-interview-main { min-height:calc(100vh - 4rem); background:linear-gradient(180deg,#f7f4ff 0%,#f1edff 100%); overflow-x:clip; font-size:16px; }
+        .patient-interview-main { min-width:0; min-height:calc(100vh - 4rem); background:linear-gradient(180deg,#f7f4ff 0%,#f1edff 100%); font-size:16px; }
         .patient-interview-shell { width:100%; max-width:1360px; min-width:0; margin:0 auto; }
         .patient-interview-header { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(30rem,.85fr); gap:1rem; align-items:center; }
         .patient-interview-header, .patient-interview-conversation-card { border:1px solid #e5ddf7; background:#fff; border-radius:1.25rem; box-shadow:0 .45rem 1.25rem rgba(72,45,120,.08); }
@@ -155,6 +156,8 @@ if ($firstPending >= count($questionList) && $questionList) {
         .interview-quick-actions, .m03-quick-actions { grid-column:1 / -1; grid-row:2; display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
         .m04-quick-actions { grid-column:1 / -1; grid-row:2; display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
         .interview-quick-actions button, .m03-quick-actions button { min-height:2.75rem; white-space:nowrap; word-break:normal; overflow-wrap:normal; }
+        .m06-quick-actions { margin-top:1.25rem; gap:.85rem 1rem; padding:.25rem 0; }
+        .m06-quick-actions > button { flex:0 1 auto; min-width:12rem; padding-inline:1rem; }
         .m04-quick-actions button { min-height:2.75rem; white-space:nowrap; word-break:normal; overflow-wrap:normal; }
         .m03-composer { display:grid; }
         .m03-input-wrap { min-width:0; }
@@ -213,6 +216,7 @@ if ($firstPending >= count($questionList) && $questionList) {
         @media (max-width:767.98px) { .patient-interview-shell { padding-inline:.25rem; } .patient-interview-header { align-items:stretch; } .patient-interview-header-side { width:100%; } .patient-interview-header-actions { flex-wrap:wrap; } .patient-interview-header-actions > * { flex:1 1 auto; } .interview-progress-context { justify-content:flex-start; } .patient-interview-message { max-width:100%; } }
         @media (max-width:600px) { .patient-interview-header-actions { display:grid !important; grid-template-columns:1fr; } .patient-interview-header-actions > * { width:100%; } }
         @media (max-width:430px) { .patient-interview-main { padding-inline:.5rem !important; } .patient-interview-header, .patient-interview-conversation-card > .card-body { padding:.85rem; } .interview-progress-layout { gap:.65rem; } .interview-progress-context { width:100%; justify-content:space-between; } .interview-module-badge, .interview-state-badge { font-size:.78rem; } .interview-message-header { align-items:flex-start; } .interview-quick-actions button, .m03-quick-actions button { flex:1 1 auto; } .interview-voice-panel { align-items:stretch; } .interview-voice-panel > * { flex:1 1 auto; } .interview-voice-panel .voice-speed-control { width:100%; margin-left:0; justify-content:space-between; } .interview-voice-panel select { flex:0 1 9rem; } .interview-composer-footer { align-items:flex-start; } }
+        @media (max-width:600px) { .m06-quick-actions { gap:.75rem; } .m06-quick-actions > button { flex:1 1 100%; min-width:0; width:100%; } }
         @media (max-width:375px) { .patient-interview-main { padding-inline:.35rem !important; } .interview-composer { gap:.45rem; } .interview-composer-input { padding-left:.55rem; } .interview-composer .chat-send-button { width:2.75rem; min-width:2.75rem; padding-inline:.3rem; } .chat-send-label { display:none; } .chat-mic-button, .chat-mic-unavailable { width:2.55rem; min-width:2.55rem; } .interview-quick-actions, .m03-quick-actions { gap:.35rem; } .interview-quick-actions button, .m03-quick-actions button { padding-inline:.55rem; font-size:.88rem; } }
         @media (prefers-reduced-motion:reduce) { *, *::before, *::after { scroll-behavior:auto !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; } }
 
@@ -430,6 +434,66 @@ if ($firstPending >= count($questionList) && $questionList) {
         .patient-interview-question > .patient-interview-message.assistant .interview-message-header::before { left:-3.45rem; }
         .patient-interview-question > .patient-interview-message.assistant .interview-message-header strong { color:#1b1648; font-size:1rem; }
         .patient-interview-question > .patient-interview-message.assistant .interview-question-text { margin-top:.45rem; color:#191746; font-size:clamp(1.55rem,2.15vw,2rem); line-height:1.18; }
+        /* M04 uses a module card, but its current conversational question
+           needs the same visual hierarchy as the active M03 question. The
+           data attributes and canonical text remain unchanged. */
+        .patient-interview-module-context[data-module="M04"] > .patient-interview-message.assistant {
+            width:100%;
+            max-width:100%;
+            margin-left:0;
+            padding:1.05rem 1.2rem 1.15rem 4.45rem;
+            border:1px solid #e4dcf7;
+            border-radius:1rem 1rem .3rem .3rem;
+            background:linear-gradient(135deg,#f3efff 0%,#f0f7f7 100%);
+        }
+        .patient-interview-module-context[data-module="M04"] > .patient-interview-message.assistant .interview-message-header::before { left:-3.45rem; }
+        .patient-interview-module-context[data-module="M04"] > .patient-interview-message.assistant .interview-message-header strong { color:#1b1648; font-size:1rem; }
+        .patient-interview-module-context[data-module="M04"] > .patient-interview-message.assistant .interview-question-text {
+            margin-top:.45rem;
+            color:#191746;
+            font-size:clamp(2rem,2.8vw,2.5rem);
+            line-height:1.16;
+            font-weight:650;
+        }
+        /* M05 V1/V2 use one canonical question at a time. Keep the topic
+           secondary and place the active question in the assistant bubble so
+           it shares the hierarchy already used by M03/M04. */
+        .patient-interview-module-context[data-module="M05"] > .patient-interview-message.assistant,
+        .patient-interview-module-context[data-module="M05-V2"] > .patient-interview-message.assistant {
+            width:100%;
+            max-width:100%;
+            margin-left:0;
+            padding:1.05rem 1.2rem 1.15rem 4.45rem;
+            border:1px solid #e4dcf7;
+            border-radius:1rem 1rem .3rem .3rem;
+            background:linear-gradient(135deg,#f3efff 0%,#f0f7f7 100%);
+        }
+        .patient-interview-module-context[data-module="M05"] > .patient-interview-message.assistant .interview-message-header::before,
+        .patient-interview-module-context[data-module="M05-V2"] > .patient-interview-message.assistant .interview-message-header::before { left:-3.45rem; }
+        .patient-interview-module-context[data-module="M05"] > .patient-interview-message.assistant .interview-message-header strong,
+        .patient-interview-module-context[data-module="M05-V2"] > .patient-interview-message.assistant .interview-message-header strong { color:#1b1648; font-size:1rem; }
+        .patient-interview-module-context[data-module="M05"] .patient-interview-question-topic,
+        .patient-interview-module-context[data-module="M05-V2"] .patient-interview-question-topic {
+            margin:.6rem 0 .15rem;
+            color:#5b21b6;
+            font-size:.95rem;
+            font-weight:650;
+        }
+        .patient-interview-module-context[data-module="M05"] > .patient-interview-message.assistant .interview-question-text,
+        .patient-interview-module-context[data-module="M05-V2"] > .patient-interview-message.assistant .interview-question-text {
+            margin-top:.35rem;
+            color:#191746;
+            font-size:clamp(2rem,2.8vw,2.5rem);
+            line-height:1.16;
+            font-weight:650;
+        }
+        .patient-interview-module-context[data-module="M06"] > .patient-interview-message.assistant .interview-question-text {
+            margin-top:.35rem;
+            color:#191746;
+            font-size:clamp(2rem,2.8vw,2.5rem);
+            line-height:1.16;
+            font-weight:650;
+        }
         .interview-composer-shell { margin-top:0; padding:1rem 1.2rem 1.05rem; border:1px solid #e4dcf7; border-top:0; border-radius:.3rem  .3rem 1rem 1rem; background:#fff; box-shadow:0 .25rem .8rem rgba(35,30,77,.04); }
         .interview-composer-input { min-height:3.75rem; border-color:#c8c7dd; border-radius:.7rem; background:#fff; }
         .interview-composer-input > input, .interview-composer-input > textarea { min-height:3.2rem; padding-inline:.35rem; color:#27365a; font-size:1rem; }
@@ -474,6 +538,13 @@ if ($firstPending >= count($questionList) && $questionList) {
             .patient-interview-message[data-interview-zone="assistant"] { width:calc(100% - 2.8rem); max-width:calc(100% - 2.8rem); margin-left:2.8rem; }
             .patient-interview-question > .patient-interview-message.assistant { width:100%; max-width:100%; margin-left:0; padding-left:3.75rem; }
             .patient-interview-question > .patient-interview-message.assistant .interview-question-text { font-size:clamp(1.3rem,5.5vw,1.7rem); }
+            .patient-interview-module-context[data-module="M04"] > .patient-interview-message.assistant { width:100%; max-width:100%; margin-left:0; padding-left:3.75rem; }
+            .patient-interview-module-context[data-module="M04"] > .patient-interview-message.assistant .interview-question-text { font-size:clamp(1.5rem,6vw,2rem); }
+            .patient-interview-module-context[data-module="M05"] > .patient-interview-message.assistant,
+            .patient-interview-module-context[data-module="M05-V2"] > .patient-interview-message.assistant { width:100%; max-width:100%; margin-left:0; padding-left:3.75rem; }
+            .patient-interview-module-context[data-module="M05"] > .patient-interview-message.assistant .interview-question-text,
+            .patient-interview-module-context[data-module="M05-V2"] > .patient-interview-message.assistant .interview-question-text { font-size:clamp(1.5rem,6vw,2rem); }
+            .patient-interview-module-context[data-module="M06"] > .patient-interview-message.assistant .interview-question-text { font-size:clamp(1.5rem,6vw,2rem); }
             .interview-composer-shell { padding-inline:.75rem; }
         }
         @media (max-width:430px) {
@@ -484,6 +555,13 @@ if ($firstPending >= count($questionList) && $questionList) {
             .patient-interview-message[data-interview-zone="assistant"] { width:calc(100% - 2.25rem); max-width:calc(100% - 2.25rem); margin-left:2.25rem; padding-inline:.85rem; }
             .patient-interview-message.assistant .interview-message-header::before { left:-2.55rem; width:2.15rem; height:2.15rem; }
             .patient-interview-question > .patient-interview-message.assistant { width:100%; max-width:100%; margin-left:0; padding-left:3.2rem; }
+            .patient-interview-module-context[data-module="M04"] > .patient-interview-message.assistant { padding-left:3.2rem; }
+            .patient-interview-module-context[data-module="M04"] > .patient-interview-message.assistant .interview-question-text { font-size:clamp(1.35rem,7vw,1.8rem); }
+            .patient-interview-module-context[data-module="M05"] > .patient-interview-message.assistant,
+            .patient-interview-module-context[data-module="M05-V2"] > .patient-interview-message.assistant { padding-left:3.2rem; }
+            .patient-interview-module-context[data-module="M05"] > .patient-interview-message.assistant .interview-question-text,
+            .patient-interview-module-context[data-module="M05-V2"] > .patient-interview-message.assistant .interview-question-text { font-size:clamp(1.35rem,7vw,1.8rem); }
+            .patient-interview-module-context[data-module="M06"] > .patient-interview-message.assistant .interview-question-text { font-size:clamp(1.35rem,7vw,1.8rem); }
             .interview-composer { grid-template-columns:minmax(0,1fr) auto; }
             .interview-composer .chat-send-button { min-width:6.8rem; }
         }
@@ -491,6 +569,87 @@ if ($firstPending >= count($questionList) && $questionList) {
             .patient-interview-header-actions { grid-template-columns:1fr; }
             .patient-interview-header-actions > :last-child { grid-column:auto; }
             .interview-composer .chat-send-button { min-width:2.75rem; }
+        }
+
+        /* M07 header V2: the progress row follows the title/description and
+           spans the complete header. Existing data hooks remain unchanged. */
+        .patient-interview-header,
+        .patient-interview-header-copy,
+        .patient-interview-header-progress,
+        .patient-interview-header-actions { min-width:0; max-width:100%; }
+        .patient-interview-header {
+            grid-template-columns:minmax(0,1fr) auto;
+            grid-template-areas:"copy context" "progress progress" "actions actions";
+            column-gap:1.15rem;
+            row-gap:1.25rem;
+            align-items:start;
+        }
+        .patient-interview-header-copy { grid-area:copy; }
+        .patient-interview-header-context {
+            grid-area:context;
+            display:flex;
+            justify-content:flex-end;
+            align-items:center;
+            gap:.4rem;
+            flex-wrap:wrap;
+            min-width:0;
+        }
+        .patient-interview-header-copy h1,
+        .patient-interview-header-copy .patient-interview-muted,
+        .patient-interview-header-progress,
+        .patient-interview-header-actions { overflow-wrap:anywhere; }
+        .patient-interview-header-progress {
+            grid-area:progress;
+            width:100%;
+            margin-top:0;
+            padding:.7rem .8rem;
+        }
+        .patient-interview-header-progress .interview-progress-layout {
+            display:grid;
+            grid-template-columns:minmax(0,1fr) auto;
+            align-items:center;
+            column-gap:.75rem;
+            row-gap:.25rem;
+        }
+        .patient-interview-header-progress .interview-progress-layout strong,
+        .patient-interview-header-progress #interview-progress {
+            min-width:0;
+            white-space:nowrap;
+        }
+        .patient-interview-header-progress #interview-progress {
+            justify-self:end;
+            overflow:hidden;
+            text-align:right;
+            text-overflow:ellipsis;
+        }
+        .patient-interview-header-actions {
+            grid-area:actions;
+            justify-content:flex-end;
+            flex-wrap:wrap;
+        }
+        .patient-interview-header-actions > * { flex:0 1 auto; max-width:100%; }
+        @media (max-width:1199.98px) {
+            .patient-interview-header { grid-template-columns:minmax(0,1fr); }
+            .patient-interview-header-context { justify-content:flex-start; }
+            .patient-interview-header-actions { justify-content:flex-start; }
+        }
+        @media (max-width:767.98px) {
+            .patient-interview-header { row-gap:1rem; }
+            .patient-interview-header-context,
+            .patient-interview-header-actions { justify-content:flex-start; }
+            .patient-interview-header-actions > * { flex:1 1 auto; }
+        }
+        @media (max-width:430px) {
+            .patient-interview-header { row-gap:.85rem; }
+            .patient-interview-header-progress .interview-progress-layout { grid-template-columns:minmax(0,1fr); align-items:start; }
+            .patient-interview-header-progress #interview-progress { justify-self:start; text-align:left; white-space:normal; overflow:visible; text-overflow:clip; }
+            .patient-interview-header-actions { display:grid !important; grid-template-columns:repeat(2,minmax(0,1fr)); }
+            .patient-interview-header-actions > * { width:100%; }
+            .patient-interview-header-actions > :last-child { grid-column:1 / -1; }
+        }
+        @media (max-width:375px) {
+            .patient-interview-header-actions { grid-template-columns:1fr; }
+            .patient-interview-header-actions > :last-child { grid-column:auto; }
         }
     </style>
 </head>
@@ -509,20 +668,18 @@ if ($firstPending >= count($questionList) && $questionList) {
                         <h1>Entrevista Conversacional</h1>
                         <p class="patient-interview-muted mb-0">Responde una pregunta a la vez; pulsa Enviar para validar y guardar cuando la respuesta sea válida.</p>
                     </div>
-                    <div class="patient-interview-header-side">
-                        <div class="patient-interview-header-context" aria-label="Contexto actual de la entrevista">
-                            <span class="interview-module-badge" data-interview-current-module>M01</span>
-                            <span class="interview-state-badge" data-interview-state-label data-state="INITIALIZING" aria-live="polite" aria-atomic="true">Preparando</span>
-                        </div>
-                        <div class="patient-interview-header-progress" data-interview-zone="progress">
-                            <div class="interview-progress-layout">
-                                <strong id="interview-progress-title">Progreso de la entrevista</strong>
-                                <div id="interview-progress" class="patient-interview-muted">Etapa 1 de 1</div>
-                            </div>
-                            <div class="progress mt-1" role="progressbar" aria-label="Avance de la entrevista" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0" aria-valuetext="Preparando la entrevista"><div id="interview-progress-bar" class="progress-bar" style="width:0%"></div></div>
-                        </div>
-                        <div class="d-flex flex-wrap gap-2 patient-interview-header-actions" data-interview-zone="navigation" aria-label="Acciones de la entrevista"><button type="button" class="btn btn-outline-primary" data-chat-history aria-label="Respuestas previas"><i data-feather="clipboard" aria-hidden="true"></i> Respuestas previas</button><button type="button" class="btn btn-outline-secondary" data-interview-pause aria-label="Pausar entrevista"><i data-feather="pause-circle" aria-hidden="true"></i> Pausar</button><button type="button" class="btn btn-outline-primary" data-interview-resume aria-label="Reanudar entrevista" hidden><i data-feather="play-circle" aria-hidden="true"></i> Reanudar</button><a class="btn btn-outline-secondary" href="<?=SERVIDOR;?>historia-clinica" aria-label="Mi historia clínica"><i data-feather="arrow-left" aria-hidden="true"></i> Mi historia clínica</a></div>
+                    <div class="patient-interview-header-context" aria-label="Contexto actual de la entrevista">
+                        <span class="interview-module-badge" data-interview-current-module>M01</span>
+                        <span class="interview-state-badge" data-interview-state-label data-state="INITIALIZING" aria-live="polite" aria-atomic="true">Preparando</span>
                     </div>
+                    <div class="patient-interview-header-progress" data-interview-zone="progress">
+                        <div class="interview-progress-layout">
+                            <strong id="interview-progress-title">Progreso de la entrevista</strong>
+                            <div id="interview-progress" class="patient-interview-muted">Preparando la entrevista</div>
+                        </div>
+                        <div class="progress mt-1" role="progressbar" aria-label="Avance de la entrevista" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0" aria-valuetext="Preparando la entrevista"><div id="interview-progress-bar" class="progress-bar" style="width:0%"></div></div>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2 patient-interview-header-actions" data-interview-zone="navigation" aria-label="Acciones de la entrevista"><button type="button" class="btn btn-outline-primary" data-chat-history aria-label="Respuestas previas"><i data-feather="clipboard" aria-hidden="true"></i> Respuestas previas</button><button type="button" class="btn btn-outline-secondary" data-interview-pause aria-label="Pausar entrevista"><i data-feather="pause-circle" aria-hidden="true"></i> Pausar</button><button type="button" class="btn btn-outline-primary" data-interview-resume aria-label="Reanudar entrevista" hidden><i data-feather="play-circle" aria-hidden="true"></i> Reanudar</button><a class="btn btn-outline-secondary" href="<?=SERVIDOR;?>historia-clinica" aria-label="Mi historia clínica"><i data-feather="arrow-left" aria-hidden="true"></i> Mi historia clínica</a></div>
                 </header>
                 <div class="chat-history-panel mb-3" data-chat-history-panel hidden><strong>Respuestas ya registradas</strong><p class="patient-interview-muted mb-0">La consulta no modifica el expediente. Cierra este panel para continuar con la pregunta activa.</p><div data-chat-history-content class="mt-3"></div></div>
 
@@ -571,26 +728,25 @@ if ($firstPending >= count($questionList) && $questionList) {
                             $m02ResolverState = (string)($m02Contract['conversation_state']['state'] ?? 'INCONSISTENT');
                         ?>
                         <?php if (!empty($m02Records)): ?>
-                        <article class="patient-interview-module-context interview-module-card" data-module="M02" data-m02-pending="<?=count($m02PendingIds);?>" data-m02-write-enabled="<?=!empty($data['m02']['write_enabled']) ? '1' : '0';?>">
+                        <article class="patient-interview-question patient-interview-active-question interview-module-card m02-active-question" data-module="M02" data-m02-pending="<?=count($m02PendingIds);?>"<?php if (is_array($m02ActiveRecord)): ?> data-m02-disease="<?=$escape($m02ActiveRecord['disease']);?>" data-m02-version="<?=$escape($m02ActiveRecord['version'] ?? '');?>"<?php endif; ?> data-m02-write-enabled="<?=!empty($data['m02']['write_enabled']) ? '1' : '0';?>" aria-labelledby="m02-question-title">
                             <?php if (is_array($m02ActiveRecord) && is_array($m02ActiveQuestion)): ?>
-                            <div class="patient-interview-message assistant"><div class="interview-message-header"><strong>Asistente · Antecedentes heredofamiliares</strong></div><p class="interview-question-text"><?=$escape($m02ActiveQuestion['visible_text'] ?? '');?></p><p class="patient-interview-muted mb-0"><?=$escape($m02ActiveQuestion['instruction'] ?? 'Responde la pregunta activa.');?></p></div>
-                            <div class="patient-interview-context-grid m02-active-question" aria-label="Pregunta M02 activa">
-                                <div data-m02-disease="<?=$escape($m02ActiveRecord['disease']);?>" data-m02-version="<?=$escape($m02ActiveRecord['version'] ?? '');?>" data-m02-write-enabled="<?=!empty($m02ActiveRecord['write_enabled']) ? '1' : '0';?>">
-                                    <dt class="visually-hidden">Pregunta activa</dt>
-                                    <dd class="patient-interview-muted">Pregunta activa · <?=$escape($m02ActiveRecord['disease']);?></dd>
-                                    <div class="patient-interview-answer interview-composer m02-composer">
-                                        <div class="interview-composer-input">
-                                            <label class="visually-hidden" for="m02-input-<?=$escape(md5($m02ActiveRecord['disease']));?>">Respuesta sobre <?=$escape($m02ActiveRecord['disease']);?></label>
-                                            <input id="m02-input-<?=$escape(md5($m02ActiveRecord['disease']));?>" class="form-control" data-m02-input type="text" placeholder="Ej. mi madre tiene esta enfermedad">
-                                        </div>
-                                        <div class="interview-quick-actions" aria-label="Respuesta rápida M02"><button type="button" class="btn btn-outline-primary btn-sm" data-m02-quick data-value="Sí">Sí</button><?php if (!empty($data['m02']['write_enabled'])): ?><button type="button" class="btn btn-primary btn-sm" data-m02-safe-no>No, guardar y continuar</button><?php endif; ?></div>
-                                        <button type="button" class="btn btn-outline-primary btn-sm chat-send-button" data-m02-interpret hidden aria-label="Interpretar respuesta" title="Interpretar respuesta">➤</button>
-                                    </div>
-                                    <small class="d-block patient-interview-muted mt-1" data-m02-result hidden></small>
-                                    <?php if (!empty($data['m02']['write_enabled'])): ?><button type="button" class="btn btn-outline-secondary btn-sm mt-2" data-m02-defer>Responder después</button><?php endif; ?>
-                                </div>
+                            <div class="patient-interview-message assistant">
+                                <div class="interview-message-header"><strong>Asistente · Antecedentes heredofamiliares</strong></div>
+                                <h3 id="m02-question-title" class="interview-question-text"><?=$escape($m02ActiveQuestion['visible_text'] ?? '');?></h3>
+                                <p class="patient-interview-muted mb-0"><?=$escape($m02ActiveQuestion['instruction'] ?? 'Responde la pregunta.');?></p>
                             </div>
-                            <p class="patient-interview-muted mb-0 mt-3">La respuesta se valida y guarda antes de presentar la siguiente pregunta.</p>
+                            <div class="interview-composer-shell" data-interview-zone="response">
+                                <div class="patient-interview-answer interview-composer m02-composer">
+                                    <div class="interview-composer-input">
+                                        <label class="visually-hidden" for="m02-input-<?=$escape(md5($m02ActiveRecord['disease']));?>">Respuesta sobre <?=$escape($m02ActiveRecord['disease']);?></label>
+                                        <input id="m02-input-<?=$escape(md5($m02ActiveRecord['disease']));?>" class="form-control" data-m02-input type="text" placeholder="Ej. mi madre tiene esta enfermedad" autocomplete="off" maxlength="2000">
+                                    </div>
+                                    <button type="button" class="btn btn-primary chat-send-button" data-m02-interpret aria-label="Enviar respuesta" title="Enviar respuesta">➤ <span class="chat-send-label">Enviar</span></button>
+                                    <div class="interview-quick-actions" aria-label="Respuestas rápidas M02"><button type="button" class="btn btn-outline-primary btn-sm" data-m02-quick data-value="Sí">Sí</button><?php if (!empty($data['m02']['write_enabled'])): ?><button type="button" class="btn btn-primary btn-sm" data-m02-safe-no>No, guardar y continuar</button><?php endif; ?></div>
+                                </div>
+                                <div class="interview-composer-footer"><p class="interview-composer-help"><span aria-hidden="true">ⓘ</span> Escribe o dicta tu respuesta y pulsa Enviar para validarla y guardarla.</p><span class="interview-answer-count" data-answer-count>0/2000</span></div>
+                            </div>
+                            <small class="d-block patient-interview-muted mt-1" data-m02-result role="status" aria-live="polite" hidden></small>
                             <?php elseif ($m02ResolverState === 'READY_TO_FINALIZE'): ?>
                             <div class="patient-interview-message assistant"><div class="interview-message-header"><strong>Asistente · Antecedentes heredofamiliares</strong></div><p class="interview-question-text">Tus antecedentes familiares están registrados. ¿Deseas finalizar esta sección y continuar?</p></div>
                             <button type="button" class="btn btn-primary" data-m02-resolution-action aria-label="Finalizar antecedentes familiares y continuar">Finalizar antecedentes familiares y continuar</button>
@@ -664,7 +820,7 @@ if ($firstPending >= count($questionList) && $questionList) {
                             <?php if (!$m04Finalized && !empty($data['m04']['write_enabled'])): ?><div class="patient-interview-answer interview-composer">
                                 <div class="interview-composer-input"><label class="visually-hidden" for="m04-input">Respuesta sobre antecedentes quirúrgicos</label>
                                 <input id="m04-input" class="form-control" data-m04-input type="text" placeholder="<?=$m04NegativeConfirmed ? 'Ej. corrige la respuesta: me operaron de la vesícula' : 'Ej. me operaron de la vesícula hace cinco años';?>"></div>
-                                <button type="button" class="btn btn-outline-primary chat-send-button" data-m04-interpret aria-label="Interpretar respuesta M04" title="Interpretar respuesta M04">➤</button>
+                                <button type="button" class="btn btn-primary chat-send-button" data-m04-interpret aria-label="Enviar respuesta M04" title="Enviar respuesta M04">➤ <span class="chat-send-label">Enviar</span></button>
                                 <div class="m04-quick-actions" role="group" aria-label="Continuar con antecedentes quirúrgicos"><button type="button" class="btn btn-outline-primary" data-m04-finish data-m04-quick-response data-intent="FINISH_ADDITIONAL_SURGERIES">No, continuar</button></div>
                             </div><?php elseif ($m04Finalized): ?><p class="patient-interview-muted" role="status">M04 finalizado. La edición ordinaria está bloqueada.</p><?php endif; ?>
                             <small class="d-block patient-interview-muted mt-1" data-m04-result role="status" aria-live="polite" hidden></small>
@@ -672,42 +828,71 @@ if ($firstPending >= count($questionList) && $questionList) {
                         </article>
                         <?php endif; ?>
                         <?php if (!empty($data['m05'])): $m05Pending = $data['m05']['pending_question'] ?? null; ?>
-                        <article class="patient-interview-module-context interview-module-card" data-module="M05" data-m05-version="<?=$escape($data['m05']['version'] ?? '');?>" data-m05-write-enabled="<?=!empty($data['m05']['write_enabled']) ? '1' : '0';?>" data-m05-pending="<?=$m05Pending ? '1' : '0';?>" data-m05-pending-question="<?=$m05Pending ? (int)$m05Pending['question_id'] : 0;?>">
-                            <div class="patient-interview-message assistant"><div class="interview-message-header"><strong>Asistente · M05</strong></div><p class="interview-question-text">Continuaremos con antecedentes personales patológicos. Pulsa Enviar para validar y guardar la respuesta.</p></div>
-                            <?php $m05Existing = array_filter($data['m05']['questions'] ?? [], static fn(array $row): bool => trim((string)($row['respuesta'] ?? '')) !== ''); ?>
-                            <?php if ($m05Existing): ?><div class="patient-interview-context-grid" aria-label="Respuestas M05 existentes">
-                                <?php foreach ($m05Existing as $row): ?><div><dt><?=$escape($row['tema'] ?? 'M05');?></dt><dd><?=$escape($row['respuesta']);?></dd></div><?php endforeach; ?>
-                            </div><?php endif; ?>
+                        <article class="patient-interview-module-context interview-module-card" data-module="M05" data-m05-version="<?=$escape($data['m05']['version'] ?? '');?>" data-m05-write-enabled="<?=!empty($data['m05']['write_enabled']) ? '1' : '0';?>" data-m05-pending="<?=$m05Pending ? '1' : '0';?>" data-m05-pending-question="<?=$m05Pending ? (int)$m05Pending['question_id'] : 0;?>" aria-labelledby="m05-question-title">
+                            <div class="patient-interview-message assistant"><div class="interview-message-header"><strong>Asistente · Antecedentes personales patológicos</strong></div><?php if ($m05Pending): ?><p class="patient-interview-question-topic">Tema: <span data-m05-theme-label><?=$escape($m05Pending['tema'] ?? 'Pregunta M05');?></span></p><h3 id="m05-question-title" class="interview-question-text" data-m05-question-label><?=$escape($m05Pending['pregunta'] ?? '');?></h3><?php else: ?><p class="interview-question-text">Continuaremos con antecedentes personales patológicos. Pulsa Enviar para validar y guardar la respuesta.</p><?php endif; ?></div>
                             <?php if ($m05Pending): ?>
-                            <p class="patient-interview-muted" data-m05-prompt><strong data-m05-theme-label><?=$escape($m05Pending['tema'] ?? 'Pregunta M05');?></strong><br><span data-m05-question-label><?=$escape($m05Pending['pregunta'] ?? '');?></span></p>
                             <div class="patient-interview-answer interview-composer">
                                 <div class="interview-composer-input"><label class="visually-hidden" for="m05-input">Respuesta M05</label>
                                 <input id="m05-input" class="form-control" data-m05-input type="text" placeholder="Escribe tu respuesta…"></div>
-                                <button type="button" class="btn btn-outline-primary chat-send-button" data-m05-interpret aria-label="Interpretar respuesta M05" title="Interpretar respuesta M05">➤</button>
+                                <button type="button" class="btn btn-primary chat-send-button" data-m05-interpret aria-label="Enviar respuesta M05" title="Enviar respuesta M05">➤ <span class="chat-send-label">Enviar</span></button>
                             </div>
+                            <div class="interview-quick-actions m05-quick-actions" data-m05-quick-actions role="group" aria-label="Respuestas rápidas M05"<?=($m05Pending && ($m05Pending['tipo'] ?? '') === 'select') ? '' : ' hidden';?>><button type="button" class="btn btn-outline-primary" data-m05-quick data-value="Si">Sí</button><button type="button" class="btn btn-primary" data-m05-quick data-value="No">No, siguiente pregunta</button></div>
                             <small class="d-block patient-interview-muted mt-1" data-m05-result role="status" aria-live="polite" hidden></small>
                             <?php else: ?><p class="patient-interview-muted">No hay preguntas M05 pendientes de respuesta.</p><?php endif; ?>
                         </article>
                         <?php endif; ?>
                         <?php if (!empty($data['m05']['diseases'])): $m05Disease = null; foreach ($data['m05']['diseases'] as $disease) { if (trim((string)($disease['respuesta'] ?? '')) === '') { $m05Disease = $disease; break; } } ?>
-                        <article class="patient-interview-module-context interview-module-card" data-module="M05-V2" data-m05-version="<?=$escape($data['m05']['version'] ?? '');?>" data-m05-v2-pending="<?=$m05Disease ? '1' : '0';?>" data-m05-v2-disease="<?=$m05Disease ? (int)$m05Disease['disease_id'] : 0;?>">
-                            <div class="patient-interview-message assistant"><div class="interview-message-header"><strong>Asistente · M05 enfermedades</strong></div><p class="interview-question-text">Revisaremos el catálogo de enfermedades y sus datos dependientes. Pulsa Enviar para validar y guardar la respuesta.</p></div>
-                            <?php if ($m05Disease): ?><p class="patient-interview-muted" data-m05-v2-prompt><strong data-m05-v2-disease-label><?=$escape($m05Disease['enfermedad']);?></strong><br><span data-m05-v2-question-label>¿Has sido diagnosticado con esta enfermedad?</span></p>
-                            <div class="patient-interview-answer interview-composer"><div class="interview-composer-input"><label class="visually-hidden" for="m05-v2-input">Respuesta M05 V2</label><input id="m05-v2-input" class="form-control" data-m05-v2-input type="text" placeholder="Ej. sí, Tipo 2, 2020"></div><button type="button" class="btn btn-outline-primary chat-send-button" data-m05-v2-interpret aria-label="Interpretar respuesta M05 V2" title="Interpretar respuesta M05 V2">➤</button></div>
+                        <article class="patient-interview-module-context interview-module-card" data-module="M05-V2" data-m05-version="<?=$escape($data['m05']['version'] ?? '');?>" data-m05-v2-pending="<?=$m05Disease ? '1' : '0';?>" data-m05-v2-disease="<?=$m05Disease ? (int)$m05Disease['disease_id'] : 0;?>" aria-labelledby="m05-v2-question-title">
+                            <div class="patient-interview-message assistant"><div class="interview-message-header"><strong>Asistente · Antecedentes personales patológicos</strong></div><?php if ($m05Disease): ?><p class="patient-interview-question-topic">Enfermedad: <span data-m05-v2-disease-label><?=$escape($m05Disease['enfermedad']);?></span></p><h3 id="m05-v2-question-title" class="interview-question-text" data-m05-v2-question-label>¿Has sido diagnosticado con esta enfermedad?</h3><?php else: ?><p class="interview-question-text">Revisaremos el catálogo de enfermedades y sus datos dependientes. Pulsa Enviar para validar y guardar la respuesta.</p><?php endif; ?></div>
+                            <?php if ($m05Disease): ?>
+                            <div class="patient-interview-answer interview-composer"><div class="interview-composer-input"><label class="visually-hidden" for="m05-v2-input">Respuesta M05 V2</label><input id="m05-v2-input" class="form-control" data-m05-v2-input type="text" placeholder="Ej. sí, Tipo 2, 2020"></div><button type="button" class="btn btn-primary chat-send-button" data-m05-v2-interpret aria-label="Enviar respuesta M05 V2" title="Enviar respuesta M05 V2">➤ <span class="chat-send-label">Enviar</span></button></div>
                             <small class="d-block patient-interview-muted mt-1" data-m05-v2-result role="status" aria-live="polite" hidden></small>
                             <?php else: ?><p class="patient-interview-muted">No hay enfermedades M05 V2 pendientes.</p><?php endif; ?>
                         </article>
                         <?php endif; ?>
-                        <?php if (!empty($data['m06'])): $m06Pending = $data['m06']['pending_record'] ?? null; ?>
-                        <article class="patient-interview-module-context interview-module-card" data-module="M06" data-m06-pending-record="<?=$m06Pending ? (int)($m06Pending['id'] ?? 0) : 0;?>" data-m06-version="<?=$escape($data['m06']['version'] ?? '');?>" data-m06-context="{}">
-                            <div class="patient-interview-message assistant"><div class="interview-message-header"><strong>Asistente · M06</strong></div><p class="interview-question-text">Continuaremos con medicación actual. Indica los cinco datos del medicamento y pulsa Enviar para validar y guardar la respuesta.</p></div>
-                            <?php if (!empty($data['m06']['records'])): ?><div class="patient-interview-context-grid"><?php foreach ($data['m06']['records'] as $record): ?><div><dt>Medicamento</dt><dd><?=$escape($record['descripcion'] ?? 'Registro existente');?></dd></div><?php endforeach; ?></div><?php endif; ?>
-                            <div class="patient-interview-answer interview-composer"><div class="interview-composer-input"><label class="visually-hidden" for="m06-input">Respuesta M06</label><input id="m06-input" class="form-control" data-m06-input type="text" placeholder="Ej. tomo ibuprofeno para dolor durante 2 semanas, dosis 400 mg, médico López"></div><button type="button" class="btn btn-outline-primary chat-send-button" data-m06-interpret aria-label="Interpretar respuesta M06" title="Interpretar respuesta M06">➤</button></div>
+<?php if (!empty($data['m06'])): $m06Pending = $data['m06']['pending_record'] ?? null; $m06Records = is_array($data['m06']['records'] ?? null) ? $data['m06']['records'] : []; $m06OmissionRecord = null; $m06OmissionsByRecord = []; foreach ($m06Records as $m06Candidate) { $m06CandidateId = (int)($m06Candidate['id'] ?? 0); $m06CandidateOmissions = is_array($m06Candidate['omissions'] ?? null) ? $m06Candidate['omissions'] : []; if ($m06OmissionRecord === null && $m06CandidateOmissions) $m06OmissionRecord = $m06Candidate; if ($m06CandidateId > 0 && $m06CandidateOmissions) $m06OmissionsByRecord[(string)$m06CandidateId] = $m06CandidateOmissions; } $m06Finalized = !empty($data['m06']['finalized']); $m06State = $m06Pending ? 'capturing' : ($m06Records ? 'after-save' : 'initial'); $m06FieldPrompts = ['medicamento' => '¿Qué medicamento tomas?', 'descripcion' => '¿Para qué lo utilizas?', 'tiempo_uso' => '¿Desde cuándo lo utilizas?', 'dosis' => '¿Qué dosis utilizas?', 'medico' => '¿Qué médico te lo indicó?']; $m06PendingField = ''; $m06Context = []; $m06ContextSource = is_array($m06Pending) ? $m06Pending : (is_array($m06OmissionRecord) ? $m06OmissionRecord : []); $m06Omissions = is_array($m06ContextSource['omissions'] ?? null) ? $m06ContextSource['omissions'] : []; if (is_array($m06Pending)) { $m06PendingFields = is_array($m06Pending['pending_fields'] ?? null) ? $m06Pending['pending_fields'] : []; foreach (['medicamento', 'descripcion', 'tiempo_uso', 'dosis', 'medico'] as $m06Field) { $m06Value = trim((string)($m06Pending[$m06Field] ?? '')); if ($m06Value !== '') $m06Context[$m06Field] = $m06Value; elseif (in_array($m06Field, $m06PendingFields, true) && $m06PendingField === '') $m06PendingField = $m06Field; } } elseif (is_array($m06OmissionRecord)) { foreach (['medicamento', 'descripcion', 'tiempo_uso', 'dosis', 'medico'] as $m06Field) { $m06Value = trim((string)($m06OmissionRecord[$m06Field] ?? '')); if ($m06Value !== '') $m06Context[$m06Field] = $m06Value; } } $m06InitialQuestion = $m06Pending ? ($m06FieldPrompts[$m06PendingField] ?? 'Indica el dato pendiente del medicamento.') : ($m06Records ? '¿Quieres agregar otro medicamento?' : '¿Tomas actualmente algún medicamento?'); $m06ContextJson = json_encode($m06Context, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?: '{}'; $m06OmissionsJson = json_encode($m06Omissions, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?: '{}'; $m06OmissionsByRecordJson = json_encode($m06OmissionsByRecord, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?: '{}'; $m06SkippedJson = json_encode(array_keys($m06Omissions), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?: '[]'; ?>
+                        <article class="patient-interview-module-context interview-module-card" data-module="M06" data-m06-state="<?=$m06State;?>" data-m06-has-records="<?=$m06Records ? '1' : '0';?>" data-m06-pending-record="<?=$m06Pending ? (int)($m06Pending['id'] ?? 0) : 0;?>" data-m06-omission-record="<?=is_array($m06OmissionRecord) ? (int)($m06OmissionRecord['id'] ?? 0) : 0;?>" data-m06-omissions-by-record="<?=$escape($m06OmissionsByRecordJson);?>" data-m06-version="<?=$escape($data['m06']['version'] ?? '');?>" data-m06-stable-id="M06:current-medication:<?=$m06Pending ? (int)($m06Pending['id'] ?? 0) : 'new';?>" data-m06-context="<?=$escape($m06ContextJson);?>" data-m06-omissions="<?=$escape($m06OmissionsJson);?>" data-m06-skipped="<?=$escape($m06SkippedJson);?>" aria-labelledby="m06-question-title">
+<div class="patient-interview-message assistant"><div class="interview-message-header"><strong>Asistente · Medicación actual</strong></div><h3 id="m06-question-title" class="interview-question-text" data-m06-question><?=$escape($m06InitialQuestion);?></h3><p class="interview-question-instruction" data-m06-instruction><?= $m06Pending ? 'Indica sólo el dato solicitado. Si no lo recuerdas, puedes continuar sin registrarlo.' : ($m06Records ? 'Puedes agregar otro medicamento o terminar la medicación.' : 'Puedes escribir solamente el nombre del medicamento; los demás datos son opcionales y se preguntarán después.'); ?></p></div>
+                            <?php if (!$m06Finalized): ?>
+                            <div class="patient-interview-answer interview-composer" data-m06-composer<?= $m06State === 'after-save' ? ' hidden' : ''; ?>><div class="interview-composer-input"><label class="visually-hidden" for="m06-input">Respuesta sobre medicación actual</label><input id="m06-input" class="form-control" data-m06-input type="text" placeholder="Escribe o dicta tu respuesta…"></div><button type="button" class="btn btn-primary chat-send-button" data-m06-interpret aria-label="Enviar respuesta M06" title="Enviar respuesta M06">➤ <span class="chat-send-label">Enviar</span></button></div>
+<div class="interview-quick-actions m06-quick-actions" data-m06-quick-actions role="group" aria-label="Respuestas rápidas M06"><button type="button" class="btn btn-outline-primary" data-m06-quick data-value="Sí" data-m06-action="START_MEDICATION" data-m06-stage="initial"<?= $m06State !== 'initial' ? ' hidden' : ''; ?>>Sí</button><button type="button" class="btn btn-primary" data-m06-quick data-value="Sí" data-m06-action="START_MEDICATION" data-m06-stage="after-save"<?= $m06State !== 'after-save' ? ' hidden' : ''; ?>>Sí, agregar otro</button><button type="button" class="btn btn-outline-secondary" data-m06-skip data-m06-skip-mode="unknown" hidden>No lo sé</button><button type="button" class="btn btn-outline-secondary" data-m06-skip data-m06-skip-mode="omit" hidden>Continuar sin este dato</button><button type="button" class="btn btn-outline-primary" data-m06-quick data-value="No" data-m06-action="<?=$m06State === 'after-save' ? 'FINISH_ADDITIONAL_MEDICATIONS' : 'FINISH_NO_CURRENT_MEDICATION';?>"><?= $m06State === 'after-save' ? 'No, terminar medicación' : 'No tomo medicamentos';?></button></div>
                             <small class="d-block patient-interview-muted mt-1" data-m06-result role="status" aria-live="polite" hidden></small>
+                            <?php else: ?><p class="patient-interview-muted" role="status">M06 ya está finalizado. La edición ordinaria está bloqueada.</p><?php endif; ?>
                         </article>
                         <?php endif; ?>
                         <?php $m07State = $data['m07'] ?? []; $m07Categories = $m07State['categories'] ?? []; $m07StatusLabels = ['pending' => 'Pendiente', 'complete' => 'Completo', 'blocked' => 'M07 bloqueado por contrato', 'conflict' => 'Revisar inconsistencia', 'duplicate' => 'Duplicado']; $m07FirstCategory = 0; foreach ($m07Categories as $categoryIndex => $category) { $categoryPending = array_filter($category['items'] ?? [], static fn(array $item): bool => ($item['status'] ?? 'pending') !== 'complete'); if ($categoryPending) { $m07FirstCategory = (int)$categoryIndex; break; } } ?>
-                        <article class="patient-interview-module-context interview-module-card" data-module="M07" data-m07-version="<?=$escape($m07State['version'] ?? '');?>" data-m07-pending="<?=((int)($m07State['pending_items'] ?? 0) > 0) ? '1' : '0';?>" data-m07-write-enabled="<?=!empty($m07State['write_enabled']) ? '1' : '0';?>">
+                        <?php if (!empty($m07State['canonical_read'])): $m07Active = is_array($m07State['active_question'] ?? null) ? $m07State['active_question'] : null; ?>
+                        <article class="patient-interview-module-context interview-module-card" data-module="M07" data-m07-renderer="canonical" data-m07-version="<?=$escape($m07State['version'] ?? '');?>" data-m07-pending="<?=((int)($m07State['pending_items'] ?? 0) > 0) ? '1' : '0';?>" data-m07-write-enabled="<?=!empty($m07State['write_enabled']) ? '1' : '0';?>">
+                            <div class="patient-interview-message assistant"><div class="interview-message-header"><strong>Asistente · M07 medicamentos para el dolor</strong></div><?php if (!empty($m07State['write_enabled']) && $m07Active): ?><p class="patient-interview-question-topic"><?=$escape($m07Active['theme'] ?? 'Medicamentos para el dolor');?></p><h3 class="interview-question-text" data-m07-canonical-question><?=$escape($m07Active['prompt'] ?? '');?></h3><p class="interview-question-instruction"><?=$escape($m07Active['instruction'] ?? 'Responde la pregunta activa y espera la confirmación antes de continuar.');?></p><?php else: ?><h3 class="interview-question-text">La entrevista conversacional M07 no está habilitada en este entorno.</h3><?php endif; ?></div>
+                            <?php if (empty($m07State['write_enabled'])): ?>
+                                <div class="alert alert-info" role="status" data-m07-blocked>La captura clínica de M07 está bloqueada por la política del servidor. No se guardará información desde esta pantalla.</div>
+                                <?php if (!$m07Active): ?><p class="patient-interview-muted">No hay preguntas canónicas pendientes para mostrar. La finalización permanece deshabilitada.</p><?php endif; ?>
+                            <?php elseif (!$m07Active): ?>
+                                <p class="patient-interview-muted" role="status">No hay preguntas canónicas pendientes. El servidor todavía no habilita la finalización de M07.</p>
+                            <?php elseif (($m07Active['mode'] ?? '') === 'blocked'): ?>
+                                <div class="alert alert-warning" role="status"><?=$escape($m07Active['blocked_reason'] ?? 'Esta pregunta requiere revisión antes de continuar.');?></div>
+                            <?php else: $m07Mode = (string)($m07Active['mode'] ?? ''); $m07Fields = is_array($m07Active['fields'] ?? null) ? $m07Active['fields'] : []; $m07OtherFields = is_array($m07Active['entry_fields'] ?? null) ? $m07Active['entry_fields'] : []; ?>
+                                <form class="patient-interview-answer interview-composer" data-m07-canonical-editor data-mode="<?=$escape($m07Mode);?>" data-stable-id="<?=$escape($m07Active['stable_id']);?>" data-question-id="<?=(int)$m07Active['question_id'];?>" data-theme-id="<?=(int)$m07Active['theme_id'];?>" data-field="<?=$escape($m07Active['field'] ?? 'respuesta');?>" data-entry-id="<?=(int)($m07Active['entry_id'] ?? 0);?>" data-entry-version="<?=(int)($m07Active['entry_version'] ?? 0);?>" data-entry-name="<?=$escape($m07Active['entry_name'] ?? '');?>" data-has-dependents="<?=array_filter(['dosis','resultados','consumo','descripcion'], static fn(string $field): bool => trim((string)($m07Fields[$field] ?? '')) !== '') ? '1' : '0';?>" novalidate>
+                                    <?php if ($m07Mode === 'catalog' || $m07Mode === 'other_create'): ?>
+                                        <fieldset class="mb-3"><legend class="form-label">Selecciona una respuesta</legend><label class="me-3"><input type="radio" name="m07-response" value="Si" data-m07-response <?=($m07Fields['respuesta'] ?? '') === 'Si' ? 'checked' : '';?>> Sí</label><label><input type="radio" name="m07-response" value="No" data-m07-response <?=($m07Fields['respuesta'] ?? '') === 'No' ? 'checked' : '';?>> No</label></fieldset>
+                                    <?php endif; ?>
+                                    <?php if ($m07Mode === 'catalog'): ?>
+                                        <div data-m07-dependencies <?=($m07Fields['respuesta'] ?? '') === 'Si' ? '' : 'hidden';?>><div class="mb-3"><label class="form-label" for="m07-dose">Dosis</label><input id="m07-dose" class="form-control" type="text" data-m07-dose value="<?=$escape($m07Fields['dosis'] ?? '');?>" autocomplete="off"></div><div class="mb-3"><label class="form-label" for="m07-result">Resultado</label><select id="m07-result" class="form-select" data-m07-result><option value="">Selecciona</option><?php foreach (['Funciono'=>'Funcionó','No funciono'=>'No funcionó','Tuve efectos adversos'=>'Tuve efectos adversos'] as $value=>$label): ?><option value="<?=$value;?>" <?=($m07Fields['resultados'] ?? '') === $value ? 'selected' : '';?>><?=$label;?></option><?php endforeach; ?></select></div><div class="mb-3"><label class="form-label" for="m07-consumption">¿Todavía lo utilizas?</label><select id="m07-consumption" class="form-select" data-m07-consumption><option value="">Selecciona</option><option value="Si" <?=($m07Fields['consumo'] ?? '') === 'Si' ? 'selected' : '';?>>Sí</option><option value="No" <?=($m07Fields['consumo'] ?? '') === 'No' ? 'selected' : '';?>>No</option></select></div><div class="mb-3" data-m07-adverse-wrap <?=($m07Fields['resultados'] ?? '') === 'Tuve efectos adversos' ? '' : 'hidden';?>><label class="form-label" for="m07-adverse">Describe los efectos adversos</label><textarea id="m07-adverse" class="form-control" rows="2" data-m07-description><?=$escape($m07Fields['descripcion'] ?? '');?></textarea></div></div>
+                                    <?php elseif ($m07Mode === 'other_create'): ?>
+                                        <div class="mb-3" data-m07-other-name-wrap <?=($m07Fields['respuesta'] ?? '') === 'Si' ? '' : 'hidden';?>><label class="form-label" for="m07-other-name">¿Cuál es el nombre del medicamento?</label><input id="m07-other-name" class="form-control" type="text" data-m07-other-name maxlength="255" autocomplete="off"></div>
+                                    <?php elseif ($m07Mode === 'other_update'): ?>
+                                        <p class="patient-interview-muted">Medicamento: <strong><?=$escape($m07Active['entry_name'] ?? '');?></strong></p>
+                                        <?php $m07Field = (string)($m07Active['field'] ?? ''); $m07Value = (string)($m07OtherFields[$m07Field] ?? ''); ?>
+                                        <?php if (in_array($m07Field, ['consumo','resultados'], true)): ?><label class="form-label" for="m07-other-field"><?=$m07Field === 'consumo' ? '¿Todavía lo utilizas?' : 'Resultado';?></label><select id="m07-other-field" class="form-select" data-m07-other-field><option value="">Selecciona</option><?php foreach (($m07Active['options'] ?? []) as $value): ?><option value="<?=$escape($value);?>" <?=$m07Value === $value ? 'selected' : '';?>><?=$escape(match ($value) {'Si'=>'Sí','Funciono'=>'Funcionó','No funciono'=>'No funcionó',default=>$value});?></option><?php endforeach; ?></select><?php else: ?><label class="form-label" for="m07-other-field"><?=$escape($m07Active['field'] === 'dosis' ? 'Dosis' : 'Describe los efectos adversos');?></label><input id="m07-other-field" class="form-control" type="text" data-m07-other-field value="<?=$escape($m07Value);?>" autocomplete="off"><?php endif; ?>
+                                    <?php endif; ?>
+                                    <div class="d-flex gap-2 mt-3"><button type="submit" class="btn btn-primary chat-send-button" data-m07-send>Enviar</button><button type="button" class="btn btn-outline-secondary" data-m07-repeat>Escuchar esta pregunta</button><button type="button" class="btn btn-outline-secondary" data-m07-help title="Ayuda sobre la pregunta activa">Ayuda</button></div>
+                                    <small class="d-block patient-interview-muted mt-2" data-m07-canonical-status role="status" aria-live="polite" hidden></small>
+                                </form>
+                            <?php endif; ?>
+                            <p class="patient-interview-muted mb-0">M07 sólo avanzará después de que el servidor confirme el guardado y readback. La finalización canónica permanece deshabilitada.</p>
+                        </article>
+                        <?php elseif (!empty($m07State['write_enabled'])): ?>
+                        <article class="patient-interview-module-context interview-module-card" data-module="M07" data-m07-renderer="legacy" data-m07-version="<?=$escape($m07State['version'] ?? '');?>" data-m07-pending="<?=((int)($m07State['pending_items'] ?? 0) > 0) ? '1' : '0';?>" data-m07-write-enabled="1">
                             <div class="patient-interview-message assistant"><div class="interview-message-header"><strong>Asistente · M07 medicamentos para el dolor</strong></div><p class="interview-question-text">Revisaremos los medicamentos agrupados por categoría. Selecciona los que sí utilizaste o confirma explícitamente los que no utilizaste. Nada se guarda al seleccionar; la persistencia requiere una acción explícita.</p></div>
                             <?php if (!$m07Categories): ?><p class="patient-interview-muted">El catálogo P09 no está disponible; M07 permanece bloqueado y no se generaron respuestas.</p><?php endif; ?>
                             <?php if ($m07Categories): ?><nav class="m07-category-nav" data-m07-category-nav aria-label="Categorías de medicamentos M07"><span class="patient-interview-muted">Categoría:</span><?php foreach ($m07Categories as $categoryIndex => $category): ?><button type="button" class="btn btn-sm btn-outline-secondary" data-m07-category-goto="<?=$categoryIndex;?>" aria-controls="m07-category-<?=$categoryIndex;?>"><?=$escape($category['theme']);?></button><?php endforeach; ?></nav><?php endif; ?>
@@ -716,22 +901,40 @@ if ($firstPending >= count($questionList) && $questionList) {
                                 <section id="m07-category-<?=$categoryIndex;?>" class="m07-category" data-m07-category data-category-index="<?=$categoryIndex;?>" data-category-pending="<?=count($categoryPending);?>" data-theme-id="<?=(int)$category['theme_id'];?>"<?=$categoryIndex !== $m07FirstCategory ? ' hidden' : '';?> aria-labelledby="m07-category-title-<?=$categoryIndex;?>">
                                     <h3 id="m07-category-title-<?=$categoryIndex;?>" class="h5 mb-3"><?=$escape($category['theme']);?></h3>
                                     <div class="m07-items" role="list">
-                                    <?php foreach (($category['items'] ?? []) as $item): $fields = $item['fields'] ?? []; $questionId = (int)$item['question_id']; $itemKey = 'm07-' . $questionId; $itemStatus = (string)($item['status'] ?? 'pending'); $isOther = !empty($item['other_blocked']); $used = ($fields['respuesta'] ?? '') === 'Si'; ?>
+                                    <?php foreach (($category['items'] ?? []) as $item): $fields = $item['fields'] ?? []; $questionId = (int)$item['question_id']; $itemKey = 'm07-' . $questionId; $itemStatus = (string)($item['status'] ?? 'pending'); $isOther = !empty($item['other_blocked']); $used = ($fields['respuesta'] ?? '') === 'Si'; $otherEntries = array_values(array_filter($item['other_medications'] ?? [], static fn(array $entry): bool => ($entry['status'] ?? '') !== 'inactive')); ?>
                                         <div class="m07-item" data-m07-item data-question-id="<?=$questionId;?>" data-theme-id="<?=(int)$category['theme_id'];?>" data-status="<?=$escape($itemStatus);?>" data-other-blocked="<?=$isOther ? '1' : '0';?>" data-current-result="<?=$escape($fields['resultados'] ?? '');?>">
-                                            <label class="m07-item-choice" for="<?=$itemKey;?>-used">
-                                                <input id="<?=$itemKey;?>-used" type="checkbox" class="form-check-input" data-m07-used <?=$used ? 'checked' : '';?> <?=$isOther ? 'disabled' : '';?> aria-describedby="<?=$itemKey;?>-status">
+                                            <?php if (!$isOther): ?><label class="m07-item-choice" for="<?=$itemKey;?>-used">
+                                                <input id="<?=$itemKey;?>-used" type="checkbox" class="form-check-input" data-m07-used <?=$used ? 'checked' : '';?> aria-describedby="<?=$itemKey;?>-status">
                                                 <span><?=$escape($item['question'] ?? 'Medicamento');?></span>
-                                            </label>
+                                            </label><?php else: ?><strong class="d-block mb-2"><?=$escape($item['question'] ?? 'Otro medicamento');?></strong><?php endif; ?>
                                             <span id="<?=$itemKey;?>-status" class="badge text-bg-light" data-m07-status><?=$escape($m07StatusLabels[$itemStatus] ?? 'Pendiente');?></span>
-                                            <?php if ($isOther): ?><p class="patient-interview-muted mb-2">“Otro/Otros” requiere una decisión clínica sobre el campo donde se guardará su nombre. No se puede registrar desde esta entrega.</p><?php endif; ?>
-                                            <div class="m07-item-details" data-m07-details <?=$used ? '' : 'hidden';?>>
+                                            <?php if ($isOther): ?>
+                                                <?php if ($otherEntries): foreach ($otherEntries as $otherEntry): $entryFields = $otherEntry['fields'] ?? []; $entryId = (int)$otherEntry['id']; $entryStep = empty($entryFields['dosis']) ? 'dosis' : (empty($entryFields['consumo']) ? 'consumo' : (empty($entryFields['resultados']) ? 'resultados' : (($entryFields['resultados'] ?? '') === 'Tuve efectos adversos' && empty($entryFields['descripcion']) ? 'descripcion' : 'complete'))); ?>
+                                                    <div class="m07-item-details mt-3" data-m07-other-entry data-entry-id="<?=$entryId;?>" data-entry-version="<?=(int)$otherEntry['version'];?>" data-next-field="<?=$entryStep;?>">
+                                                        <label class="form-label" for="<?=$itemKey;?>-other-name-<?=$entryId;?>">Medicamento adicional</label>
+                                                        <input id="<?=$itemKey;?>-other-name-<?=$entryId;?>" class="form-control mb-2" data-m07-other-name data-original-name="<?=$escape($otherEntry['name'] ?? '');?>" value="<?=$escape($otherEntry['name'] ?? '');?>" maxlength="255">
+                                                        <div class="row g-2">
+                                                            <div class="col-12 col-md-6" <?=($entryStep !== 'complete' && $entryStep !== 'dosis') ? 'hidden' : '';?>><label class="form-label" for="<?=$itemKey;?>-other-dose-<?=$entryId;?>">Dosis documentada</label><input id="<?=$itemKey;?>-other-dose-<?=$entryId;?>" class="form-control" type="text" data-m07-other-dose value="<?=$escape($entryFields['dosis'] ?? '');?>"></div>
+                                                            <div class="col-12 col-md-6" <?=($entryStep !== 'complete' && $entryStep !== 'consumo') ? 'hidden' : '';?>><label class="form-label" for="<?=$itemKey;?>-other-consumption-<?=$entryId;?>">¿Todavía lo utilizas?</label><select id="<?=$itemKey;?>-other-consumption-<?=$entryId;?>" class="form-select" data-m07-other-consumption><option value="">Selecciona</option><option value="Si" <?=($entryFields['consumo'] ?? '') === 'Si' ? 'selected' : '';?>>Sí</option><option value="No" <?=($entryFields['consumo'] ?? '') === 'No' ? 'selected' : '';?>>No</option></select></div>
+                                                            <div class="col-12" <?=($entryStep !== 'complete' && $entryStep !== 'resultados') ? 'hidden' : '';?>><label class="form-label" for="<?=$itemKey;?>-other-result-<?=$entryId;?>">Resultado</label><select id="<?=$itemKey;?>-other-result-<?=$entryId;?>" class="form-select" data-m07-other-result><option value="">Selecciona</option><option value="Funciono" <?=($entryFields['resultados'] ?? '') === 'Funciono' ? 'selected' : '';?>>Funcionó</option><option value="No funciono" <?=($entryFields['resultados'] ?? '') === 'No funciono' ? 'selected' : '';?>>No funcionó</option><option value="Tuve efectos adversos" <?=($entryFields['resultados'] ?? '') === 'Tuve efectos adversos' ? 'selected' : '';?>>Tuve efectos adversos</option></select></div>
+                                                            <div class="col-12" data-m07-other-adverse-wrap <?=($entryStep === 'complete' || $entryStep === 'descripcion') && ($entryFields['resultados'] ?? '') === 'Tuve efectos adversos' ? '' : 'hidden';?>><label class="form-label" for="<?=$itemKey;?>-other-description-<?=$entryId;?>">Descripción de efectos adversos</label><textarea id="<?=$itemKey;?>-other-description-<?=$entryId;?>" class="form-control" rows="2" data-m07-other-description><?=$escape($entryFields['descripcion'] ?? '');?></textarea></div>
+                                                            <div class="col-12"><button type="button" class="btn btn-primary" data-m07-save-other disabled><?=$entryStep === 'complete' ? 'Guardar corrección' : 'Guardar y continuar';?></button></div>
+                                                        </div>
+                                                    </div>
+                                                <?php endforeach; endif; ?>
+                                                <?php if (($fields['respuesta'] ?? '') !== 'No'): ?><div class="m07-item-details mt-3" data-m07-other-create>
+                                                    <label class="form-label" for="<?=$itemKey;?>-new-name">Nombre del medicamento adicional</label>
+                                                    <div class="input-group"><input id="<?=$itemKey;?>-new-name" class="form-control" data-m07-new-other-name maxlength="255" placeholder="Escribe el nombre del medicamento"><button type="button" class="btn btn-primary" data-m07-create-other disabled><?=$otherEntries ? 'Agregar otro medicamento' : 'Sí, agregar medicamento';?></button></div>
+                                                </div><?php endif; ?>
+                                                <?php if (!$otherEntries && !in_array(($fields['respuesta'] ?? ''), ['Si','No'], true)): ?><button type="button" class="btn btn-outline-secondary mt-2" data-m07-other-no disabled>No se utilizó</button><?php endif; ?>
+                                            <?php else: ?><div class="m07-item-details" data-m07-details <?=$used ? '' : 'hidden';?>>
                                                 <div class="row g-2">
                                                     <div class="col-12 col-md-6"><label class="form-label" for="<?=$itemKey;?>-dose">Dosis documentada</label><input id="<?=$itemKey;?>-dose" class="form-control" type="text" data-m07-dose value="<?=$escape($fields['dosis'] ?? '');?>" placeholder="Escribe la dosis, sin inventar unidades"></div>
                                                     <div class="col-12 col-md-6"><fieldset><legend class="form-label">Resultado</legend><div class="d-flex flex-wrap gap-2"><label><input type="radio" name="<?=$itemKey;?>-result" value="Funciono" data-m07-result <?=($fields['resultados'] ?? '') === 'Funciono' ? 'checked' : '';?>> Funcionó</label><label><input type="radio" name="<?=$itemKey;?>-result" value="No funciono" data-m07-result <?=($fields['resultados'] ?? '') === 'No funciono' ? 'checked' : '';?>> No funcionó</label><label><input type="radio" name="<?=$itemKey;?>-result" value="Tuve efectos adversos" data-m07-result <?=($fields['resultados'] ?? '') === 'Tuve efectos adversos' ? 'checked' : '';?>> Efectos adversos</label></div></fieldset></div>
                                                     <div class="col-12" data-m07-adverse-wrap <?=($fields['resultados'] ?? '') === 'Tuve efectos adversos' ? '' : 'hidden';?>><label class="form-label" for="<?=$itemKey;?>-adverse">Descripción de efectos adversos</label><textarea id="<?=$itemKey;?>-adverse" class="form-control" rows="2" data-m07-description><?=$escape($fields['descripcion'] ?? '');?></textarea></div>
                                                     <div class="col-12"><fieldset><legend class="form-label">¿Todavía lo utilizas?</legend><label class="me-3"><input type="radio" name="<?=$itemKey;?>-consumption" value="Si" data-m07-consumption <?=($fields['consumo'] ?? '') === 'Si' ? 'checked' : '';?>> Sí</label><label><input type="radio" name="<?=$itemKey;?>-consumption" value="No" data-m07-consumption <?=($fields['consumo'] ?? '') === 'No' ? 'checked' : '';?>> No</label></fieldset></div>
                                                 </div>
-                                            </div>
+                                            </div><?php endif; ?>
                                         </div>
                                     <?php endforeach; ?>
                                     </div>
@@ -746,6 +949,9 @@ if ($firstPending >= count($questionList) && $questionList) {
                             <div class="patient-interview-status mt-3" data-m07-message role="status" aria-live="polite" hidden></div>
                             <p class="patient-interview-muted mb-0">Los datos desconocidos permanecen pendientes. Las respuestas combinadas de eficacia y efectos adversos no se reducen a una opción. La finalización de M07 sigue deshabilitada hasta cerrar las reglas de completitud clínica.</p>
                         </article>
+                        <?php else: ?>
+                        <article class="patient-interview-module-context interview-module-card" data-module="M07" data-m07-renderer="blocked" data-m07-write-enabled="0"><div class="patient-interview-message assistant"><div class="interview-message-header"><strong>Asistente · M07 medicamentos para el dolor</strong></div><p class="interview-question-text">La entrevista conversacional M07 no está habilitada en este entorno.</p></div><p class="alert alert-info" role="status">No se muestran controles de escritura mientras la política canónica del servidor está cerrada.</p></article>
+                        <?php endif; ?>
                         <?php if (!empty($data['m08'])) { $m08Items = $data['m08']['items'] ?? []; $m08Pending = null; foreach ($m08Items as $m08Item) { $m08Utilizo = trim((string)($m08Item['utilizo'] ?? '')); $m08Result = trim((string)($m08Item['resultado'] ?? '')); $m08Description = trim((string)($m08Item['descripcion'] ?? '')); $m08Incomplete = ($m08Utilizo === '') || ($m08Utilizo === 'Si' && ($m08Result === '' || ($m08Result === 'Tuve efectos adversos' && $m08Description === ''))); if ($m08Incomplete) { $m08Pending = $m08Item; break; } } ?>
                         <article class="patient-interview-module-context interview-module-card" data-module="M08" data-m08-version="<?=$escape($data['m08']['version'] ?? '');?>" data-m08-write-enabled="<?=!empty($data['m08']['write_enabled']) ? '1' : '0';?>">
                             <div class="patient-interview-message assistant"><div class="interview-message-header"><strong>Asistente · M08 tratamientos</strong></div><p class="interview-question-text">Revisaremos los tratamientos del catálogo uno por uno. Pulsa Enviar para validar y guardar la respuesta.</p></div>
@@ -757,10 +963,9 @@ if ($firstPending >= count($questionList) && $questionList) {
                             <p class="patient-interview-muted mb-0">Los procedimientos M08 permanecen separados del catálogo de tratamientos y se guardan únicamente cuando su contrato confirma que los campos están completos.</p>
                         </article>
                         <?php } ?>
-                        <?php if (!empty($data['m09'])): $m09Evaluation = $data['m09']['evaluation'] ?? null; ?>
+                        <?php if (!empty($data['m09'])): ?>
                         <article class="patient-interview-module-context interview-module-card" data-module="M09" data-m09-version="<?=$escape($data['m09']['version'] ?? '');?>">
                             <div class="patient-interview-message assistant"><div class="interview-message-header"><strong>Asistente · M09</strong></div><p class="interview-question-text">Revisaremos los cuatro campos de evaluación del dolor. Pulsa Enviar para validar y guardar la respuesta; el mapa corporal se mantiene separado.</p></div>
-                            <?php if ($m09Evaluation): ?><div class="patient-interview-context-grid"><div><dt>Evaluación existente</dt><dd><?=trim((string)($m09Evaluation['dolor'] ?? '')) !== '' ? 'Respuesta documentada' : 'Pendiente';?></dd></div></div><?php endif; ?>
                             <div class="patient-interview-answer interview-composer"><div class="interview-composer-input"><label class="visually-hidden" for="m09-input">Respuesta M09</label><input id="m09-input" class="form-control" data-m09-input type="text" placeholder="dolor: Sí; tiempo: 3 meses; descripción: inició gradualmente; incremento: igual"></div><button type="button" class="btn btn-outline-primary chat-send-button" data-m09-interpret aria-label="Interpretar respuesta M09" title="Interpretar respuesta M09">➤</button></div>
                             <small class="d-block patient-interview-muted mt-1" data-m09-result role="status" aria-live="polite" hidden></small>
                             <p class="patient-interview-muted mb-0">La localización anatómica no se interpreta desde texto libre.</p>
@@ -826,7 +1031,12 @@ if ($firstPending >= count($questionList) && $questionList) {
     const main = document.getElementById('main');
     const conversationContract = <?=$conversationContractJson;?>;
     window.patientInterviewContract = conversationContract;
-    const questions = Array.from(document.querySelectorAll('.patient-interview-question'));
+    // Only M03 question cards participate in the legacy question navigator.
+    // M02 is also rendered with the large question-card class, but it is a
+    // module card controlled by showConversationStage(). Including it here
+    // makes hideConversationCards() set hidden=true on M02 and leaves the
+    // header active while the actual question is invisible.
+    const questions = Array.from(document.querySelectorAll('.patient-interview-question[data-question-index]'));
     const status = document.getElementById('interview-status');
     const progress = document.getElementById('interview-progress');
     const progressBar = document.getElementById('interview-progress-bar');
@@ -952,16 +1162,22 @@ if ($firstPending >= count($questionList) && $questionList) {
         }
         const module = stage.card?.dataset.module || 'Entrevista';
         if (module === 'M09-MAP') return 'M09 · Mapa corporal';
-        return conversationContract.modules?.[module]?.title ? `${module} · ${conversationContract.modules[module].title}` : module;
+        const contractModule = module === 'M05-V2' ? 'M05' : module;
+        return conversationContract.modules?.[contractModule]?.title ? `${contractModule} · ${conversationContract.modules[contractModule].title}` : contractModule;
     };
     const canonicalStageTarget = stage => {
         const card = stage?.card;
         const moduleId = card?.dataset.module || '';
         if (!moduleId) return null;
-        const moduleQuestions = conversationContract.modules?.[moduleId]?.questions || [];
+        const contractModuleId = moduleId === 'M05-V2' ? 'M05' : moduleId;
+        const moduleQuestions = conversationContract.modules?.[contractModuleId]?.questions || [];
         if (!moduleQuestions.length) return null;
-        const declaredStableId = String(card.dataset.m04StableId || '').trim();
-        if (declaredStableId && conversationContract.question_index?.[declaredStableId]?.module_id === moduleId) return declaredStableId;
+        const declaredStableId = String(card.dataset.m04StableId || card.dataset.m05StableId || card.dataset.m06StableId || '').trim();
+        if (declaredStableId && conversationContract.question_index?.[declaredStableId]?.module_id === contractModuleId) return declaredStableId;
+        if (moduleId === 'M07') {
+            const activeQuestion = moduleQuestions.find(question => question.active === true && question.confirmation?.write_enabled === true);
+            return activeQuestion?.stable_id || null;
+        }
         if (moduleId === 'M04') {
             const recordId = String(card.dataset.m04Record || '').trim();
             if (recordId && recordId !== '0') {
@@ -969,7 +1185,31 @@ if ($firstPending >= count($questionList) && $questionList) {
                 if (recordQuestion?.stable_id) return recordQuestion.stable_id;
             }
         }
+        if (moduleId === 'M05' || moduleId === 'M05-V2') {
+            const variant = moduleId === 'M05-V2' ? 'v2' : 'v1';
+            const pendingId = moduleId === 'M05-V2'
+                ? String(card.dataset.m05V2Disease || '').trim()
+                : String(card.dataset.m05PendingQuestion || '').trim();
+            const variantQuestions = moduleQuestions.filter(question => question.variant === variant && question.stable_id);
+            const pendingQuestion = variantQuestions.find(question => String(question.question_id ?? '') === pendingId);
+            return (pendingQuestion || variantQuestions[0])?.stable_id || null;
+        }
         return moduleQuestions[0]?.stable_id || null;
+    };
+    const isM07AnswerableStage = stage => {
+        const card = stage?.card;
+        const moduleId = stageModuleId(stage);
+        const resolver = stageConversationState(stage) || {};
+        return moduleId === 'M07'
+            && card?.dataset.m07WriteEnabled === '1'
+            && resolver.state === 'ANSWERABLE';
+    };
+    const isM07BlockedStage = stage => stageModuleId(stage) === 'M07' && !isM07AnswerableStage(stage);
+    const voiceTargetForStage = stage => {
+        const moduleId = stageModuleId(stage);
+        if (!moduleId) return null;
+        const usesQuestionTarget = ['M04', 'M05', 'M05-V2', 'M06'].includes(moduleId) || isM07AnswerableStage(stage);
+        return usesQuestionTarget ? (canonicalStageTarget(stage) || moduleId) : moduleId;
     };
     const contextSummaryFor = label => {
         const module = String(label || '').split('·')[0].trim();
@@ -1057,11 +1297,9 @@ if ($firstPending >= count($questionList) && $questionList) {
             const moduleId = stage.card.dataset.module || '';
             const resolver = stageConversationState(stage) || {};
             if (stage.card.dataset.module !== 'M02') {
-                const target = stage.card.dataset.module === 'M04'
-                    ? canonicalStageTarget(stage)
-                    : stage.card.dataset.module || `stage:${conversationStage}`;
+                const target = voiceTargetForStage(stage) || `stage:${conversationStage}`;
                 if (!target) {
-                    setStatus('No se pudo resolver la pregunta M04 activa. Puedes continuar por escrito.');
+                    setStatus(`No se pudo resolver la pregunta activa de ${moduleId}. Puedes continuar por escrito.`);
                     return;
                 }
                 conversationCoordinator.setTarget(target);
@@ -1079,6 +1317,15 @@ if ($firstPending >= count($questionList) && $questionList) {
         else {
             stage.card.classList.remove('chat-stage-hidden');
             const resolver = stage.card.dataset.module === 'M02' ? (stageConversationState(stage) || {}) : {};
+            if (stage.card.dataset.module === 'M02' && resolver.state === 'READY_TO_FINALIZE') {
+                const actionTarget = conversationCoordinator.setActionTarget(resolver.action_id || '');
+                if (!actionTarget) {
+                    conversationCoordinator.markModuleBlocked('M02_FINALIZATION_ACTION_UNRESOLVED');
+                    setStatus('No se pudo resolver la acción de finalización de M02. La captura permanece protegida.');
+                    updateProgress();
+                    return;
+                }
+            }
             const mayAnswerM02 = !resolver.state || resolver.state === 'ANSWERABLE';
             const focusedM02 = stage.card.dataset.module === 'M02' && mayAnswerM02
                 ? focusM02Pending(stage.card)
@@ -1101,6 +1348,8 @@ if ($firstPending >= count($questionList) && $questionList) {
                     // POST can transition through the normal save guard.
                     exposeM02ResolutionAction(stage.card);
                     setStatus(message);
+                    window.setTimeout(() => { if (typeof bindVoiceControls === 'function') bindVoiceControls(); }, 0);
+                    updateProgress();
                     return;
                 }
                 if (resolver.state === 'AWAITING_PROFESSIONAL_REVIEW') {
@@ -1124,7 +1373,9 @@ if ($firstPending >= count($questionList) && $questionList) {
         else { conversationCoordinator.transition('MODULE_COMPLETED', {reason: 'all_authorized_stages_reviewed'}); setStatus('Entrevista disponible para reanudar. No hay otra etapa autorizada pendiente.'); }
     };
     const focusM02Pending = card => {
-        const rows = Array.from(card.querySelectorAll('.patient-interview-context-grid > div'));
+        const rows = [];
+        if (card.matches('[data-m02-disease]')) rows.push(card);
+        rows.push(...card.querySelectorAll('[data-m02-disease]'));
         rows.forEach(row => row.classList.add('chat-stage-hidden'));
         const module = conversationContract.modules?.M02 || {};
         const pendingIds = Array.isArray(module.completion?.pending_question_ids) ? module.completion.pending_question_ids : [];
@@ -1141,7 +1392,7 @@ if ($firstPending >= count($questionList) && $questionList) {
         conversationCoordinator.setTarget(target);
         return true;
     };
-    const advanceM02 = (row, finalized = false) => { const current = row; const card = row.closest('[data-module="M02"]'); if (current) current.dataset.chatDone = '1'; if (!focusM02Pending(card)) { if (finalized !== true) { setStatus('Respuesta M02 guardada. El servidor aún no confirmó el cierre del módulo; permanece aquí.'); return; } advanceConversation(); } };
+    const advanceM02 = (row, finalized = false) => { const current = row; if (current) current.dataset.chatDone = '1'; if (finalized === true) { advanceConversation(); return; } window.location.reload(); };
     const historyButton = document.querySelector('[data-chat-history]');
     const historyPanel = document.querySelector('[data-chat-history-panel]');
     const historyContent = document.querySelector('[data-chat-history-content]');
@@ -1149,10 +1400,22 @@ if ($firstPending >= count($questionList) && $questionList) {
         if (!historyContent) return;
         historyContent.textContent = '';
         const savedQuestions = questions.filter(hasConfirmedAnswer);
-        if (!savedQuestions.length) {
+        const m06HistoryEntries = [];
+        const m06Card = document.querySelector('[data-module="M06"]');
+        if (m06Card) {
+            try {
+                const omissionsByRecord = JSON.parse(m06Card.dataset.m06OmissionsByRecord || '{}');
+                Object.entries(omissionsByRecord || {}).forEach(([recordId, omissions]) => {
+                    Object.entries(omissions || {}).forEach(([field, state]) => {
+                        if (m06OmissionLabels[field] && ['UNKNOWN', 'SKIPPED'].includes(state)) m06HistoryEntries.push({recordId, field, state});
+                    });
+                });
+            } catch (error) { /* Invalid optional history data must not affect the active question. */ }
+        }
+        if (!savedQuestions.length && !m06HistoryEntries.length) {
             const empty = document.createElement('p');
             empty.className = 'chat-history-empty';
-            empty.textContent = 'No hay respuestas M03 registradas para consultar.';
+            empty.textContent = 'No hay respuestas registradas para consultar.';
             historyContent.appendChild(empty);
             return;
         }
@@ -1174,6 +1437,23 @@ if ($firstPending >= count($questionList) && $questionList) {
             answerValue.textContent = answerLabel(question);
             details.append(module, prompt, promptValue, answer, answerValue);
             item.appendChild(details);
+            list.appendChild(item);
+        });
+        m06HistoryEntries.forEach(({recordId, field, state}) => {
+            const item = document.createElement('li');
+            item.className = 'chat-history-item';
+            const label = document.createElement('strong');
+            label.textContent = `Medicamento M06 · ${m06OmissionLabels[field]}`;
+            const status = document.createElement('span');
+            status.className = 'patient-interview-muted d-block';
+            status.textContent = state === 'UNKNOWN' ? 'No lo sé' : 'Dato omitido';
+            const revisit = document.createElement('button');
+            revisit.type = 'button';
+            revisit.className = 'btn btn-outline-secondary btn-sm mt-2';
+            revisit.dataset.m06Revisit = field;
+            revisit.dataset.m06RecordId = recordId;
+            revisit.textContent = `Completar ${m06OmissionLabels[field]}`;
+            item.append(label, status, revisit);
             list.appendChild(item);
         });
         historyContent.appendChild(list);
@@ -1531,7 +1811,7 @@ if ($firstPending >= count($questionList) && $questionList) {
                 body: JSON.stringify({idPaciente: Number(main.dataset.patient), enfermedad: card.dataset.m02Disease, expectedVersion: card.dataset.m02Version, proposal})
             });
             const data = await response.json();
-            if (!response.ok || !data.resultado) throw new Error(data.mensaje || 'No fue posible guardar M02.');
+            if (!response.ok || !data.resultado || data.readback !== true) throw new Error(data.readback === true ? (data.mensaje || 'No fue posible guardar M02.') : 'La respuesta M02 no pudo confirmarse mediante readback. No se avanzó.');
             const result = card.querySelector('[data-m02-result]');
             if (result) { result.textContent = 'Respuesta M02 guardada.'; result.hidden = false; }
             card.dataset.m02Version = data.record && data.record.version ? data.record.version : card.dataset.m02Version;
@@ -1587,8 +1867,7 @@ if ($firstPending >= count($questionList) && $questionList) {
     document.querySelectorAll('[data-m02-input]').forEach(input => input.addEventListener('input', () => {
         const card = input.closest('[data-m02-disease]');
         const interpretButton = card?.querySelector('[data-m02-interpret]');
-        const hasText = input.value.trim() !== '';
-        if (interpretButton) interpretButton.hidden = !hasText;
+        if (interpretButton) interpretButton.hidden = false;
         if (card?.dataset.m02Proposal && card.dataset.m02LastInput !== input.value) {
             card.removeAttribute('data-m02-proposal');
             setStatus('La respuesta cambió. Vuelve a enviarla para validarla; todavía no se guardó ningún dato.');
@@ -1628,7 +1907,7 @@ if ($firstPending >= count($questionList) && $questionList) {
         try {
             const response = await fetch('<?=SERVIDOR;?>historia-clinica/entrevista/capturar-m02', {method:'POST', headers:{'Content-Type':'application/json','X-M03-CSRF':main.dataset.csrf}, body:JSON.stringify({idPaciente:Number(main.dataset.patient), enfermedad:card.dataset.m02Disease, expectedVersion:card.dataset.m02Version, fastNo:true})});
             const data = await response.json();
-            if (!response.ok || !data.resultado) throw new Error(data.mensaje || 'No fue posible guardar la respuesta.');
+            if (!response.ok || !data.resultado || data.readback !== true) throw new Error(data.readback === true ? (data.mensaje || 'No fue posible guardar la respuesta.') : 'La respuesta M02 no pudo confirmarse mediante readback. No se avanzó.');
             const result = card.querySelector('[data-m02-result]');
             if (result) { result.textContent = 'Respuesta guardada.'; result.hidden = false; }
             card.removeAttribute('data-m02-context'); card.removeAttribute('data-m02-proposal');
@@ -1640,15 +1919,6 @@ if ($firstPending >= count($questionList) && $questionList) {
             card.dataset.m02Saving = '0';
             controls.forEach(control => { control.disabled = false; });
         }
-    }));
-    document.querySelectorAll('[data-m02-defer]').forEach(button => button.addEventListener('click', () => {
-        const row = button.closest('[data-m02-disease]');
-        const module = row?.closest('[data-module="M02"]');
-        if (!row || !module || module.dataset.m02WriteEnabled === '0') { setStatus('M02 requiere responder antes de continuar.'); return; }
-        row.removeAttribute('data-m02-context');
-        row.removeAttribute('data-m02-proposal');
-        setStatus('Pregunta M02 pendiente. No se guardó ni se convirtió en «No».');
-        advanceM02(row);
     }));
     const M04_CONTINUATION_QUESTION = '¿Quieres agregar otra cirugía?';
     const M04_CONTINUATION_INSTRUCTION = 'Puedes escribir otra cirugía o seleccionar «No, continuar» para pasar al siguiente módulo.';
@@ -1789,25 +2059,47 @@ if ($firstPending >= count($questionList) && $questionList) {
         if (!card || button.dataset.intent !== 'FINISH_ADDITIONAL_SURGERIES') return;
         finishM04(card, button);
     }));
+    const refreshM05QuestionVoice = card => {
+        const message = card?.querySelector('.patient-interview-message.assistant');
+        if (message) {
+            message.querySelectorAll('.chat-voice-button, .chat-help-button').forEach(control => control.remove());
+            message.removeAttribute('data-voice-bound');
+        }
+        const target = card ? canonicalStageTarget({card}) : null;
+        if (target) conversationCoordinator.setTarget(target);
+        window.setTimeout(() => { if (typeof bindVoiceControls === 'function') bindVoiceControls(); }, 0);
+    };
+    const syncM05QuickActions = (card, next) => {
+        const quickActions = card?.querySelector('[data-m05-quick-actions]');
+        if (quickActions) quickActions.hidden = String(next?.tipo || '') !== 'select';
+    };
     const showNextM05Question = (card, next) => {
          if (!next) { setStatus('Respuesta M05 guardada. El servidor aún no confirmó el cierre del módulo; permanece aquí.'); return; }
         card.dataset.m05PendingQuestion = String(next.question_id || 0);
+        const stableId = next.stable_id || conversationCoordinator.stableIdForQuestion('M05', next.question_id);
+        if (stableId) { card.dataset.m05StableId = stableId; conversationCoordinator.setTarget(stableId); }
         const theme = card.querySelector('[data-m05-theme-label]');
         const question = card.querySelector('[data-m05-question-label]');
         if (theme) theme.textContent = next.tema || 'Pregunta M05';
         if (question) question.textContent = next.pregunta || '';
         const input = card.querySelector('[data-m05-input]'); if (input) input.value = '';
         const result = card.querySelector('[data-m05-result]'); if (result) { result.textContent = ''; result.hidden = true; }
+        syncM05QuickActions(card, next);
         card.removeAttribute('data-m05-proposal');
+        refreshM05QuestionVoice(card);
         setStatus('Respuesta M05 guardada. Continúa con la siguiente pregunta.');
     };
     const showNextM05Disease = (card, next) => {
          if (!next) { setStatus('Respuesta M05 V2 guardada. El servidor aún no confirmó el cierre del módulo; permanece aquí.'); return; }
         card.dataset.m05V2Disease = String(next.disease_id || 0);
+        const stableId = next.stable_id || `M05:v2:${next.disease_id}`;
+        if (stableId) { card.dataset.m05StableId = stableId; conversationCoordinator.setTarget(stableId); }
         const label = card.querySelector('[data-m05-v2-disease-label]'); if (label) label.textContent = next.enfermedad || 'Enfermedad M05';
         const input = card.querySelector('[data-m05-v2-input]'); if (input) input.value = '';
         const result = card.querySelector('[data-m05-v2-result]'); if (result) { result.textContent = ''; result.hidden = true; }
         card.removeAttribute('data-m05Proposal');
+        card.removeAttribute('data-m05-v2-followup');
+        refreshM05QuestionVoice(card);
         setStatus('Respuesta M05 V2 guardada. Continúa con la siguiente enfermedad.');
     };
     const saveM05Proposal = async (card, proposal, target, trigger = null) => {
@@ -1818,35 +2110,372 @@ if ($firstPending >= count($questionList) && $questionList) {
         try {
             const response = await fetch('<?=SERVIDOR;?>historia-clinica/entrevista/capturar-m05', {method:'POST',headers:{'Content-Type':'application/json','X-M03-CSRF':main.dataset.csrf},body:JSON.stringify({idPaciente:Number(main.dataset.patient),expectedVersion:card.dataset.m05Version,proposal})});
             const data = await response.json();
-            if(!response.ok||!data.resultado) throw new Error(data.mensaje||'No fue posible guardar M05.');
+            if(!response.ok||!data.resultado||data.readback!==true) throw new Error(data.mensaje||'No fue posible confirmar la respuesta M05 mediante readback.');
             card.dataset.m05Version=data.version||card.dataset.m05Version;
-             if (target === 'v2') { if (data.next_disease) showNextM05Disease(card,data.next_disease); else if (data.finalized === true) advanceConversation(); else setStatus('Respuesta M05 V2 guardada. El servidor aún no confirmó el cierre del módulo; permanece aquí.'); } else { if (data.next_question) showNextM05Question(card,data.next_question); else if (data.finalized === true) advanceConversation(); else setStatus('Respuesta M05 guardada. El servidor aún no confirmó el cierre del módulo; permanece aquí.'); }
+             if (target === 'v2') { if (data.next_disease) showNextM05Disease(card,data.next_disease); else if (data.finalized === true) advanceConversation(); else setStatus('Respuesta M05 V2 guardada. El servidor aún no confirmó el cierre del módulo; permanece aquí.'); } else { if (data.next_question) showNextM05Question(card,data.next_question); else if (data.next_disease || data.finalized === true) advanceConversation(); else setStatus('Respuesta M05 guardada. El servidor aún no confirmó el cierre del módulo; permanece aquí.'); }
         } catch(error){setStatus(error.message||'No fue posible guardar M05.');}
         finally{if (trigger) trigger.disabled=false;card.dataset.m05Saving='0';}
     };
-    document.querySelectorAll('[data-m05-interpret]').forEach(button => button.addEventListener('click', async () => {
-        const card=button.closest('[data-module="M05"]'), input=card.querySelector('[data-m05-input]'), result=card.querySelector('[data-m05-result]');
-        const utterance=input?.value.trim() || ''; if(!utterance){setStatus('Escribe una respuesta M05 para revisarla.');return;} button.disabled=true;
-        try { const qid=Number(card.dataset.m05PendingQuestion||0); const response=await fetch('<?=SERVIDOR;?>historia-clinica/entrevista/interpretar',{method:'POST',headers:{'Content-Type':'application/json','X-M03-CSRF':main.dataset.csrf},body:JSON.stringify({idPaciente:Number(main.dataset.patient),idPregunta:qid,modulo:'M05',utterance})}); const data=await response.json(); if(!response.ok||!data.resultado)throw new Error(data.mensaje||'No fue posible validar M05.'); const proposal=data.proposal||{}; if(proposal.kind==='clarification'||proposal.needs_clarification){if(result){result.textContent=proposal.clarification||'M05 solicita una aclaración.';result.hidden=false;}setStatus(proposal.clarification||'M05 solicita una aclaración. No se guardó ningún dato.');return;} if(proposal.direct_save===true&&proposal.can_confirm===true){await saveM05Proposal(card,proposal,'v1',button);return;} if(result){result.textContent=proposal.message||'M05 no pudo validar la respuesta.';result.hidden=false;}setStatus('M05 no pudo validar la respuesta. No se guardó ningún dato.'); } catch(error){setStatus(error.message||'No fue posible validar M05.');} finally{button.disabled=false;}
+    const setM05ControlsDisabled = (card, disabled) => {
+        card?.querySelectorAll('[data-m05-input], [data-m05-interpret], [data-m05-quick]').forEach(control => { control.disabled = disabled; });
+    };
+    const submitM05V1 = async (card, utterance, trigger = null) => {
+        if (!card || card.dataset.m05Interpreting === '1' || card.dataset.m05Saving === '1') return;
+        const result = card.querySelector('[data-m05-result]');
+        const text = String(utterance || '').trim();
+        if (!text) { setStatus('Escribe una respuesta M05 para revisarla.'); return; }
+        card.dataset.m05Interpreting = '1';
+        setM05ControlsDisabled(card, true);
+        try {
+            const qid = Number(card.dataset.m05PendingQuestion || 0);
+            const response = await fetch('<?=SERVIDOR;?>historia-clinica/entrevista/interpretar', {method:'POST',headers:{'Content-Type':'application/json','X-M03-CSRF':main.dataset.csrf},body:JSON.stringify({idPaciente:Number(main.dataset.patient),idPregunta:qid,modulo:'M05',utterance:text})});
+            const data = await response.json();
+            if (!response.ok || !data.resultado) throw new Error(data.mensaje || 'No fue posible validar M05.');
+            const proposal = data.proposal || {};
+            if (proposal.kind === 'clarification' || proposal.needs_clarification) {
+                if (result) { result.textContent = proposal.clarification || 'M05 solicita una aclaración.'; result.hidden = false; }
+                setStatus(proposal.clarification || 'M05 solicita una aclaración. No se guardó ningún dato.');
+                return;
+            }
+            if (proposal.direct_save === true && proposal.can_confirm === true) { await saveM05Proposal(card, proposal, 'v1', trigger); return; }
+            if (result) { result.textContent = proposal.message || 'M05 no pudo validar la respuesta.'; result.hidden = false; }
+            setStatus('M05 no pudo validar la respuesta. No se guardó ningún dato.');
+        } catch (error) { setStatus(error.message || 'No fue posible validar M05.'); }
+        finally { setM05ControlsDisabled(card, false); card.dataset.m05Interpreting = '0'; }
+    };
+    document.querySelectorAll('[data-m05-interpret]').forEach(button => button.addEventListener('click', () => {
+        const card = button.closest('[data-module="M05"]');
+        submitM05V1(card, card?.querySelector('[data-m05-input]')?.value || '', button);
     }));
-    document.querySelectorAll('[data-m05-v2-interpret]').forEach(button => button.addEventListener('click', async () => { const card=button.closest('[data-module="M05-V2"]'), utterance=card.querySelector('[data-m05-v2-input]')?.value.trim()||'', result=card.querySelector('[data-m05-v2-result]'); if(!utterance){setStatus('Escribe una respuesta M05 V2.');return;} button.disabled=true; try{const response=await fetch('<?=SERVIDOR;?>historia-clinica/entrevista/interpretar',{method:'POST',headers:{'Content-Type':'application/json','X-M03-CSRF':main.dataset.csrf},body:JSON.stringify({idPaciente:Number(main.dataset.patient),idPregunta:1,enfermedad_id:Number(card.dataset.m05V2Disease||0),modulo:'M05',utterance})});const data=await response.json();if(!response.ok||!data.resultado)throw new Error(data.mensaje||'No fue posible validar M05 V2.');const proposal=data.proposal||{};if(proposal.kind==='clarification'||proposal.needs_clarification){if(result){result.textContent=proposal.clarification||'M05 V2 solicita una aclaración.';result.hidden=false;}setStatus(proposal.clarification||'M05 V2 solicita una aclaración. No se guardó ningún dato.');return;}if(proposal.direct_save===true&&proposal.can_confirm===true){await saveM05Proposal(card,proposal,'v2',button);return;}if(result){result.textContent=proposal.message||'M05 V2 no pudo validar la respuesta.';result.hidden=false;}setStatus('M05 V2 no pudo validar la respuesta. No se guardó ningún dato.');}catch(error){setStatus(error.message||'No fue posible validar M05 V2.');}finally{button.disabled=false;}}));
+    document.querySelectorAll('[data-m05-quick]').forEach(button => button.addEventListener('click', () => {
+        const card = button.closest('[data-module="M05"]');
+        submitM05V1(card, button.dataset.value || '', button);
+    }));
+    const m05V2FollowupText = (card, utterance) => {
+        const previous = String(card?.dataset.m05V2Followup || '').trim();
+        return previous ? `${previous}, ${utterance}` : utterance;
+    };
+    const rememberM05V2Followup = (card, combined, proposal) => {
+        if (!card || (proposal?.response !== 'Si' && !card.dataset.m05V2Followup)) return;
+        const details = [];
+        const type = combined.match(/\b(tipo\s+1|tipo\s+2|gestacional|epoc|asma)\b/i);
+        const year = combined.match(/\b(19|20)\d{2}\b/);
+        if (type) details.push(type[1]);
+        if (year) details.push(year[0]);
+        card.dataset.m05V2Followup = ['Sí', ...details].join(', ');
+    };
+    document.querySelectorAll('[data-m05-v2-interpret]').forEach(button => button.addEventListener('click', async () => {
+        const card = button.closest('[data-module="M05-V2"]');
+        const utterance = card.querySelector('[data-m05-v2-input]')?.value.trim() || '';
+        const result = card.querySelector('[data-m05-v2-result]');
+        if (!utterance) { setStatus('Escribe una respuesta M05 V2.'); return; }
+        const combinedUtterance = m05V2FollowupText(card, utterance);
+        button.disabled = true;
+        try {
+            const response = await fetch('<?=SERVIDOR;?>historia-clinica/entrevista/interpretar', {method:'POST',headers:{'Content-Type':'application/json','X-M03-CSRF':main.dataset.csrf},body:JSON.stringify({idPaciente:Number(main.dataset.patient),idPregunta:1,enfermedad_id:Number(card.dataset.m05V2Disease||0),modulo:'M05',utterance:combinedUtterance})});
+            const data = await response.json();
+            if (!response.ok || !data.resultado) throw new Error(data.mensaje || 'No fue posible validar M05 V2.');
+            const proposal = data.proposal || {};
+            if (proposal.kind === 'clarification' || proposal.needs_clarification) {
+                rememberM05V2Followup(card, combinedUtterance, proposal);
+                if (result) { result.textContent = proposal.clarification || 'M05 V2 solicita una aclaración.'; result.hidden = false; }
+                setStatus(proposal.clarification || 'M05 V2 solicita una aclaración. No se guardó ningún dato.');
+                return;
+            }
+            if (proposal.direct_save === true && proposal.can_confirm === true) {
+                await saveM05Proposal(card, proposal, 'v2', button);
+                return;
+            }
+            if (result) { result.textContent = proposal.message || 'M05 V2 no pudo validar la respuesta.'; result.hidden = false; }
+            setStatus('M05 V2 no pudo validar la respuesta. No se guardó ningún dato.');
+        } catch (error) { setStatus(error.message || 'No fue posible validar M05 V2.'); }
+        finally { button.disabled = false; }
+    }));
+    const m06FieldPrompts = {
+        medicamento: '¿Qué medicamento tomas?',
+        descripcion: '¿Para qué lo utilizas?',
+        tiempo_uso: '¿Desde cuándo lo utilizas?',
+        dosis: '¿Qué dosis utilizas?',
+        medico: '¿Qué médico te lo indicó?'
+    };
+    const m06Fields = ['medicamento', 'descripcion', 'tiempo_uso', 'dosis', 'medico'];
+    const m06ContextFrom = card => {
+        try {
+            const context = JSON.parse(card?.dataset.m06Context || '{}');
+            return m06Fields.reduce((safe, field) => {
+                if (typeof context[field] === 'string' && context[field].trim() !== '') safe[field] = context[field].trim();
+                return safe;
+            }, {});
+        } catch (error) { return {}; }
+    };
+    const m06SkippedFrom = card => {
+        try {
+            const skipped = JSON.parse(card?.dataset.m06Skipped || '[]');
+            return Array.isArray(skipped) ? skipped.filter(field => m06Fields.includes(field)) : [];
+        } catch (error) { return []; }
+    };
+    const m06SetSkipped = (card, fields) => { card.dataset.m06Skipped = JSON.stringify([...new Set(fields.filter(field => m06Fields.includes(field)))]); };
+    const m06OmissionLabels = {descripcion: 'motivo de uso', tiempo_uso: 'tiempo de tratamiento', dosis: 'dosis', medico: 'médico'};
+    const m06OmissionsFrom = card => {
+        try {
+            const omissions = JSON.parse(card?.dataset.m06Omissions || '{}');
+            return Object.keys(omissions || {}).reduce((safe, field) => {
+                if (m06OmissionLabels[field] && ['UNKNOWN', 'SKIPPED'].includes(omissions[field])) safe[field] = omissions[field];
+                return safe;
+            }, {});
+        } catch (error) { return {}; }
+    };
+    const m06SetOmissions = (card, omissions) => {
+        const safe = Object.keys(omissions || {}).reduce((result, field) => {
+            if (m06OmissionLabels[field] && ['UNKNOWN', 'SKIPPED'].includes(omissions[field])) result[field] = omissions[field];
+            return result;
+        }, {});
+        card.dataset.m06Omissions = JSON.stringify(safe);
+        const recordId = Number(card.dataset.m06PendingRecord || 0);
+        if (Object.keys(safe).length && recordId > 0) card.dataset.m06OmissionRecord = String(recordId);
+        else if (!Object.keys(safe).length && recordId > 0) card.dataset.m06OmissionRecord = '';
+        if (recordId > 0) {
+            try {
+                const omissionsByRecord = JSON.parse(card.dataset.m06OmissionsByRecord || '{}');
+                if (Object.keys(safe).length) omissionsByRecord[String(recordId)] = safe;
+                else delete omissionsByRecord[String(recordId)];
+                card.dataset.m06OmissionsByRecord = JSON.stringify(omissionsByRecord);
+            } catch (error) { card.dataset.m06OmissionsByRecord = '{}'; }
+        }
+        m06SetSkipped(card, Object.keys(safe));
+    };
+    const m06CurrentField = card => {
+        const explicit = card?.dataset.m06ActiveField || '';
+        return m06Fields.includes(explicit) ? explicit : m06NextField(m06ContextFrom(card), m06SkippedFrom(card));
+    };
+    const m06NextField = (context, skipped = []) => m06Fields.find(field => !String(context?.[field] || '').trim() && !skipped.includes(field)) || null;
+    const refreshM06QuestionVoice = card => {
+        const message = card?.querySelector('.patient-interview-message.assistant');
+        if (message) {
+            message.querySelectorAll('.chat-voice-button, .chat-help-button').forEach(control => control.remove());
+            message.removeAttribute('data-voice-bound');
+        }
+        const target = card ? canonicalStageTarget({card}) : null;
+        // M06 keeps the same target while progressively filling one record.
+        // Always re-apply it so RESPONSE_SAVED can be re-armed for the next
+        // field; the coordinator still rejects genuinely concurrent submits.
+        if (target) conversationCoordinator.setTarget(target);
+        window.setTimeout(() => { if (typeof bindVoiceControls === 'function') bindVoiceControls(); }, 0);
+    };
+    const speakM06Prompt = (card, userGesture = false) => {
+        const target = (card && canonicalStageTarget({card})) || card?.dataset.m06StableId || 'M06:current-medication:new';
+        const snapshot = conversationCoordinator.snapshot();
+        if (target !== snapshot.currentTarget || !voiceController?.enabled || voiceController.muted) return false;
+        const prompt = card.querySelector('[data-m06-question]')?.textContent?.trim() || '';
+        if (!prompt) return false;
+        const contractVoice = conversationCoordinator.voiceEvent('QUESTION', target, false);
+        if (!contractVoice.text) return false;
+        return voiceController.speakEvent({...contractVoice, text: prompt}, {force: true, userGesture, automatic: !userGesture && voiceController.automaticMode});
+    };
+    const syncM06QuickActions = (card, state) => {
+        const quickActions = card?.querySelector('[data-m06-quick-actions]');
+        if (!quickActions) return;
+        const composer = card.querySelector('[data-m06-composer]');
+        if (composer) composer.hidden = state === 'after-save';
+        const startButtons = Array.from(quickActions.querySelectorAll('[data-m06-action="START_MEDICATION"]'));
+        startButtons.forEach(button => { button.hidden = button.dataset.m06Stage !== state; });
+        const activeField = m06CurrentField(card);
+        const canOmit = state === 'capturing' && Number(card?.dataset.m06PendingRecord || 0) > 0 && activeField !== 'medicamento';
+        quickActions.querySelectorAll('[data-m06-skip]').forEach(button => { button.hidden = !canOmit; });
+        const finishButton = quickActions.querySelector('[data-m06-quick][data-m06-action^="FINISH_"]');
+        if (!finishButton) return;
+        finishButton.hidden = state === 'capturing';
+        finishButton.dataset.m06Action = state === 'after-save'
+            ? 'FINISH_ADDITIONAL_MEDICATIONS' : 'FINISH_NO_CURRENT_MEDICATION';
+        finishButton.dataset.intent = finishButton.dataset.m06Action;
+        finishButton.textContent = state === 'after-save' ? 'No, terminar medicación' : 'No tomo medicamentos';
+    };
+    const setM06Prompt = (card, prompt, state, context = {}, userGesture = false, clearInput = false) => {
+        if (!card) return;
+        card.dataset.m06State = state;
+        card.dataset.m06Context = JSON.stringify(context || {});
+        const pendingRecord = Number(card.dataset.m06PendingRecord || 0);
+        const skipped = m06SkippedFrom(card);
+        const requestedField = card.dataset.m06RequestedField || '';
+        const activeField = state === 'capturing'
+            ? (m06Fields.includes(requestedField) ? requestedField : m06NextField(context, skipped))
+            : null;
+        card.dataset.m06RequestedField = '';
+        card.dataset.m06ActiveField = activeField || '';
+        card.dataset.m06StableId = state === 'capturing' && pendingRecord > 0
+            ? `M06:current-medication:${pendingRecord}`
+            : 'M06:current-medication:new';
+        const question = card.querySelector('[data-m06-question]');
+        if (question) question.textContent = prompt;
+        const instruction = card.querySelector('[data-m06-instruction]');
+        if (instruction) instruction.textContent = state === 'capturing'
+            ? activeField === 'medicamento'
+                ? (card.dataset.m06HasRecords === '1' ? 'Escribe el nombre del siguiente medicamento.' : 'Escribe el nombre del medicamento.')
+                : 'Indica sólo el dato solicitado. Si no lo recuerdas, dilo sin inventar información.'
+            : state === 'after-save'
+                ? 'Puedes agregar otro medicamento o elegir No, terminar medicación.'
+                : 'Responde Sí o No. Si respondes Sí, te preguntaré los cinco datos oficiales uno por uno.';
+        syncM06QuickActions(card, state);
+        const input = card.querySelector('[data-m06-input]');
+        if (input && clearInput) {
+            input.value = '';
+            input.dispatchEvent(new Event('input', {bubbles: true}));
+        }
+        refreshM06QuestionVoice(card);
+        speakM06Prompt(card, userGesture);
+    };
+    const initialM06Card = document.querySelector('[data-module="M06"]');
+    if (initialM06Card) { syncM06QuickActions(initialM06Card, initialM06Card.dataset.m06State || 'initial'); }
+    const finishM06 = async (card, intent, trigger = null) => {
+        if (!card || card.dataset.m06Saving === '1') return;
+        card.dataset.m06Saving = '1';
+        if (trigger) trigger.disabled = true;
+        setStatus('Confirmando el cierre de M06…');
+        try {
+            const response = await fetch('<?=SERVIDOR;?>historia-clinica/entrevista/capturar-m06', {method:'POST', headers:{'Content-Type':'application/json','X-M03-CSRF':main.dataset.csrf}, body:JSON.stringify({idPaciente:Number(main.dataset.patient), expectedVersion:card.dataset.m06Version, intent})});
+            const data = await response.json();
+            if (!response.ok || !data.resultado || data.finalized !== true || data.readback !== true) {
+                const message = data.mensaje || 'M06 no pudo confirmar su finalización mediante readback.';
+                const result = card.querySelector('[data-m06-result]');
+                if (result) { result.textContent = message; result.hidden = false; }
+                throw new Error(message);
+            }
+            card.dataset.m06Version = data.version || card.dataset.m06Version;
+            setStatus(intent === 'FINISH_NO_CURRENT_MEDICATION' ? 'Declaración de ausencia de medicación confirmada.' : 'Medicación M06 confirmada. Continuando…');
+            advanceConversation();
+        } catch (error) { setStatus(error.message || 'No fue posible finalizar M06.'); }
+        finally { if (trigger) trigger.disabled = false; card.dataset.m06Saving = '0'; }
+    };
+    const startM06Medication = (card, trigger = null) => {
+        if (!card || card.dataset.m06Saving === '1') return;
+        const addingAnother = card.dataset.m06State === 'after-save' || card.dataset.m06HasRecords === '1';
+        card.dataset.m06HasRecords = '1';
+        card.dataset.m06PendingRecord = '0';
+        card.dataset.m06OmissionRecord = '';
+        card.dataset.m06ActiveField = '';
+        card.dataset.m06RequestedField = '';
+        m06SetOmissions(card, {});
+        m06SetSkipped(card, []);
+        setM06Prompt(card, m06FieldPrompts.medicamento, 'capturing', {}, Boolean(trigger), true);
+        setStatus(addingAnother ? 'Escribe el nombre del siguiente medicamento.' : 'Escribe el nombre del medicamento.');
+    };
+    const skipM06Field = async (card, mode, trigger = null) => {
+        if (!card || card.dataset.m06State !== 'capturing' || card.dataset.m06Interpreting === '1' || card.dataset.m06Saving === '1') return;
+        const context = m06ContextFrom(card);
+        const activeField = m06CurrentField(card);
+        const recordId = Number(card.dataset.m06PendingRecord || 0);
+        if (!activeField || activeField === 'medicamento' || recordId < 1) return;
+        card.dataset.m06Saving = '1';
+        if (trigger) trigger.disabled = true;
+        setStatus('Guardando el estado de la respuesta M06…');
+        try {
+            const response = await fetch('<?=SERVIDOR;?>historia-clinica/entrevista/capturar-m06', {method:'POST', headers:{'Content-Type':'application/json','X-M03-CSRF':main.dataset.csrf}, body:JSON.stringify({idPaciente:Number(main.dataset.patient), expectedVersion:card.dataset.m06Version, omission:{recordId, field:activeField, state:mode === 'unknown' ? 'UNKNOWN' : 'SKIPPED'}})});
+            const data = await response.json();
+            if (!response.ok || !data.resultado || data.readback !== true) throw new Error(data.mensaje || 'La omisión M06 no quedó confirmada mediante readback.');
+            const savedRecord = data.record || {};
+            const nextContext = Object.keys(savedRecord).length ? savedRecord : context;
+            m06SetOmissions(card, savedRecord.omissions || data.omissions || m06OmissionsFrom(card));
+            card.dataset.m06Version = data.version || card.dataset.m06Version;
+            const pendingId = Number(data.pending_record || 0);
+            card.dataset.m06PendingRecord = pendingId > 0 ? String(pendingId) : '0';
+            const nextField = data.next_field || m06NextField(nextContext, m06SkippedFrom(card));
+            if (nextField) {
+                setM06Prompt(card, m06FieldPrompts[nextField], 'capturing', nextContext, Boolean(trigger), true);
+                setStatus(mode === 'unknown' ? 'No lo sé quedó guardado y confirmado. Puedes continuar con el siguiente dato.' : 'El dato quedó omitido y confirmado. Puedes continuar con el siguiente dato.');
+            } else {
+                setM06Prompt(card, '¿Quieres agregar otro medicamento?', 'after-save', nextContext, false, true);
+                setStatus('Los datos disponibles quedaron confirmados. Puedes agregar otro medicamento o terminar la captura.');
+            }
+        } catch (error) { setStatus(error.message || 'No fue posible guardar el estado de M06.'); }
+        finally { if (trigger) trigger.disabled = false; card.dataset.m06Saving = '0'; }
+    };
     const saveM06Proposal = async (card, proposal, trigger = null) => {
         if (!card || card.dataset.m06Saving === '1') return;
         card.dataset.m06Saving = '1';
         if (trigger) trigger.disabled = true;
         setStatus('Guardando respuesta M06…');
         try {
-            const response = await fetch('<?=SERVIDOR;?>historia-clinica/entrevista/capturar-m06',{method:'POST',headers:{'Content-Type':'application/json','X-M03-CSRF':main.dataset.csrf},body:JSON.stringify({idPaciente:Number(main.dataset.patient),expectedVersion:card.dataset.m06Version,proposal})});
+            const response = await fetch('<?=SERVIDOR;?>historia-clinica/entrevista/capturar-m06', {method:'POST', headers:{'Content-Type':'application/json','X-M03-CSRF':main.dataset.csrf}, body:JSON.stringify({idPaciente:Number(main.dataset.patient), expectedVersion:card.dataset.m06Version, recordId:Number(card.dataset.m06PendingRecord || 0) || null, createNew:Number(card.dataset.m06PendingRecord || 0) === 0 && card.dataset.m06State === 'capturing', proposal})});
             const data = await response.json();
-            if(!response.ok||!data.resultado) throw new Error(data.mensaje||'No fue posible guardar M06.');
-            if(data.finalized!==true){setStatus('Respuesta M06 guardada. Aún hay información pendiente; permanece en este módulo.');return;}
-            card.dataset.m06Version=data.version||card.dataset.m06Version;
-            setStatus('Medicación M06 guardada.');
-            advanceConversation();
-        }catch(error){setStatus(error.message||'No fue posible guardar M06.');}
-        finally{if(trigger)trigger.disabled=false;card.dataset.m06Saving='0';}
+            if (!response.ok || !data.resultado || data.readback !== true) throw new Error(data.mensaje || 'La medicación no quedó confirmada mediante readback. La pregunta permanece activa.');
+            card.dataset.m06Version = data.version || card.dataset.m06Version;
+            const savedRecord = data.record || {};
+            const pendingId = Number(data.pending_record || 0);
+            const nextContext = Object.keys(savedRecord).length ? savedRecord : {};
+            m06SetOmissions(card, savedRecord.omissions || data.omissions || m06OmissionsFrom(card));
+            if (pendingId > 0) card.dataset.m06PendingRecord = String(pendingId);
+            else card.dataset.m06PendingRecord = '0';
+            const nextField = m06NextField(nextContext, m06SkippedFrom(card));
+            if (data.next_action === 'COMPLETE_MEDICATION' && pendingId > 0 && nextField) {
+                setM06Prompt(card, m06FieldPrompts[nextField], 'capturing', nextContext, false, true);
+            } else {
+                setM06Prompt(card, '¿Quieres agregar otro medicamento?', 'after-save', nextContext, false, true);
+            }
+            const result = card.querySelector('[data-m06-result]');
+            if (result) { result.textContent = ''; result.hidden = true; }
+            setStatus(data.next_action === 'COMPLETE_MEDICATION' ? 'Medicamento guardado. Completa el dato pendiente.' : 'Medicamento guardado y confirmado.');
+        } catch (error) { setStatus(error.message || 'No fue posible guardar M06.'); }
+        finally { if (trigger) trigger.disabled = false; card.dataset.m06Saving = '0'; }
     };
-    document.querySelectorAll('[data-m06-interpret]').forEach(button => button.addEventListener('click', async () => { const card=button.closest('[data-module="M06"]'),utterance=card.querySelector('[data-m06-input]')?.value.trim()||'',result=card.querySelector('[data-m06-result]');if(!utterance){setStatus('Escribe los datos de M06.');return;}button.disabled=true;let context={};try{context=JSON.parse(card.dataset.m06Context||'{}');}catch(error){context={};}try{const response=await fetch('<?=SERVIDOR;?>historia-clinica/entrevista/interpretar',{method:'POST',headers:{'Content-Type':'application/json','X-M03-CSRF':main.dataset.csrf},body:JSON.stringify({idPaciente:Number(main.dataset.patient),modulo:'M06',utterance,context})});const data=await response.json();if(!response.ok||!data.resultado)throw new Error(data.mensaje||'No fue posible validar M06.');const proposal=data.proposal||{};if(proposal.kind==='clarification'||proposal.needs_clarification){if(result){result.textContent=proposal.clarification||'M06 solicita una aclaración.';result.hidden=false;}setStatus(proposal.clarification||'M06 solicita una aclaración. No se guardó ningún dato.');return;}if(proposal.direct_save===true&&proposal.can_confirm===true){await saveM06Proposal(card,proposal,button);return;}if(result){result.textContent=proposal.message||'M06 no pudo validar los datos.';result.hidden=false;}setStatus('M06 no pudo validar los datos. No se guardó ningún dato.');}catch(error){setStatus(error.message||'No fue posible validar M06.');}finally{button.disabled=false;}}));
+    const submitM06 = async (card, utterance, trigger = null) => {
+        if (!card || card.dataset.m06Interpreting === '1' || card.dataset.m06Saving === '1') return;
+        const text = String(utterance || '').trim();
+        const normalized = text.toLocaleLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+        const state = card.dataset.m06State || 'initial';
+        if (!text) { setStatus('Escribe una respuesta M06.'); return; }
+        if (/^no(?:,?\s*(continuar|gracias))?$/.test(normalized) && state === 'initial') { await finishM06(card, 'FINISH_NO_CURRENT_MEDICATION', trigger); return; }
+        if (/^no(?:,?\s*(continuar|gracias))?$/.test(normalized) && state === 'after-save') { await finishM06(card, 'FINISH_ADDITIONAL_MEDICATIONS', trigger); return; }
+        if (/^(si|sí)(?:,?\s*agregar otro)?$/.test(normalized) && (state === 'initial' || state === 'after-save')) { startM06Medication(card, trigger); return; }
+        const result = card.querySelector('[data-m06-result]');
+        card.dataset.m06Interpreting = '1';
+        if (trigger) trigger.disabled = true;
+        const context = m06ContextFrom(card);
+        const activeField = m06CurrentField(card);
+        try {
+            const response = await fetch('<?=SERVIDOR;?>historia-clinica/entrevista/interpretar', {method:'POST', headers:{'Content-Type':'application/json','X-M03-CSRF':main.dataset.csrf}, body:JSON.stringify({idPaciente:Number(main.dataset.patient), modulo:'M06', utterance:text, context, campo:activeField})});
+            const data = await response.json();
+            if (!response.ok || !data.resultado) throw new Error(data.mensaje || 'No fue posible validar M06.');
+            const proposal = data.proposal || {};
+            if (proposal.kind === 'clarification' || proposal.needs_clarification) {
+                const nextContext = proposal.context || proposal.fields || context;
+                card.dataset.m06Context = JSON.stringify(nextContext);
+                const nextField = proposal.missing?.find(field => !m06SkippedFrom(card).includes(field)) || m06NextField(nextContext, m06SkippedFrom(card));
+                setM06Prompt(card, m06FieldPrompts[nextField] || 'Indica el dato pendiente del medicamento.', 'capturing', nextContext, false);
+                if (result) { result.textContent = proposal.clarification || 'M06 solicita una aclaración.'; result.hidden = false; }
+                setStatus(proposal.clarification || 'M06 solicita una aclaración. No se guardó ningún dato.');
+                return;
+            }
+            if (proposal.direct_save === true && proposal.can_confirm === true) { await saveM06Proposal(card, proposal, trigger); return; }
+            if (result) { result.textContent = proposal.message || 'M06 no pudo validar los datos.'; result.hidden = false; }
+            setStatus('M06 no pudo validar los datos. No se guardó ningún dato.');
+        } catch (error) { setStatus(error.message || 'No fue posible validar M06.'); }
+        finally { if (trigger) trigger.disabled = false; card.dataset.m06Interpreting = '0'; }
+    };
+    document.querySelectorAll('[data-m06-interpret]').forEach(button => button.addEventListener('click', () => { const card = button.closest('[data-module="M06"]'); submitM06(card, card?.querySelector('[data-m06-input]')?.value || '', button); }));
+    document.querySelectorAll('[data-m06-quick]').forEach(button => button.addEventListener('click', () => {
+        const card = button.closest('[data-module="M06"]');
+        const action = button.dataset.m06Action || button.dataset.intent || '';
+        if (action === 'START_MEDICATION') startM06Medication(card, button);
+        else if (action === 'FINISH_NO_CURRENT_MEDICATION' || action === 'FINISH_ADDITIONAL_MEDICATIONS') finishM06(card, action, button);
+    }));
+    document.querySelectorAll('[data-m06-skip]').forEach(button => button.addEventListener('click', () => {
+        const card = button.closest('[data-module="M06"]');
+        skipM06Field(card, button.dataset.m06SkipMode || 'omit', button);
+    }));
+    document.addEventListener('click', event => {
+        const button = event.target.closest('[data-m06-revisit]');
+        if (!button) return;
+        const card = button.closest('[data-module="M06"]');
+        if (!card || card.dataset.m06Saving === '1') return;
+        const field = button.dataset.m06Revisit || '';
+        const recordId = Number(card.dataset.m06RecordId || 0) || Number(card.dataset.m06PendingRecord || 0) || Number(card.dataset.m06OmissionRecord || 0);
+        if (!m06Fields.includes(field) || recordId < 1) return;
+        card.dataset.m06PendingRecord = String(recordId);
+        card.dataset.m06RequestedField = field;
+        if (historyPanel) historyPanel.hidden = true;
+        setM06Prompt(card, m06FieldPrompts[field], 'capturing', m06ContextFrom(card), true, false);
+        setStatus('Puedes proporcionar ahora el dato omitido.');
+    });
     const m07Card = document.querySelector('[data-module="M07"]');
     const m07Result = m07Card?.querySelector('[data-m07-message]');
     const m07SetResult = message => { if (m07Result) { m07Result.textContent = message || ''; m07Result.hidden = !message; } };
@@ -1873,15 +2502,28 @@ if ($firstPending >= count($questionList) && $questionList) {
             const state = category.querySelector('[data-m07-category-state]'); if (state) state.textContent = pending ? 'Respuestas pendientes en esta categoría.' : 'Categoría revisada.';
         });
         m07SetResult('Respuesta M07 confirmada. El servidor devolvió el estado actualizado; la lectura no crea filas.');
-        if (Number(data.pending_items || 0) === 0) advanceConversation();
+        if (Number(data.pending_items || 0) === 0) {
+            if (data.finalized === true && data.finalization_readback === true) advanceConversation();
+            else m07SetResult('Las respuestas están completas, pero el servidor aún no confirmó la finalización. La entrevista permanece en M07.');
+        }
     };
     const m07Submit = async (items, button) => {
-        if (!m07Card || !items.length) { setStatus('Selecciona al menos una respuesta M07.'); return; }
+        if (!m07Card || !items.length) { setStatus('Selecciona una respuesta M07.'); return; }
+        if (items.length !== 1) { setStatus('Confirma una pregunta M07 a la vez.'); return; }
         button.disabled = true;
         try {
             const response = await fetch('<?=SERVIDOR;?>historia-clinica/entrevista/capturar-m07', {method:'POST', headers:{'Content-Type':'application/json','X-M03-CSRF':main.dataset.csrf}, body:JSON.stringify({idPaciente:Number(main.dataset.patient), expectedVersion:m07Card.dataset.m07Version, items})});
             const data = await response.json();
             if (!response.ok || !data.resultado) throw new Error(data.mensaje || 'No fue posible guardar M07.');
+            if (['create','update'].includes(items[0]?.other_action)) {
+                const saved = data.record;
+                const linked = data.readback?.other_medications?.some(entry => Number(entry.id) === Number(saved?.id) && Number(entry.question_id) === Number(items[0].question_id));
+                if (!saved || !linked || !data.readback?.version || data.version !== data.readback.version) throw new Error('El servidor no confirmó el vínculo y la lectura del medicamento adicional.');
+                m07Card.dataset.m07Version = data.version;
+                m07SetResult('Medicamento adicional guardado y verificado.');
+                window.setTimeout(() => window.location.reload(), 100);
+                return;
+            }
             m07MarkReadback(items, data);
             setStatus('M07 guardó únicamente las respuestas confirmadas.');
         } catch (error) { m07SetResult(error.message || 'No fue posible guardar M07.'); setStatus(error.message || 'No fue posible guardar M07.'); }
@@ -1928,18 +2570,153 @@ if ($firstPending >= count($questionList) && $questionList) {
         }));
         m07Card.querySelectorAll('[data-m07-dose], [data-m07-description], [data-m07-consumption]').forEach(input => input.addEventListener('input', () => { const item = input.closest('[data-m07-item]'); if (item) item.dataset.dirty = '1'; }));
         m07Card.querySelectorAll('[data-m07-save-selected], [data-m07-confirm-negatives]').forEach(button => { button.disabled = !writable; });
+        m07Card.querySelectorAll('[data-m07-create-other], [data-m07-save-other], [data-m07-other-no]').forEach(button => { button.disabled = !writable; });
+        m07Card.querySelectorAll('[data-m07-create-other]').forEach(button => button.addEventListener('click', async () => {
+            const item = button.closest('[data-m07-item]');
+            const name = item?.querySelector('[data-m07-new-other-name]')?.value.trim() || '';
+            if (!name) { setStatus('Escribe el nombre del medicamento adicional antes de guardar.'); return; }
+            await m07Submit([{question_id:Number(item.dataset.questionId),theme_id:Number(item.dataset.themeId),fields:{respuesta:'Si'},other_action:'create',name}],button);
+        }));
+        m07Card.querySelectorAll('[data-m07-save-other]').forEach(button => button.addEventListener('click', async () => {
+            const entry = button.closest('[data-m07-other-entry]'); const item = button.closest('[data-m07-item]');
+            const patch = {};
+            const nameInput=entry.querySelector('[data-m07-other-name]'); const name=nameInput?.value.trim()||'';
+            if(name && name!==nameInput.dataset.originalName) patch.nombre=name;
+            const nextField=entry.dataset.nextField;
+            const fieldControl={dosis:'[data-m07-other-dose]',consumo:'[data-m07-other-consumption]',resultados:'[data-m07-other-result]',descripcion:'[data-m07-other-description]'}[nextField];
+            if(nextField==='complete') {
+                patch.dosis=entry.querySelector('[data-m07-other-dose]')?.value.trim()||'';
+                patch.consumo=entry.querySelector('[data-m07-other-consumption]')?.value||'';
+                patch.resultados=entry.querySelector('[data-m07-other-result]')?.value||'';
+                patch.descripcion=entry.querySelector('[data-m07-other-description]')?.value.trim()||'';
+            } else if(fieldControl) {
+                const control=entry.querySelector(fieldControl); const value=String(control?.value ?? '').trim();
+                if(value) patch[nextField]=value;
+            }
+            Object.keys(patch).forEach(key => { if (!patch[key]) delete patch[key]; });
+            if (!Object.keys(patch).length) { setStatus('Completa un dato antes de guardar.'); return; }
+            await m07Submit([{question_id:Number(item.dataset.questionId),theme_id:Number(item.dataset.themeId),other_action:'update',entry_id:Number(entry.dataset.entryId),entry_version:Number(entry.dataset.entryVersion),patch}],button);
+        }));
+        m07Card.querySelectorAll('[data-m07-other-result]').forEach(input => input.addEventListener('change', () => { const wrap=input.closest('[data-m07-other-entry]')?.querySelector('[data-m07-other-adverse-wrap]'); if(wrap)wrap.hidden=input.value!=='Tuve efectos adversos'; }));
+        m07Card.querySelectorAll('[data-m07-other-no]').forEach(button => button.addEventListener('click', async () => {
+            const item=button.closest('[data-m07-item]');
+            await m07Submit([{question_id:Number(item.dataset.questionId),theme_id:Number(item.dataset.themeId),fields:{respuesta:'No'},confirm_clear:false}],button);
+        }));
         m07Card.querySelectorAll('[data-m07-save-selected]').forEach(button => button.addEventListener('click', async () => {
             try {
-                const items = Array.from(m07Card.querySelectorAll('[data-m07-item]')).filter(item => item.querySelector('[data-m07-used]')?.checked).map(m07PayloadFor);
+                const items = Array.from(m07Card.querySelectorAll('[data-m07-item]')).filter(item => item.querySelector('[data-m07-used]')?.checked && item.dataset.status !== 'complete').map(m07PayloadFor);
                 await m07Submit(items, button);
             } catch (error) { setStatus(error.message || 'Completa la respuesta M07 antes de revisar.'); }
         }));
         m07Card.querySelectorAll('[data-m07-confirm-negatives]').forEach(button => button.addEventListener('click', async () => {
-            const items = Array.from(button.closest('[data-m07-category]')?.querySelectorAll('[data-m07-item]') || []).filter(item => item.dataset.status === 'pending' && item.dataset.otherBlocked !== '1' && !item.querySelector('[data-m07-used]')?.checked).map(item => ({question_id:Number(item.dataset.questionId), theme_id:Number(item.dataset.themeId), fields:{respuesta:'No'}, confirm_clear:true}));
+            const next = Array.from(button.closest('[data-m07-category]')?.querySelectorAll('[data-m07-item]') || []).find(item => item.dataset.status === 'pending' && item.dataset.otherBlocked !== '1' && !item.querySelector('[data-m07-used]')?.checked);
+            const items = next ? [{question_id:Number(next.dataset.questionId), theme_id:Number(next.dataset.themeId), fields:{respuesta:'No'}, confirm_clear:true}] : [];
             if (!items.length) { setStatus('No hay medicamentos pendientes que puedan confirmarse como no utilizados.'); return; }
             if (!window.confirm('Confirma explícitamente que los medicamentos no seleccionados de esta categoría no fueron utilizados.')) return;
             await m07Submit(items, button);
         }));
+    }
+    const m07CanonicalForm = m07Card?.querySelector('[data-m07-canonical-editor]');
+    if (m07CanonicalForm) {
+        const canonicalStatus = m07CanonicalForm.querySelector('[data-m07-canonical-status]');
+        const showCanonicalStatus = message => { if (canonicalStatus) { canonicalStatus.textContent = message || ''; canonicalStatus.hidden = !message; } };
+        const selectedM07Response = () => m07CanonicalForm.querySelector('[data-m07-response]:checked')?.value || '';
+        m07CanonicalForm.querySelectorAll('[data-m07-response]').forEach(input => input.addEventListener('change', () => {
+            const yes = selectedM07Response() === 'Si';
+            const dependencies = m07CanonicalForm.querySelector('[data-m07-dependencies]');
+            const otherName = m07CanonicalForm.querySelector('[data-m07-other-name-wrap]');
+            if (dependencies) dependencies.hidden = !yes;
+            if (otherName) otherName.hidden = !yes;
+        }));
+        m07CanonicalForm.querySelector('[data-m07-result]')?.addEventListener('change', event => {
+            const adverse = m07CanonicalForm.querySelector('[data-m07-adverse-wrap]');
+            if (adverse) adverse.hidden = event.currentTarget.value !== 'Tuve efectos adversos';
+        });
+        m07CanonicalForm.addEventListener('submit', async event => {
+            event.preventDefault();
+            if (m07Card.dataset.m07WriteEnabled !== '1' || m07Card.dataset.m07Saving === '1') return;
+            const mode = m07CanonicalForm.dataset.mode;
+            const questionId = Number(m07CanonicalForm.dataset.questionId);
+            const themeId = Number(m07CanonicalForm.dataset.themeId);
+            const responseValue = selectedM07Response();
+            const baseItem = {question_id:questionId, theme_id:themeId};
+            let item;
+            if (mode === 'catalog') {
+                if (!['Si', 'No'].includes(responseValue)) { showCanonicalStatus('Selecciona Sí o No.'); return; }
+                const fields = {respuesta:responseValue, dosis:'', resultados:'', consumo:'', descripcion:''};
+                if (responseValue === 'Si') {
+                    fields.dosis = m07CanonicalForm.querySelector('[data-m07-dose]')?.value.trim() || '';
+                    fields.resultados = m07CanonicalForm.querySelector('[data-m07-result]')?.value || '';
+                    fields.consumo = m07CanonicalForm.querySelector('[data-m07-consumption]')?.value || '';
+                    fields.descripcion = m07CanonicalForm.querySelector('[data-m07-description]')?.value.trim() || '';
+                    if (!fields.dosis || !['Funciono','No funciono','Tuve efectos adversos'].includes(fields.resultados) || !['Si','No'].includes(fields.consumo) || (fields.resultados === 'Tuve efectos adversos' && !fields.descripcion)) {
+                        showCanonicalStatus('Completa los datos dependientes requeridos. El texto permanece disponible para corregirlo.'); return;
+                    }
+                } else {
+                    const hasDependents = m07CanonicalForm.dataset.hasDependents === '1';
+                    if (hasDependents && !window.confirm('La respuesta No requiere limpiar datos dependientes ya registrados. ¿Confirmas esta corrección?')) return;
+                    item = {...baseItem, fields, confirm_clear:hasDependents};
+                }
+                if (!item) item = {...baseItem, fields, confirm_clear:false};
+            } else if (mode === 'other_create') {
+                if (!['Si','No'].includes(responseValue)) { showCanonicalStatus('Selecciona Sí o No.'); return; }
+                if (responseValue === 'Si') {
+                    const name = m07CanonicalForm.querySelector('[data-m07-other-name]')?.value.trim() || '';
+                    if (!name) { showCanonicalStatus('Indica el nombre del medicamento adicional.'); return; }
+                    item = {...baseItem, fields:{respuesta:'Si'}, other_action:'create', name};
+                } else item = {...baseItem, fields:{respuesta:'No'}};
+            } else if (mode === 'other_update') {
+                const field = m07CanonicalForm.dataset.field;
+                const value = m07CanonicalForm.querySelector('[data-m07-other-field]')?.value.trim() || '';
+                if (!value) { showCanonicalStatus('Completa el dato solicitado.'); return; }
+                item = {...baseItem, other_action:'update', entry_id:Number(m07CanonicalForm.dataset.entryId), entry_version:Number(m07CanonicalForm.dataset.entryVersion), patch:{[field]:value}};
+            } else {
+                showCanonicalStatus('El estado de esta pregunta no permite captura.'); return;
+            }
+
+            const send = m07CanonicalForm.querySelector('[data-m07-send]');
+            if (!send) return;
+            m07Card.dataset.m07Saving = '1'; send.disabled = true; showCanonicalStatus('Guardando. Espera la confirmación del servidor…');
+            try {
+                const response = await fetch('<?=SERVIDOR;?>historia-clinica/entrevista/capturar-m07', {
+                    method:'POST', headers:{'Content-Type':'application/json','X-M03-CSRF':main.dataset.csrf},
+                    body:JSON.stringify({idPaciente:Number(main.dataset.patient), expectedVersion:m07Card.dataset.m07Version, items:[item]})
+                });
+                const data = await response.json();
+                if (!response.ok || data.resultado !== true || !data.readback || !data.version || data.version !== data.readback.version) throw new Error(data.mensaje || 'El servidor no confirmó la respuesta M07.');
+                if (mode === 'other_create' || mode === 'other_update') {
+                    const saved = data.record;
+                    const readback = data.readback.other_medications?.find(entry => Number(entry.id) === Number(saved?.id) && Number(entry.question_id) === questionId);
+                    if (!saved || !readback || Number(readback.version) !== Number(saved.version)) throw new Error('El servidor no confirmó el medicamento adicional mediante readback.');
+                    if (mode === 'other_update' && String(readback.fields?.[m07CanonicalForm.dataset.field] ?? '').trim() !== String(item.patch[m07CanonicalForm.dataset.field]).trim()) throw new Error('El servidor no confirmó el campo actualizado.');
+                } else {
+                    const saved = data.readback.records?.find(record => Number(record.question_id) === questionId);
+                    if (!saved || saved.status !== 'complete') throw new Error('El servidor aún no confirma esta pregunta como completa. La pregunta permanece activa.');
+                    for (const field of ['respuesta','dosis','resultados','consumo','descripcion']) if (String(saved.fields?.[field] ?? '').trim() !== String(item.fields[field] ?? '').trim()) throw new Error('El readback no coincide con la respuesta enviada. La pregunta permanece activa.');
+                }
+                m07Card.dataset.m07Version = data.version;
+                showCanonicalStatus('Respuesta confirmada y verificada. Actualizando la siguiente pregunta…');
+                window.location.reload();
+            } catch (error) {
+                showCanonicalStatus(error.message || 'No fue posible guardar M07. La pregunta permanece activa.');
+                setStatus(error.message || 'No fue posible guardar M07.');
+            } finally {
+                m07Card.dataset.m07Saving = '0';
+                send.disabled = false;
+            }
+        });
+        m07CanonicalForm.querySelector('[data-m07-repeat]')?.addEventListener('click', () => {
+            const target = m07CanonicalForm.dataset.stableId;
+            if (!target || target !== m07Card.querySelector('[data-m07-canonical-editor]')?.dataset.stableId) return;
+            if (conversationCoordinator.snapshot().currentTarget !== target) conversationCoordinator.setTarget(target);
+            const event = conversationCoordinator.voiceEvent('QUESTION', target, false);
+            if (event?.stable_id === target && event.text) voiceController.speakEvent(event, {force:true, userGesture:true});
+        });
+        m07CanonicalForm.querySelector('[data-m07-help]')?.addEventListener('click', () => {
+            const target = m07CanonicalForm.dataset.stableId;
+            const question = conversationContract.question_index?.[target];
+            showCanonicalStatus(question?.help || 'Responde únicamente la pregunta activa y espera la confirmación del servidor.');
+        });
     }
     const saveM08Proposal = async (card, proposal, trigger = null) => {
         if (!card || card.dataset.m08Saving === '1') return;
@@ -2037,12 +2814,24 @@ if ($firstPending >= count($questionList) && $questionList) {
     const setVoiceButtonState = (button, speaking) => { button.dataset.speaking = speaking ? '1' : '0'; button.textContent = speaking ? '⏹ Detener' : '🔊 Escuchar esta pregunta'; button.title = speaking ? 'Detener lectura' : 'Escuchar esta pregunta en voz alta'; button.setAttribute('aria-label', speaking ? 'Detener lectura' : 'Escuchar esta pregunta en voz alta'); };
     const resetVoiceButtons = () => document.querySelectorAll('.chat-voice-button').forEach(button => setVoiceButtonState(button, false));
     const stopAssistantVoice = () => { voiceController.cancel(); resetVoiceButtons(); };
+    const moduleBlockedVoiceEventFor = target => {
+        const stage = conversationStages[conversationStage];
+        if (target !== 'M07' || !isM07BlockedStage(stage)) return null;
+        const event = conversationCoordinator.voiceEvent('MODULE_BLOCKED', target, false);
+        return event.text ? {...event, type: 'MODULE_BLOCKED', stable_id: target} : null;
+    };
     const handleVoiceEvent = event => {
         if (!event || ['SAVING', 'SUCCESS', 'ERROR', 'SESSION_EXPIRED'].includes(event.type)) return false;
         if (event.type === 'RESUME') {
             const current = conversationCoordinator.snapshot().currentTarget;
-            const question = conversationCoordinator.voiceEvent('QUESTION', current, false);
+            const question = moduleBlockedVoiceEventFor(current) || conversationCoordinator.voiceEvent('QUESTION', current, false);
             return voiceController.speakStartup(event, question, {automatic: voiceController.automaticMode});
+        }
+        if (event.action_id) {
+            const current = conversationCoordinator.snapshot().currentTarget;
+            const action = conversationCoordinator.actionContract(current);
+            if (!event.text || !action || event.action_id !== current || action.action_id !== current) return false;
+            return voiceController.handleEvent(event);
         }
         if (event.type !== 'QUESTION') return voiceController.handleEvent(event);
         if (!event.text || !event.stable_id || event.stable_id !== conversationCoordinator.snapshot().currentTarget) return false;
@@ -2053,10 +2842,10 @@ if ($firstPending >= count($questionList) && $questionList) {
         if (question?.dataset.questionId) return `M03:question:${question.dataset.questionId}`;
         const card = message?.closest('.interview-module-card');
         const module = card?.dataset.module || '';
-        if (module === 'M04') return canonicalStageTarget({card}) || conversationCoordinator.snapshot().currentTarget;
-        if (module === 'M05' && card.dataset.m05PendingQuestion && card.dataset.m05PendingQuestion !== '0') return `M05:v1:${card.dataset.m05PendingQuestion}`;
-        if (module === 'M05-V2' && card.dataset.m05V2Disease && card.dataset.m05V2Disease !== '0') return `M05:v2:${card.dataset.m05V2Disease}`;
-        if (module === 'M06') return `M06:current-medication:${card.dataset.m06PendingRecord || 'new'}`;
+        if (module === 'M04' || module === 'M05' || module === 'M05-V2' || module === 'M06' || module === 'M07') {
+            const stage = conversationStages.find(candidate => candidate.card === card) || {card};
+            return voiceTargetForStage(stage) || conversationCoordinator.snapshot().currentTarget;
+        }
         if (module === 'M09-MAP') return 'M09:body-map';
         if (module) return module;
         return conversationCoordinator.snapshot().currentTarget;
@@ -2065,7 +2854,8 @@ if ($firstPending >= count($questionList) && $questionList) {
         if (button.dataset.speaking === '1') { stopAssistantVoice(); return; }
         if (target && target !== conversationCoordinator.snapshot().currentTarget) conversationCoordinator.setTarget(target);
         stopAssistantVoice();
-        const contractVoice = conversationCoordinator.voiceEvent('QUESTION', target || conversationCoordinator.snapshot().currentTarget, false);
+        const activeTarget = target || conversationCoordinator.snapshot().currentTarget;
+        const contractVoice = moduleBlockedVoiceEventFor(activeTarget) || conversationCoordinator.voiceEvent('QUESTION', target || conversationCoordinator.snapshot().currentTarget, false);
         if (!contractVoice.text) { setStatus('No se pudo resolver la pregunta activa. La captura escrita sigue disponible.'); return; }
         voiceController.speakEvent(contractVoice, {force:true, userGesture:true});
     };
@@ -2078,7 +2868,7 @@ if ($firstPending >= count($questionList) && $questionList) {
             return;
         }
         const question = conversationCoordinator.questionContract(target);
-        const event = conversationCoordinator.voiceEvent('HELP', target, false);
+        const event = moduleBlockedVoiceEventFor(target) || conversationCoordinator.voiceEvent('HELP', target, false);
         stopAssistantVoice();
         if (!question || !event.text) {
             setStatus('No hay una explicación adicional disponible para esta pregunta. Puedes responder por escrito o pedir que se repita.');
@@ -2229,15 +3019,22 @@ if ($firstPending >= count($questionList) && $questionList) {
     const startupVoiceEvents = () => {
         const snapshot = conversationCoordinator.snapshot();
         if (!snapshot.currentTarget) { setStatus('No hay una pregunta disponible para iniciar la guía por voz.'); return null; }
+        const action = conversationCoordinator.actionContract(snapshot.currentTarget);
         const introType = conversationCoordinator.initialInterviewState() === 'FIRST_START' ? 'FIRST_START' : 'RESUME';
         const welcome = conversationCoordinator.voiceEvent('WELCOME');
         const firstStart = conversationCoordinator.voiceEvent('FIRST_START', snapshot.currentTarget, false);
         const intro = introType === 'FIRST_START'
             ? {...firstStart, text: firstStart.text || welcome.text}
             : conversationCoordinator.voiceEvent('RESUME', snapshot.currentTarget, false);
-        const question = conversationCoordinator.voiceEvent('QUESTION', snapshot.currentTarget, false);
-        if (!intro.text || !question.text || !question.stable_id || question.stable_id !== snapshot.currentTarget) {
-            setStatus('No se pudo resolver la pregunta activa para iniciar la guía por voz. Puedes continuar por escrito.');
+        const blockedM07 = moduleBlockedVoiceEventFor(snapshot.currentTarget);
+        const question = blockedM07 || conversationCoordinator.voiceEvent(action ? 'ACTION' : 'QUESTION', snapshot.currentTarget, false);
+        const targetValid = blockedM07
+            ? question.stable_id === snapshot.currentTarget
+            : action
+                ? question.action_id === snapshot.currentTarget
+                : Boolean(question.stable_id && question.stable_id === snapshot.currentTarget);
+        if (!intro.text || !question.text || !targetValid) {
+            voiceController.reportError({code: 'QUESTION_TEXT_MISSING'});
             return null;
         }
         return {intro, question};

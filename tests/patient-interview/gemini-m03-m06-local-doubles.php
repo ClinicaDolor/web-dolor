@@ -87,7 +87,7 @@ final class Delivery13LocalProvider implements ConversationalProvider
                 'tiempo_uso' => 'dos años', 'dosis' => '100 mg', 'medico' => 'otro médico',
             ]
             : [
-                'descripcion' => 'gabapentina', 'medicamento' => 'dolor',
+                'medicamento' => 'gabapentina', 'descripcion' => 'dolor',
                 'tiempo_uso' => 'tres meses', 'dosis' => '300 mg por la noche', 'medico' => 'doctora Ana',
             ];
         $common['interpretation'] = 'Propuesta sintética para validación local.';

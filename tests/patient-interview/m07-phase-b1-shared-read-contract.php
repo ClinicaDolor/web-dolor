@@ -8,6 +8,7 @@ declare(strict_types=1);
  * when the canonical schema is available.
  */
 $root = dirname(__DIR__, 2);
+require_once $root . '/vendor/autoload.php';
 $service = file_get_contents($root . '/app/Services/M07CanonicalService.php');
 $record = file_get_contents($root . '/app/Services/M07CanonicalRecord.php');
 $adapter = file_get_contents($root . '/app/Services/ConversationalM07Adapter.php');
@@ -23,9 +24,10 @@ $checks = [
     'canonical_service_read_contract' => is_string($service) && str_contains($service, 'public function read(int $patientId, int $clinicId, string $role): array'),
     'canonical_scope_guard' => is_string($service) && str_contains($service, "M07_CLINIC_DENIED") && str_contains($service, 'id_clinica'),
     'canonical_dto_states' => is_string($record) && str_contains($record, 'public readonly array $states = []') && str_contains($record, "'states' => \$this->states"),
-    'adapter_uses_canonical_service' => is_string($adapter) && str_contains($adapter, 'new M07CanonicalService($db)') && str_contains($adapter, 'readCanonical'),
+    'adapter_uses_canonical_service' => is_string($adapter) && str_contains($adapter, 'new M07CanonicalService($this->connection())') && str_contains($adapter, 'readCanonical') && str_contains($adapter, 'captureCatalog('),
     'adapter_preserves_other_entries' => is_string($adapter) && str_contains($adapter, "'other_medications' => \$state['other_medications'] ?? []"),
-    'adapter_keeps_gate_closed' => is_string($adapter) && str_contains($adapter, "'write_enabled' => false") && str_contains($adapter, "'finalization_enabled' => false"),
+    'adapter_defaults_to_closed_gate' => is_string($adapter) && str_contains($adapter, 'new M07CanonicalService($this->connection())') && str_contains($service, 'M07CanonicalActivationGate::fromTrustedServerConfiguration()') && str_contains($service, '?? M07CanonicalActivationGate::fromTrustedServerConfiguration()'),
+    'application_gate_remains_closed' => (new App\Services\M07CanonicalActivationGate())->isEnabled() === false,
     'controller_passes_authenticated_clinic' => is_string($controller) && str_contains($controller, "(int)\$auth['id_clinica'], 'patient'"),
     'p09_model_uses_canonical_service' => is_string($model) && str_contains($model, 'new M07CanonicalService($this->bd)') && str_contains($model, 'canonicalM07Projection'),
     'doctor_summary_uses_canonical_service' => is_string($clinicalDetail) && str_contains($clinicalDetail, 'canonicalM07Module') && str_contains($clinicalDetail, 'new M07CanonicalService($this->db)'),

@@ -65,6 +65,23 @@ async function main() {
     resumedStart.setTarget('M03:question:1');
     assert(resumedStart.initialInterviewState() === 'RESUME', 'Una respuesta confirmada debe iniciar como RESUME.');
 
+    const finalizeActionEvents = [];
+    const finalizeAction = new Coordinator({contract: {
+        modules: {M02: {title: 'Antecedentes familiares', conversation_state: {
+            state: 'READY_TO_FINALIZE', action: 'FINALIZE', action_id: 'M02:action:finalize', stable_id: null,
+            voice_text: 'Tus antecedentes familiares están registrados. Puedes finalizar esta sección y continuar.',
+        }, voice: {RESUME: 'Continuemos con tus antecedentes familiares.'}}},
+    }, onVoiceEvent: event => finalizeActionEvents.push(event), fetcher: async () => response({resultado: true, finalized: true, finalization_readback: true, readback: true})});
+    assert(finalizeAction.setActionTarget('M02:action:finalize') === 'M02:action:finalize', 'READY_TO_FINALIZE debe aceptar únicamente la acción contractual validada.');
+    const actionSnapshot = finalizeAction.snapshot();
+    assert(actionSnapshot.context.stable_id === null && actionSnapshot.context.action_id === 'M02:action:finalize', 'Una acción de finalización no debe convertirse en stable_id clínico.');
+    const actionEvent = finalizeAction.voiceEvent('ACTION', 'M02:action:finalize', false);
+    assert(actionEvent.action_id === 'M02:action:finalize' && actionEvent.stable_id === null && actionEvent.text.includes('registrados'), 'La acción M02 debe aportar narración propia y contexto validado.');
+    assert(finalizeActionEvents.some(event => event.type === 'ACTION' && event.action_id === 'M02:action:finalize'), 'El cambio a la acción M02 debe emitir un evento de voz accionable.');
+    const finalizeActionResponse = await finalizeAction.request('auto', '/entrevista/capturar-m02', {method: 'POST'});
+    await finalizeActionResponse.json();
+    assert(finalizeAction.state === STATES.RESPONSE_SAVED, 'La acción M02 debe conservar el guard de guardado y readback.');
+
     const interpret = new Coordinator({contract: {question_index: {'M03:1': {stable_id: 'M03:1', voice: {QUESTION: 'Pregunta sintética', CONFIRMATION: 'Confirma la propuesta.'}}}}, fetcher: async () => response({resultado: true, proposal: {can_confirm: true, kind: 'm03_proposal'}})});
     interpret.setTarget('M03:1');
     assert(interpret.voiceEvent('QUESTION').text === 'Pregunta sintética', 'La narración debe proceder del contrato de servidor.');

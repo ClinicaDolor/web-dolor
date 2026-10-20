@@ -54,6 +54,14 @@ $assert($contract['question_index']['M03:question:12']['voice']['HELP'] === $con
 $assert(($contract['question_index']['M04:record:4']['response']['temporal_precision'] ?? '') === 'partial_or_relative', 'M04 temporal precision preserved');
 $assert(($contract['modules']['M07']['state']['blocked'] ?? false) === true, 'M07 write remains blocked');
 $assert(($contract['modules']['M07']['state']['finalization_enabled'] ?? true) === false, 'M07 finalization remains disabled');
+$authorizedStates = $states;
+$authorizedStates['M07']['write_enabled'] = true;
+$authorizedStates['M07']['write_blocker'] = null;
+$authorizedStates['M07']['finalization_enabled'] = true;
+$authorizedContract = (new ConversationalInterviewService())->buildUnifiedContract($authorizedStates);
+$assert(($authorizedContract['modules']['M07']['state']['blocked'] ?? true) === false, 'M07 authorized simulation must be answerable without opening the application gate');
+$assert(($authorizedContract['modules']['M07']['conversation_state']['state'] ?? '') === 'ANSWERABLE', 'M07 authorized simulation exposes a pending active question');
+$assert(($authorizedContract['modules']['M07']['conversation_state']['stable_id'] ?? '') === 'M07:question:1', 'M07 authorized simulation retains canonical question identity');
 $assert(($contract['question_index']['M09:body-map']['source'] ?? '') === 'existing_visual_component', 'M09 existing map preserved');
 $assert(($contract['question_index']['M06:current-medication:1']['response']['status'] ?? '') === 'pending', 'M06 pending preserved');
 $assert(isset($contract['voice']['WELCOME'], $contract['voice']['SESSION_EXPIRED']), 'generic voice contract present');

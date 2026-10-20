@@ -12,8 +12,8 @@ $assert(str_contains($view,"['SAVING', 'SUCCESS', 'ERROR', 'SESSION_EXPIRED']"),
 $assert(str_contains($view,'voiceController.handleEvent(event)'),'Question narration must use the single active event');
 $assert(str_contains($view,'handleVoiceEvent'),'Coordinator voice events must reach the voice controller');
 $assert(str_contains($view,'visibilitychange'),'Voice must stop when the page is hidden');
-$assert(str_contains($view,'data-m02-defer'),'M02 defer control missing');
-$assert(str_contains($view,'Pregunta M02 pendiente. No se guardó'),'M02 defer must not write');
+$assert(str_contains($view,'patient-interview-question patient-interview-active-question'),'M02 must reuse the single-question visual card');
+$assert(!str_contains($view,'data-m02-defer') && !str_contains($view,'Responder después'),'M02 must not expose a defer action');
 $assert(str_contains($view,'data-m02-quick'),'M02 quick responses missing');
 $assert(!str_contains($view,'recognition.processLocally = true'),'The working browser recognition must not be forced into processLocally mode.');
 $assert(str_contains($view,'new recognitionConstructor()'),'Local speech recognition must be detected on an instance, not only on the prototype.');

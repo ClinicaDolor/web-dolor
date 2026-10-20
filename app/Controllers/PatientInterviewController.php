@@ -238,7 +238,8 @@ final class PatientInterviewController extends BaseController
             }
             if ($module === 'M06') {
                 $context = is_array($data['context'] ?? null) ? $data['context'] : [];
-                $proposal = $this->conversationService()->interpretM06($utterance, $context);
+                $activeField = is_scalar($data['campo'] ?? null) ? trim((string)$data['campo']) : null;
+                $proposal = $this->conversationService()->interpretM06($utterance, $context, $activeField);
                 $m06State = (new ConversationalM06Adapter())->read((int)$patientId);
                 $proposal['write_enabled'] = (bool)$m06State['write_enabled'];
                 $proposal['direct_save'] = ($proposal['kind'] ?? '') === 'm06_proposal'
@@ -369,8 +370,8 @@ final class PatientInterviewController extends BaseController
         $result = (new ConversationalM02Adapter())->capture((int)$patientId, $disease, $proposal, $expectedVersion);
         $result = $this->finalizeAfterCapture((int)$patientId, 2, $result);
         $status = (int)($result['resultado'] ?? 422);
-        if (!in_array($status, [200, 403, 409, 422, 500], true)) $status = 422;
-        echo HttpMethod::jsonResponse($status, $status === 200, $result['mensaje'] ?? 'No fue posible guardar M02.', '', ['record' => $result['record'] ?? null, 'finalized' => $result['finalized'] ?? false]);
+        if (!in_array($status, [200, 403, 409, 422, 500, 503], true)) $status = 422;
+        echo HttpMethod::jsonResponse($status, $status === 200, $result['mensaje'] ?? 'No fue posible guardar M02.', '', ['record' => $result['record'] ?? null, 'readback' => $result['readback'] ?? false, 'finalized' => $result['finalized'] ?? false]);
     }
 
     public function captureM04(): void
@@ -437,7 +438,7 @@ final class PatientInterviewController extends BaseController
         $result = $this->finalizeAfterCapture((int)$patientId, 5, $result);
         $status = (int)($result['resultado'] ?? 422);
         if (!in_array($status, [200, 403, 409, 422, 500], true)) $status = 422;
-        echo HttpMethod::jsonResponse($status, $status === 200, $result['mensaje'] ?? 'No fue posible guardar M05.', '', ['record' => $result['record'] ?? null, 'version' => $result['version'] ?? null, 'next_question' => $result['next_question'] ?? null, 'next_disease' => $result['next_disease'] ?? null, 'finalized' => $result['finalized'] ?? false]);
+        echo HttpMethod::jsonResponse($status, $status === 200, $result['mensaje'] ?? 'No fue posible guardar M05.', '', ['record' => $result['record'] ?? null, 'version' => $result['version'] ?? null, 'readback' => $result['readback'] ?? false, 'next_question' => $result['next_question'] ?? null, 'next_disease' => $result['next_disease'] ?? null, 'finalized' => $result['finalized'] ?? false]);
     }
 
     public function captureM06(): void
@@ -446,12 +447,105 @@ final class PatientInterviewController extends BaseController
         $data = json_decode(file_get_contents('php://input'), true); $data = is_array($data) ? $data : [];
         $patientId = filter_var($data['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         $csrf = $_SERVER['HTTP_X_M03_CSRF'] ?? ($data['csrf_token'] ?? null);
-        if ($patientId === false || !is_array($data['proposal'] ?? null)) { echo HttpMethod::jsonResponse(422, false, 'Propuesta M06 no válida.'); return; }
+        $intent = is_scalar($data['intent'] ?? null) ? trim((string)$data['intent']) : '';
+        $allowedIntents = ['FINISH_NO_CURRENT_MEDICATION', 'FINISH_ADDITIONAL_MEDICATIONS'];
+        $proposal = is_array($data['proposal'] ?? null) ? $data['proposal'] : null;
+        $omission = is_array($data['omission'] ?? null) ? $data['omission'] : null;
+        $hasOmission = $omission !== null;
+        if ($patientId === false
+            || ($proposal === null && !$hasOmission && !in_array($intent, $allowedIntents, true))
+            || ($intent !== '' && !in_array($intent, $allowedIntents, true))
+            || ($hasOmission && ($proposal !== null || $intent !== ''))) {
+            echo HttpMethod::jsonResponse(422, false, 'Propuesta o intención M06 no válida.');
+            return;
+        }
         $authGuard = new AuthMiddleware('historia-clinica'); $auth = $authGuard->authPermisos(); $authGuard->assertPatientAccess((int)$patientId, $auth);
         if (!ClinicalSummarySecurity::validCaptureCsrf((int)$patientId, is_scalar($csrf) ? (string)$csrf : null)) { echo HttpMethod::jsonResponse(403, false, 'Token de seguridad inválido o ausente.'); return; }
         $expectedVersion = is_scalar($data['expectedVersion'] ?? null) ? (string)$data['expectedVersion'] : null;
-        $result = (new ConversationalM06Adapter())->capture((int)$patientId, $data['proposal'], $expectedVersion); $result = $this->finalizeAfterCapture((int)$patientId, 6, $result); $status=(int)($result['resultado']??422); if(!in_array($status,[200,403,409,422,500],true))$status=422;
-        echo HttpMethod::jsonResponse($status,$status===200,$result['mensaje']??'No fue posible guardar M06.','',['record'=>$result['record']??null,'version'=>$result['version']??null,'finalized'=>$result['finalized']??false]);
+        if ($hasOmission) {
+            $recordId = filter_var($omission['recordId'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            $field = is_scalar($omission['field'] ?? null) ? trim((string)$omission['field']) : '';
+            $state = is_scalar($omission['state'] ?? null) ? strtoupper(trim((string)$omission['state'])) : '';
+            if ($recordId === false || $field === '' || !in_array($state, ['UNKNOWN', 'SKIPPED'], true)) {
+                echo HttpMethod::jsonResponse(422, false, 'El estado de omisión M06 no es válido.');
+                return;
+            }
+            $result = (new ConversationalM06Adapter())->captureOmission((int)$patientId, (int)$recordId, $field, $state, $expectedVersion);
+            $status = (int)($result['resultado'] ?? 422);
+            if (!in_array($status, [200, 403, 409, 422, 500], true)) $status = 422;
+            echo HttpMethod::jsonResponse($status, $status === 200, $result['mensaje'] ?? 'No fue posible guardar el estado M06.', '', [
+                'record' => $result['record'] ?? null,
+                'omissions' => $result['omissions'] ?? [],
+                'omission_state' => $state,
+                'version' => $result['version'] ?? null,
+                'readback' => $result['readback'] ?? false,
+                'next_action' => $result['next_action'] ?? null,
+                'next_field' => $result['next_field'] ?? null,
+                'pending_record' => $result['pending_record']['id'] ?? null,
+                'missing' => $result['missing'] ?? [],
+            ]);
+            return;
+        }
+        if ($intent !== '') {
+            $adapter = new ConversationalM06Adapter();
+            $state = $adapter->read((int)$patientId);
+            if ($expectedVersion !== null && !hash_equals((string)($state['version'] ?? ''), $expectedVersion)) {
+                echo HttpMethod::jsonResponse(409, false, 'M06 cambió mientras se revisaba. Recarga antes de continuar.', '', ['code' => 'M06_VERSION_CONFLICT']);
+                return;
+            }
+            $records = is_array($state['records'] ?? null) ? $state['records'] : [];
+            if ($intent === 'FINISH_NO_CURRENT_MEDICATION' && $records !== []) {
+                echo HttpMethod::jsonResponse(409, false, 'La declaración inicial de ausencia sólo puede realizarse antes de registrar medicación.', '', ['code' => 'M06_INITIAL_NEGATIVE_NOT_APPLICABLE']);
+                return;
+            }
+            if ($intent === 'FINISH_ADDITIONAL_MEDICATIONS' && $records === []) {
+                echo HttpMethod::jsonResponse(409, false, 'Registra al menos un medicamento antes de finalizar esta captura.', '', ['code' => 'M06_NO_MEDICATION_TO_FINISH']);
+                return;
+            }
+            $finalization = (new ConversationalModuleFinalizationService())->finalizeIfComplete(
+                (int)$patientId,
+                6,
+                $intent === 'FINISH_NO_CURRENT_MEDICATION'
+            );
+            $status = (int)($finalization['resultado'] ?? 500);
+            $finalized = ($finalization['finalized'] ?? false) === true;
+            $readback = ($finalization['readback'] ?? false) === true;
+            $ok = $status === 200 && $finalized && $readback;
+            if ($status === 200 && !$ok) $status = 409;
+            if (!in_array($status, [200, 403, 409, 422, 500, 503], true)) $status = 422;
+            echo HttpMethod::jsonResponse($status, $ok, (string)($finalization['mensaje'] ?? 'No fue posible finalizar M06.'), '', [
+                'version' => $state['version'] ?? null,
+                'readback' => $readback,
+                'finalized' => $finalized,
+                'finalization_attempted' => $finalization['finalization_attempted'] ?? false,
+                'finalization_readback' => $readback,
+                'code' => $finalization['code'] ?? null,
+                'pending_fields' => $finalization['pending_fields'] ?? [],
+                'intent' => $intent,
+            ]);
+            return;
+        }
+
+        // Saving a medication is deliberately separate from module closure.
+        // The patient must be able to add another medication before choosing
+        // the explicit FINISH_ADDITIONAL_MEDICATIONS intent.
+        if (is_array($proposal)) {
+            $recordId = filter_var($data['recordId'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            if ($recordId !== false && $recordId !== null) $proposal['record_id'] = (int)$recordId;
+            $proposal['create_new'] = filter_var($data['createNew'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        }
+        $result = (new ConversationalM06Adapter())->capture((int)$patientId, $proposal, $expectedVersion);
+        $status = (int)($result['resultado'] ?? 422);
+        if (!in_array($status, [200, 403, 409, 422, 500], true)) $status = 422;
+        echo HttpMethod::jsonResponse($status, $status === 200, $result['mensaje'] ?? 'No fue posible guardar M06.', '', [
+            'record' => $result['record'] ?? null,
+            'version' => $result['version'] ?? null,
+            'readback' => $result['readback'] ?? false,
+            'finalized' => false,
+            'next_action' => $result['next_action'] ?? null,
+            'pending_record' => $result['pending_record']['id'] ?? null,
+            'missing' => $result['missing'] ?? [],
+        ]);
     }
 
     public function captureM07(): void
@@ -474,6 +568,9 @@ final class PatientInterviewController extends BaseController
         }
         $expectedVersion = is_scalar($data['expectedVersion'] ?? null) ? (string)$data['expectedVersion'] : null;
         $result = (new ConversationalM07Adapter())->captureBatch((int)$patientId, $data['items'], $expectedVersion);
+        // M07 capture must not implicitly trigger module finalization. Its
+        // activation and clinical completion policy remain separately gated.
+        $result = $this->finalizeAfterCapture((int)$patientId, 7, $result, false);
         $status = (int)($result['resultado'] ?? 422);
         if (!in_array($status, [200, 403, 409, 422, 500], true)) $status = 422;
         echo HttpMethod::jsonResponse($status, $status === 200, $result['mensaje'] ?? 'No fue posible guardar M07.', '', [
@@ -481,6 +578,9 @@ final class PatientInterviewController extends BaseController
             'version' => $result['version'] ?? null,
             'pending_items' => $result['pending_items'] ?? null,
             'readback' => $result['readback'] ?? null,
+            'record' => $result['record'] ?? null,
+            'finalized' => $result['finalized'] ?? false,
+            'finalization_readback' => $result['finalization_readback'] ?? false,
         ]);
     }
 
@@ -548,6 +648,9 @@ final class PatientInterviewController extends BaseController
     private function finalizeAfterCapture(int $patientId, int $moduleId, array $result, bool $allowFinalization = true): array
     {
         if ((int)($result['resultado'] ?? 422) !== 200) return $result;
+        if ($moduleId === 7 && (int)($result['pending_items'] ?? 1) > 0) {
+            return array_merge($result, ['finalized' => false, 'finalization_attempted' => false, 'finalization_readback' => false]);
+        }
         if (!$allowFinalization) {
             return array_merge($result, [
                 'finalized' => false,
@@ -556,6 +659,14 @@ final class PatientInterviewController extends BaseController
         }
         $finalization = (new ConversationalModuleFinalizationService())->finalizeIfComplete($patientId, $moduleId);
         if ((int)($finalization['resultado'] ?? 500) !== 200) {
+            if ($moduleId === 7) {
+                return array_merge($result, [
+                    'finalized' => false,
+                    'finalization_attempted' => true,
+                    'finalization_readback' => false,
+                    'finalization' => $finalization,
+                ]);
+            }
             return array_merge($result, [
                 'resultado' => (int)($finalization['resultado'] ?? 500),
                 'mensaje' => (string)($finalization['mensaje'] ?? 'No fue posible finalizar el módulo.'),
