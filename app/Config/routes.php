@@ -122,6 +122,8 @@ $r->addRoute('POST', '/paciente/{idPaciente}/clinical-summary', ['ClinicalSummar
 
 $r->addRoute('GET', '/nota-subsecuente/{idNota}', ['NotaSubsecuenteController', 'notaSubsecuente']);
 $r->addRoute('GET', '/nota-subsecuente/paciente/{idPaciente}/referencia/{referencia}', ['ClinicaController', 'pacienteNotaSubsecuente']);
+$r->addRoute('GET', '/nota-subsecuente/paciente/{idPaciente}/referencia/{referencia}/nueva', ['ClinicaController', 'pacienteNuevaNotaSubsecuente']);
+$r->addRoute('GET', '/nota-subsecuente/paciente/{idPaciente}/referencia/{referencia}/editar/{idNota}', ['ClinicaController', 'pacienteEditarNotaSubsecuente']);
 $r->addRoute('POST', '/paciente/insert-nota-subsecuente', ['ClinicaController', 'pacienteInsertNotaSubsecuente']);
 
 $r->addRoute('GET', '/receta/{idReceta}', ['RecetaController', 'receta']);
@@ -178,6 +180,7 @@ $r->addRoute('POST', '/entrevista/capturar-m02', ['PatientInterviewController', 
 $r->addRoute('POST', '/entrevista/capturar-m04', ['PatientInterviewController', 'captureM04']);
 $r->addRoute('POST', '/entrevista/capturar-m05', ['PatientInterviewController', 'captureM05']);
 $r->addRoute('POST', '/entrevista/capturar-m06', ['PatientInterviewController', 'captureM06']);
+$r->addRoute('POST', '/entrevista/capturar-m07', ['PatientInterviewController', 'captureM07']);
 $r->addRoute('POST', '/entrevista/capturar-m08', ['PatientInterviewController', 'captureM08']);
 $r->addRoute('POST', '/entrevista/capturar-m09', ['PatientInterviewController', 'captureM09']);
 $r->addRoute('POST', '/entrevista/capturar-m09-mapa', ['PatientInterviewController', 'captureM09Map']);

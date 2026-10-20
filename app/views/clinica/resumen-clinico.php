@@ -40,7 +40,7 @@ $hasMore = static fn(string $key): bool => !empty($supplement[$key]['has_more'])
                         <h1>Resumen clínico integral</h1>
                         <p class="clinical-summary-hero-description">Lectura estructurada del expediente autorizado, sin modificar sus registros.</p>
                     </div>
-                    <a class="btn btn-light clinical-summary-back" href="<?=SERVIDOR?>clinica/paciente/<?=$patientId?>">
+                    <a class="btn btn-light clinical-summary-back" data-doctor-back-action href="<?=SERVIDOR?>clinica/paciente/<?=$patientId?>">
                         <i data-feather="arrow-left" aria-hidden="true"></i>
                         <span>Volver al expediente</span>
                     </a>

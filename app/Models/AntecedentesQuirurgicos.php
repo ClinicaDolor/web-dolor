@@ -8,9 +8,9 @@ class AntecedentesQuirurgicos
 {
     private $bd;
 
-    public function __construct()
+    public function __construct(?\PDO $db = null)
     {
-        $this->bd = Database::getInstance();
+        $this->bd = $db ?: Database::getInstance();
     }
 
     private function escape($value): string

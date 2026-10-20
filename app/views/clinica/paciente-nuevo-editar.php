@@ -228,7 +228,7 @@ function mayus(elemento) {
         <h1><?=$e($data['title'] ?? 'Paciente');?></h1>
         <p><?=($isEdit) ? 'Actualiza la información registrada del paciente.' : 'Registra la información inicial para abrir un expediente.';?></p>
     </div>
-    <a href="<?=SERVIDOR?>clinica/pacientes" class="btn btn-light doctor-page-hero-action">
+    <a href="<?=SERVIDOR?>clinica/pacientes" class="btn btn-light doctor-page-hero-action" data-doctor-back-action>
         <i data-feather="arrow-left" aria-hidden="true"></i>
         <span>Volver a pacientes</span>
     </a>

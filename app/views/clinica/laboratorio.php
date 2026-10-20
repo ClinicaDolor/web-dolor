@@ -45,7 +45,7 @@ $celularSeguro = htmlspecialchars((string)($data['celular'] ?? ''), ENT_QUOTES, 
                     <p>Consulta el resultado de laboratorio y el documento asociado.</p>
                 </div>
                 <div class="doctor-page-hero-actions">
-                    <a class="btn doctor-page-hero-action" href="<?=$volverLaboratorioUrl;?>">
+                    <a class="btn doctor-page-hero-action" data-doctor-back-action href="<?=$volverLaboratorioUrl;?>">
                         <i data-feather="arrow-left" aria-hidden="true"></i>
                         <span>Volver a laboratorios</span>
                     </a>

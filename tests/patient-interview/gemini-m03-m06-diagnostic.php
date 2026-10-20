@@ -59,8 +59,8 @@ final class Fase67RDiagnosticProvider implements ConversationalProvider
         }
         $complete = $this->scenario !== 'incomplete_m06';
         $common['fields'] = [
-            'descripcion' => 'gabapentina',
-            'medicamento' => 'dolor',
+            'medicamento' => 'gabapentina',
+            'descripcion' => 'dolor',
             'tiempo_uso' => $complete ? 'tres meses' : '',
             'dosis' => $complete ? '300 mg' : '',
             'medico' => $complete ? 'médico tratante' : '',

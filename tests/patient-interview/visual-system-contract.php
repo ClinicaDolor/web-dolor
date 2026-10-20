@@ -7,10 +7,10 @@ $view = file_get_contents($root . '/app/views/paciente/entrevista.php');
 $assertions = [
     str_contains($view, 'patient-interview-page'),
     str_contains($view, 'patient-interview-main'),
-    str_contains($view, 'interview-progress-card'),
+    str_contains($view, 'patient-interview-header-progress'),
     str_contains($view, 'patient-interview-conversation-card'),
     substr_count($view, 'class="patient-interview-module-context interview-module-card"') === 10,
-    str_contains($view, 'class="patient-interview-question interview-module-card"'),
+    str_contains($view, 'class="patient-interview-question patient-interview-active-question interview-module-card"'),
     substr_count($view, 'interview-composer') >= 8,
     str_contains($view, 'interview-composer-input'),
     substr_count($view, 'interview-message-header') >= 9,

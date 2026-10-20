@@ -42,9 +42,8 @@ $titulo = htmlspecialchars((string)($data['title'] ?? 'Recetas'), ENT_QUOTES, 'U
 <i data-feather="plus" aria-hidden="true"></i>
 <span>Nueva receta</span>
 </a>
-<button id="toggleButton" type="button" class="btn doctor-recipes-toggle" onclick="toggleSize()" aria-label="Cambiar distribución de la pantalla" title="Cambiar distribución de la pantalla">
+<button id="toggleButton" type="button" class="btn doctor-recipes-toggle" onclick="toggleSize()" aria-label="Cambiar distribución" title="Cambiar distribución">
 <i id="toggleIcon" data-feather="columns" aria-hidden="true"></i>
-<span>Cambiar distribución</span>
 </button>
 </div>
 </header>

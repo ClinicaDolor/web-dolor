@@ -45,7 +45,7 @@ $sexoVisible = (($data['sexo'] ?? '') === 'M') ? 'Masculino' : 'Femenino';
 <p>Consulta la receta médica de <?=$nombrePacienteVisible;?> y su información clínica asociada.</p>
 </div>
 <div class="doctor-page-hero-actions">
-<a class="btn doctor-page-hero-action" href="<?=$volverExpedienteUrl;?>">
+<a class="btn doctor-page-hero-action" data-doctor-back-action href="<?=$volverExpedienteUrl;?>">
 <i data-feather="arrow-left" aria-hidden="true"></i>
 <span>Volver al expediente</span>
 </a>

@@ -15,6 +15,7 @@ $versionedAsset = static function (string $baseUrl, string $assetPath, string $p
 $appCssUrl = $versionedAsset(RUTA_CSS, 'app.css', 'assets/css/app.css');
 $loaderJsUrl = $versionedAsset(RUTA_JS, 'loader.js', 'assets/js/loader.js');
 $voiceUtilitiesJsUrl = $versionedAsset(RUTA_JS, 'voice-utilities.js', 'assets/js/voice-utilities.js');
+$audioStatusJsUrl = $versionedAsset(RUTA_JS, 'patient-audio-status.js', 'assets/js/patient-audio-status.js');
 $featherJsUrl = $versionedAsset(RUTA_JS, 'feather-icons/feather.min.js', 'assets/js/feather-icons/feather.min.js');
 $appJsUrl = $versionedAsset(RUTA_JS, 'app.js', 'assets/js/app.js');
 $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
@@ -413,6 +414,7 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
     }
 
     function p07StopVoice(announce = false) {
+        const hadSpeech = p07SpeechStarted;
         const previousMode = p07SpeechMode;
         p07SpeechRequestId += 1;
         p07SpeechMode = null;
@@ -421,12 +423,15 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
         if ('speechSynthesis' in window) window.speechSynthesis.cancel();
         p07SetQuestionVoiceActive(false);
         p07MarkVoiceNeedsAction(false);
-        if (!announce) return;
+        if (previousMode === 'instructions') {
+            PatientAudioControls.setState('p07-instructions', announce && hadSpeech ? 'stopped' : 'idle');
+        }
+        if (!announce || !hadSpeech) return;
         if (previousMode === 'question') {
-            p07SetVoiceStatus('Audio detenido.');
+            p07SetVoiceStatus(PatientAudioStatus.messages.stopped);
             return;
         }
-        p07SetVoicePrompt('Audio detenido. Presiona Escuchar para repetir las instrucciones.');
+        p07SetVoicePrompt(PatientAudioStatus.messages.stopped);
     }
 
     function p07BindVoicesChanged() {
@@ -454,6 +459,7 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
             else p07SetVoiceStatus(message);
             p07SetQuestionVoiceActive(false);
             p07MarkVoiceNeedsAction(true);
+            if (mode === 'instructions') PatientAudioControls.unavailable('p07-instructions');
             return false;
         }
 
@@ -477,7 +483,7 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
         p07SpeechMode = mode;
         p07SpeechStarted = false;
         p07MarkVoiceNeedsAction(false);
-        if (mode === 'instructions') p07SetVoicePrompt('Intentando iniciar la lectura...');
+        if (mode === 'instructions') { p07SetVoicePrompt(PatientAudioStatus.messages.idle); PatientAudioControls.idle('p07-instructions'); }
         else p07SetVoiceStatus('Intentando iniciar la lectura de la pregunta.');
 
         utterance.onstart = () => {
@@ -485,7 +491,7 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
             p07SpeechStarted = true;
             p07ClearVoiceFeedbackTimer();
             p07SetQuestionVoiceActive(mode === 'question');
-            if (mode === 'instructions') p07SetVoicePrompt('Reproduciendo instrucciones. Puedes detenerlas o repetirlas.');
+            if (mode === 'instructions') { p07SetVoicePrompt(PatientAudioStatus.messages.playing); PatientAudioControls.playing('p07-instructions'); }
             else p07SetVoiceStatus('Reproduciendo la pregunta activa. Puedes detenerla o repetirla.');
         };
         utterance.onend = () => {
@@ -494,7 +500,7 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
             p07SpeechStarted = false;
             p07SpeechMode = null;
             p07SetQuestionVoiceActive(false);
-            if (mode === 'instructions') p07SetVoicePrompt('Lectura finalizada. Puedes repetirla cuando quieras.');
+            if (mode === 'instructions') { p07SetVoicePrompt(PatientAudioStatus.messages.idle); PatientAudioControls.ended('p07-instructions'); }
             else p07SetVoiceStatus('Lectura de la pregunta finalizada.');
         };
         utterance.onerror = () => {
@@ -507,6 +513,7 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
             const message = 'No se pudo iniciar la lectura. Presiona Escuchar para intentarlo de nuevo.';
             if (mode === 'instructions') p07SetVoicePrompt(message);
             else p07SetVoiceStatus(message);
+            if (mode === 'instructions') PatientAudioControls.idle('p07-instructions');
         };
 
         try {
@@ -1080,7 +1087,7 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
     <div class="modal-content patient-nonpathological-modal-content patient-instructions-modal-content">
     <div class="modal-header patient-instructions-modal-header">
     <h2 id="p07InstructionsTitle" class="modal-title patient-instructions-modal-title">Antes de comenzar: Antecedentes Personales Patológicos</h2>
-    <button id="p07InstructionsCloseButton" type="button" class="btn-close" aria-label="Cerrar instrucciones"></button>
+    <?php $modalCloseConfig = ['id' => 'p07InstructionsCloseButton']; include __DIR__ . '/partials/modal-close.php'; unset($modalCloseConfig); ?>
     </div>
     <div class="modal-body patient-instructions-modal-body">
     <p id="p07InstructionsText" data-narration-instructions>En esta sección te preguntaremos sobre tus antecedentes personales de salud y enfermedades que hayas padecido o que tengas actualmente.<br><br>Primero responderás algunas preguntas generales. Después revisaremos diferentes enfermedades para saber si alguna vez te han sido diagnosticadas.<br><br>Selecciona Sí o No según corresponda. Si respondes Sí, es posible que necesitemos información adicional, como el tipo de enfermedad o el año aproximado del diagnóstico.<br><br>Puedes regresar para revisar tus respuestas. La información se guardará mientras avances.<br><br>Cuando termines todas las preguntas, podrás finalizar esta sección y continuar con tu Historia Clínica.</p>
@@ -1088,12 +1095,7 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
     <p class="patient-nonpathological-modal-note patient-instructions-modal-note">Tus respuestas se guardan mientras avanzas. Puedes cerrar esta ventana sin perder tu progreso.</p>
     </div>
     <div class="modal-footer patient-nonpathological-modal-actions patient-instructions-modal-actions">
-    <button id="p07ReadInstructionsButton" type="button" class="btn patient-nonpathological-secondary patient-instructions-secondary" data-p07-voice="instructions">
-    <i data-feather="volume-2" aria-hidden="true"></i><span>Escuchar</span>
-    </button>
-    <button id="p07StopInstructionsButton" type="button" class="btn patient-nonpathological-secondary patient-instructions-secondary" data-p07-stop-voice="instructions">
-    <i data-feather="square" aria-hidden="true"></i><span>Detener</span>
-    </button>
+    <?php $modalAudioConfig = ['group' => 'p07-instructions', 'listen_id' => 'p07ReadInstructionsButton', 'stop_id' => 'p07StopInstructionsButton', 'listen_class' => 'btn patient-nonpathological-secondary patient-instructions-secondary', 'stop_class' => 'btn patient-nonpathological-secondary patient-instructions-secondary', 'listen_attrs' => ['data-p07-voice' => 'instructions'], 'stop_attrs' => ['data-p07-stop-voice' => 'instructions']]; include __DIR__ . '/partials/modal-audio-controls.php'; unset($modalAudioConfig); ?>
     <button id="p07StartButton" type="button" class="btn btn-primary">Entendido, comenzar</button>
     </div>
     </div>
@@ -1106,6 +1108,7 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
     </div>
     </div>
 
+    <script src="<?=$audioStatusJsUrl;?>"></script>
     <script src="<?=RUTA_JS;?>patient-instructions-modal.js"></script>
     <script src="<?=RUTA_JS;?>patient-narration-highlight.js"></script>
     <script src="<?=$voiceUtilitiesJsUrl;?>"></script>

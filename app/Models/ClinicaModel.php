@@ -87,6 +87,65 @@ class ClinicaModel{
     }
 
     /**
+     * Obtiene los conteos de navegación del expediente para un solo paciente.
+     *
+     * El conjunto contado coincide con los listados existentes: todos los
+     * registros del módulo para el paciente, incluidos PIN expirados. La
+     * relación con pc_paciente aplica además el aislamiento de clínica.
+     */
+    public function getPatientModuleCounts($idPaciente, $idClinica): array
+    {
+        $idPaciente = filter_var($idPaciente, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $idClinica = filter_var($idClinica, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+
+        $counts = [
+            'pin' => 0,
+            'notas' => 0,
+            'laboratorio' => 0,
+            'recetas' => 0,
+            'cofepris' => 0,
+        ];
+
+        if ($idPaciente === false || $idClinica === false) {
+            return $counts;
+        }
+
+        $queries = [
+            'pin' => "SELECT COUNT(*)
+                FROM pc_paciente p
+                INNER JOIN pc_paciente_acceso a ON a.paciente_id = p.id
+                WHERE p.id = :id_paciente AND p.id_clinica = :id_clinica",
+            'notas' => "SELECT COUNT(*)
+                FROM nota_subsecuente n
+                INNER JOIN pc_paciente p ON p.id = n.id_paciente
+                WHERE p.id = :id_paciente AND p.id_clinica = :id_clinica",
+            'laboratorio' => "SELECT COUNT(*)
+                FROM laboratorio l
+                INNER JOIN pc_paciente p ON p.id = l.id_paciente
+                WHERE p.id = :id_paciente AND p.id_clinica = :id_clinica",
+            'recetas' => "SELECT COUNT(*)
+                FROM receta_medica r
+                INNER JOIN pc_paciente p ON p.id = r.id_paciente
+                WHERE p.id = :id_paciente AND p.id_clinica = :id_clinica",
+            'cofepris' => "SELECT COUNT(*)
+                FROM cofepris c
+                INNER JOIN pc_paciente p ON p.id = c.id_paciente
+                WHERE p.id = :id_paciente AND p.id_clinica = :id_clinica",
+        ];
+
+        foreach ($queries as $key => $sql) {
+            $stmt = $this->bd->prepare($sql);
+            $stmt->execute([
+                ':id_paciente' => $idPaciente,
+                ':id_clinica' => $idClinica,
+            ]);
+            $counts[$key] = (int) $stmt->fetchColumn();
+        }
+
+        return $counts;
+    }
+
+    /**
      * Promedia el avance canónico de los nueve módulos por paciente.
      * Las consultas son agregadas por módulo para evitar N+1 consultas.
      * Los valores por defecto replican la semántica actual de

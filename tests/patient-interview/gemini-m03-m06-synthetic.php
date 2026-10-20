@@ -59,8 +59,8 @@ final class Fase67SyntheticProvider implements ConversationalProvider
             'medico' => (string)($context['medico'] ?? ''),
         ];
         if (preg_match('/gabapentina.*dolor/iu', $utterance) === 1) {
-            $fields['descripcion'] = 'gabapentina';
-            $fields['medicamento'] = 'dolor';
+            $fields['medicamento'] = 'gabapentina';
+            $fields['descripcion'] = 'dolor';
         }
         if (preg_match('/300\s*mg/iu', $utterance) === 1) $fields['dosis'] = '300 mg por la noche';
         if (preg_match('/tres meses/iu', $utterance) === 1) $fields['tiempo_uso'] = 'tres meses';
@@ -133,7 +133,7 @@ try {
         'm03_uncertainty' => ($uncertain['mode'] ?? '') === 'gemini' && ($uncertain['needs_clarification'] ?? false) === true,
         'm03_zero_unconfirmed_writes' => $before['m03'] === $after['m03'],
         'm06_five_field_extraction' => ($m06Complete['mode'] ?? '') === 'gemini' && ($m06Complete['kind'] ?? '') === 'm06_proposal' && count(array_filter($m06Complete['fields'] ?? [], static fn(string $v): bool => trim($v) !== '')) === 5,
-        'm06_incomplete_information' => ($m06First['mode'] ?? '') === 'gemini' && ($m06First['kind'] ?? '') === 'clarification' && count($m06First['missing'] ?? []) >= 3,
+        'm06_incomplete_information' => ($m06First['mode'] ?? '') === 'gemini' && ($m06First['kind'] ?? '') === 'm06_proposal' && count($m06First['missing'] ?? []) >= 3,
         'm06_multiturn_context' => ($m06Third['mode'] ?? '') === 'gemini' && ($m06Third['kind'] ?? '') === 'm06_proposal' && count(array_filter($m06Third['fields'] ?? [], static fn(string $v): bool => trim($v) !== '')) === 5,
         'm06_unknown_dose' => ($m06UnknownDose['kind'] ?? '') === 'clarification' && in_array('dosis', $m06UnknownDose['missing'] ?? [], true),
         'm06_irrelevant_question' => ($m06Irrelevant['kind'] ?? '') === 'clarification' && !($m06Irrelevant['requires_confirmation'] ?? false),

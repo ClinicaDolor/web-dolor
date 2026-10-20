@@ -13,6 +13,7 @@ use App\Models\LaboratorioModel;
 use App\Models\RecetaModel;
 use App\Models\CofeprisModel;
 use App\Services\ClinicalSupplementService;
+use App\Services\ClinicalSummarySecurity;
 
 class ClinicaController extends BaseController{
 
@@ -429,6 +430,12 @@ $sidebarController = new SidebarController();
 
 $auth = $authMiddleware->authPermisos();
 $authMiddleware->assertPatientAccess($idPaciente, $auth);
+$idClinica = filter_var($auth['id_clinica'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+
+if ($idClinica === false) {
+http_response_code(403);
+exit('No autorizado.');
+}
 
 $fechaAlta = $paciente->getFechaAlta();
 $nombreCompleto = $paciente->getNombreCompleto();
@@ -450,6 +457,7 @@ $sidebar->setActivarItem('Expediente');
 $sidebarHtml = $sidebar->render();
 
 $referencia = uniqid('', true);
+$moduleCounts = (new ClinicaModel())->getPatientModuleCounts($idPaciente, $idClinica);
  
 $data = ['title' => 'Expediente', 
 'idPaciente' => $idPaciente,
@@ -467,6 +475,7 @@ $data = ['title' => 'Expediente',
 'telefono' => $telefono,
 'celular' => $celular,  
 'referencia' => $referencia,  
+'module_counts' => $moduleCounts,
 
 'sidebar' => $sidebarHtml];
 
@@ -662,8 +671,23 @@ $data = json_decode(file_get_contents('php://input'), true);
  echo HttpMethod::jsonResponse(400, false, "Entrada JSON inválida.");
  return;
  }
- $auth = $authMiddleware->authPermisos();
- $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
+$auth = $authMiddleware->authPermisos();
+$idPaciente = filter_var($data['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+
+if ($idPaciente === false) {
+http_response_code(422);
+echo HttpMethod::jsonResponse(422, false, "Paciente no válido.");
+return;
+}
+
+$csrfToken = $_SERVER['HTTP_X_M03_CSRF'] ?? ($data['csrf_token'] ?? null);
+if (!ClinicalSummarySecurity::validCaptureCsrf((int)$idPaciente, is_string($csrfToken) ? $csrfToken : null)) {
+http_response_code(403);
+echo HttpMethod::jsonResponse(403, false, "Token de seguridad inválido o ausente.");
+return;
+}
+
+$authMiddleware->assertPatientAccess((int)$idPaciente, $auth);
 $resultModel = $model->insertPacienteReceta($data);
 
 if ($resultModel['resultado'] == 200) {
@@ -676,81 +700,136 @@ echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
 
 public function pacienteNotaSubsecuente($idPaciente,$referencia){
 
+$data = $this->notaSubsecuentePacienteContext($idPaciente, $referencia);
+$data['title'] = 'Notas Subsecuentes';
+$data['list_url'] = SERVIDOR . 'clinica/nota-subsecuente/paciente/' . rawurlencode((string)$data['idPaciente']) . '/referencia/' . rawurlencode((string)$data['referencia']);
+$data['new_url'] = $data['list_url'] . '/nueva';
+$data['registros'] = (new NotaSubsecuenteModel())->getHistoryByPatient((int)$data['idPaciente']);
+$this->view('/clinica/pacientes-nota-subsecuente.php', $data);
+}
+
+public function pacienteNuevaNotaSubsecuente($idPaciente,$referencia){
+
+$data = $this->notaSubsecuentePacienteContext($idPaciente, $referencia);
+$data['title'] = 'Nueva Nota Subsecuente';
+$data['list_url'] = SERVIDOR . 'clinica/nota-subsecuente/paciente/' . rawurlencode((string)$data['idPaciente']) . '/referencia/' . rawurlencode((string)$data['referencia']);
+$data['new_url'] = $data['list_url'] . '/nueva';
+
+// La ruta /nueva siempre inicia un registro nuevo. No carga una nota o receta
+// existente y, por tanto, no modifica datos durante el GET.
+$data += [
+    'id_nota_subsecuente' => 0,
+    'fecha_hora' => '',
+    'ta' => '',
+    'frec_cardiaca' => '',
+    'pulso' => '',
+    'spo2' => '',
+    'fio2' => '',
+    'ecog' => '',
+    'karnovsky' => '',
+    'peso' => '',
+    'talla' => '',
+    'contenido' => '',
+    'proximacita' => '',
+    'idreceta' => 0,
+    'temperatura' => '',
+    'diagnostico' => '',
+    'medicamento' => '',
+];
+
+$this->view('/clinica/pacientes-nota-subsecuente-nueva.php', $data);
+}
+
+public function pacienteEditarNotaSubsecuente($idPaciente, $referencia, $idNota){
+
+$data = $this->notaSubsecuentePacienteContext($idPaciente, $referencia);
+$idNota = filter_var($idNota, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+if ($idNota === false) {
+http_response_code(404);
+exit('Nota no encontrada.');
+}
+
+$notaModel = new NotaSubsecuenteModel();
+$nota = $notaModel->getForPatientReference((int)$data['idPaciente'], (string)$data['referencia'], (int)$idNota);
+if ($nota === null) {
+http_response_code(404);
+exit('Nota no encontrada.');
+}
+
+$idReceta = (new RecetaModel())->idRecetaReferencia((int)$data['idPaciente'], (string)$data['referencia']);
+$recetaData = [
+    'idreceta' => (int)$idReceta,
+    'diagnostico' => '',
+    'medicamento' => '',
+    'temperatura' => '',
+];
+if ((int)$idReceta > 0) {
+    $recetaModel = new RecetaModel();
+    $recetaModel->receta((int)$idReceta);
+    $recetaData['diagnostico'] = $recetaModel->getDiagnostico();
+    $recetaData['medicamento'] = $recetaModel->getMedicamento();
+    $recetaData['temperatura'] = $recetaModel->getTemperatura();
+}
+
+$data['title'] = 'Editar Nota Subsecuente';
+$data['edit_mode'] = true;
+$data['list_url'] = SERVIDOR . 'clinica/nota-subsecuente/paciente/' . rawurlencode((string)$data['idPaciente']) . '/referencia/' . rawurlencode((string)$data['referencia']);
+$data['new_url'] = $data['list_url'] . '/nueva';
+$data += [
+    'id_nota_subsecuente' => (int)$nota['id'],
+    'fecha_hora' => $nota['fecha_hora'] ?? '',
+    'ta' => $nota['ta'] ?? '',
+    'frec_cardiaca' => $nota['frec_cardiaca'] ?? '',
+    'pulso' => $nota['pulso'] ?? '',
+    'spo2' => $nota['spo2'] ?? '',
+    'fio2' => $nota['fio2'] ?? '',
+    'ecog' => $nota['ecog'] ?? '',
+    'karnovsky' => $nota['karnovsky'] ?? '',
+    'peso' => $nota['peso'] ?? '',
+    'talla' => $nota['talla'] ?? '',
+    'contenido' => $nota['contenido'] ?? '',
+    'proximacita' => $nota['proxima_cita'] ?? '',
+] + $recetaData;
+
+$this->view('/clinica/pacientes-nota-subsecuente-nueva.php', $data);
+}
+
+private function notaSubsecuentePacienteContext($idPaciente, $referencia){
+
 $authMiddleware = new AuthMiddleware('clinica');
+$auth = $authMiddleware->authPermisos();
+$idPaciente = $authMiddleware->assertPatientAccess($idPaciente, $auth);
+
 $paciente = new PacienteModel($idPaciente);
 $sidebar = new Sidebar();
 $sidebarController = new SidebarController();
-$nota = new NotaSubsecuenteModel();
-$id_nota_subsecuente = $nota->codigoReferencia($idPaciente, $referencia);
-$nota->NotaSubsecuente($id_nota_subsecuente);
-$receta = new RecetaModel();
-$idReceta = $receta->idRecetaReferencia($idPaciente,$referencia);
-$receta->receta($idReceta);
-
-$auth = $authMiddleware->authPermisos();
-$authMiddleware->assertPatientAccess($idPaciente, $auth);
-$fechaAlta = $paciente->getFechaAlta();
-$nombreCompleto = $paciente->getNombreCompleto();
 $fechaNacimiento = $paciente->getFechaNacimiento();
-$sexo = $paciente->getSexo();
-$estado_civil = $paciente->getEstadoCivil();
-$curp = $paciente->getCurp();
-
-$email = $paciente->getEmail();
-$telefono = $paciente->getTelefono();
-$celular = $paciente->getCelular();
-
-$edad = CalculadoraEdad::calcularEdad($fechaNacimiento);        
-
-$motivo_atencion = $paciente->getMotivoAtencion();
 
 $sidebarController->configureSidebar('DOCTOR', 'clinica-paciente-notas', $sidebar, $idPaciente, $referencia);
 $sidebar->setActivarItem('Paciente Notas');
-$sidebarHtml = $sidebar->render();
 
-$title = ($id_nota_subsecuente == 0)? 'Nueva Nota Subsecuente' : 'Editar Nota Subsecuente';
-
-$data = ['title' => $title, 
-'idPaciente' => $idPaciente,
-'fecha_alta' => $fechaAlta, 
-'nombre_paciente' => $nombreCompleto, 
-'fecha_nacimiento' => $fechaNacimiento,
-'edad' => $edad,
-'sexo' => $sexo, 
-'estado_civil' => $estado_civil,
-'curp' => $curp, 
-'motivo_atencion' => $motivo_atencion,  
-
-'email' => $email,
-'telefono' => $telefono,
-'celular' => $celular, 
-'referencia' => $referencia,
-'id_nota_subsecuente' => $id_nota_subsecuente,  
-
-'fecha_hora' => $nota->getFechaHora(),
-'ta' => $nota->getTa(),
-'frec_cardiaca' => $nota->getFrecCardiaca(),
-'pulso' => $nota->getPulso(),
-'spo2' => $nota->getSpo2(),
-'fio2' => $nota->getFio2(),
-'ecog' => $nota->getEcog(),
-'karnovsky' => $nota->getKarnovsky(),
-'peso' => $nota->getPeso(),
-'talla' => $nota->getTalla(),
-'contenido' => $nota->getContenido(),
-'proximacita' => $nota->getProximaCita(),
-
-'idreceta' => $idReceta,
-'diagnostico' => $receta->getDiagnostico(),
-'medicamento' => $receta->getMedicamento(),
-
-'sidebar' => $sidebarHtml];
-$this->view('/clinica/pacientes-nota-subsecuente.php', $data);
+return [
+    'idPaciente' => $idPaciente,
+    'fecha_alta' => $paciente->getFechaAlta(),
+    'nombre_paciente' => $paciente->getNombreCompleto(),
+    'fecha_nacimiento' => $fechaNacimiento,
+    'edad' => CalculadoraEdad::calcularEdad($fechaNacimiento),
+    'sexo' => $paciente->getSexo(),
+    'estado_civil' => $paciente->getEstadoCivil(),
+    'curp' => $paciente->getCurp(),
+    'motivo_atencion' => $paciente->getMotivoAtencion(),
+    'email' => $paciente->getEmail(),
+    'telefono' => $paciente->getTelefono(),
+    'celular' => $paciente->getCelular(),
+    'referencia' => (string)$referencia,
+    'nota_csrf' => ClinicalSummarySecurity::captureCsrfToken((int)$idPaciente),
+    'sidebar' => $sidebar->render(),
+];
 }
 
 public function pacienteInsertNotaSubsecuente(){
 $authMiddleware = new AuthMiddleware('clinica');
-$authMiddleware->authPermisos();
+$auth = $authMiddleware->authPermisos();
 
 header('Content-Type: application/json');
 
@@ -767,17 +846,62 @@ echo HttpMethod::jsonResponse(400, false, "Entrada JSON inválida.");
 return;
 }
 
- $auth = $authMiddleware->authPermisos();
- $authMiddleware->assertPatientAccess($data['idPaciente'] ?? 0, $auth);
+$idPaciente = filter_var($data['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+$idNota = filter_var($data['idNota'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0]]);
+$idReceta = filter_var($data['idReceta'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0]]);
+$referencia = $data['referencia'] ?? null;
+$incluirReceta = filter_var($data['incluirReceta'] ?? false, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
 
-$resultModel = ($data['idNota'] == 0)
+if ($idPaciente === false || $idNota === false || $idReceta === false || $incluirReceta === null || !is_scalar($referencia) || (string)$referencia === '') {
+echo HttpMethod::jsonResponse(422, false, "Los identificadores de la nota no son válidos.");
+return;
+}
+
+$csrfToken = $_SERVER['HTTP_X_M03_CSRF'] ?? ($data['csrf_token'] ?? null);
+if (!ClinicalSummarySecurity::validCaptureCsrf((int)$idPaciente, is_scalar($csrfToken) ? (string)$csrfToken : null)) {
+http_response_code(403);
+echo HttpMethod::jsonResponse(403, false, "Token de seguridad inválido o ausente.");
+return;
+}
+
+$authMiddleware->assertPatientAccess((int)$idPaciente, $auth);
+
+$data['idPaciente'] = (int)$idPaciente;
+$data['idNota'] = (int)$idNota;
+$data['idReceta'] = (int)$idReceta;
+$data['referencia'] = (string)$referencia;
+$data['incluirReceta'] = $incluirReceta;
+
+if ($idNota > 0) {
+    $notaModel = new NotaSubsecuenteModel();
+    if (!$notaModel->belongsToPatientReference((int)$idNota, (int)$idPaciente, (string)$referencia)) {
+        http_response_code(403);
+        echo HttpMethod::jsonResponse(403, false, "La nota no pertenece al contexto autorizado.");
+        return;
+    }
+
+    if ($idReceta > 0) {
+        $recetaModel = new RecetaModel();
+        if (!$recetaModel->belongsToPatientReference((int)$idReceta, (int)$idPaciente, (string)$referencia)) {
+            http_response_code(403);
+            echo HttpMethod::jsonResponse(403, false, "La receta no pertenece al contexto autorizado.");
+            return;
+        }
+    }
+}
+
+ $resultModel = ($idNota === 0)
 ? $model->insertNotaSubsecuente($data)
 : $model->editarNotaSubsecuente($data);
 
 if ($resultModel['resultado'] == 200) {
 echo HttpMethod::jsonResponse(200, true, $resultModel['mensaje']);
 } else {
-echo HttpMethod::jsonResponse(401, false, $resultModel['mensaje']);
+$status = (int)($resultModel['resultado'] ?? 500);
+if (!in_array($status, [403, 422, 500], true)) {
+    $status = 500;
+}
+echo HttpMethod::jsonResponse($status, false, $resultModel['mensaje'] ?? 'No fue posible guardar la nota.');
 }
 }
 
@@ -840,7 +964,6 @@ error_reporting(E_ALL);
 header('Content-Type: application/json');
 
 $authMiddleware = new AuthMiddleware('clinica');
-$authMiddleware->authPermisos();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 echo json_encode([
@@ -850,35 +973,83 @@ echo json_encode([
 return;
 }
 
- $auth = $authMiddleware->authPermisos();
- $authMiddleware->assertPatientAccess($_POST['idPaciente'] ?? 0, $auth);
+$auth = $authMiddleware->authPermisos();
+$idPaciente = filter_var($_POST['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
 
-if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+if ($idPaciente === false) {
+http_response_code(422);
 echo json_encode([
 'resultado' => false,
-'mensaje' => 'No se recibió archivo o hubo un error en la subida. Código de error: ' . ($_FILES['file']['error'] ?? 'desconocido')
+'mensaje' => 'Paciente no válido.'
+]);
+return;
+}
+
+$csrfToken = $_SERVER['HTTP_X_M03_CSRF'] ?? ($_POST['csrf_token'] ?? null);
+if (!ClinicalSummarySecurity::validCaptureCsrf((int)$idPaciente, is_string($csrfToken) ? $csrfToken : null)) {
+http_response_code(403);
+echo json_encode([
+'resultado' => false,
+'mensaje' => 'Token de seguridad inválido o ausente.'
+]);
+return;
+}
+
+$authMiddleware->assertPatientAccess((int)$idPaciente, $auth);
+
+$uploadedFile = $_FILES['file'] ?? null;
+if (!is_array($uploadedFile) || ($uploadedFile['error'] ?? null) !== UPLOAD_ERR_OK) {
+$uploadError = is_array($uploadedFile) ? ($uploadedFile['error'] ?? null) : null;
+$uploadMessage = 'No se recibió un archivo válido.';
+if ($uploadError === UPLOAD_ERR_INI_SIZE || $uploadError === UPLOAD_ERR_FORM_SIZE) {
+    $uploadMessage = 'El archivo excede el límite de 10 MiB o el máximo configurado en PHP.';
+} elseif ($uploadError === UPLOAD_ERR_PARTIAL) {
+    $uploadMessage = 'La carga del archivo quedó incompleta.';
+}
+http_response_code(422);
+echo json_encode([
+'resultado' => false,
+'mensaje' => $uploadMessage
 ]);
 return;
 }
 
 // Obtener datos del archivo
-$fileName = $_FILES['file']['name'];
-$fileTmpName = $_FILES['file']['tmp_name'];
-$fileSize = $_FILES['file']['size'];
+$fileName = $uploadedFile['name'] ?? '';
+$fileTmpName = $uploadedFile['tmp_name'] ?? '';
+$fileSize = $uploadedFile['size'] ?? 0;
+if (!is_string($fileName) || !is_string($fileTmpName)) {
+http_response_code(422);
+echo json_encode([
+'resultado' => false,
+'mensaje' => 'El archivo recibido no es válido.'
+]);
+return;
+}
 $fileExtension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
 
-// Insertar en el modelo
-$model = new LaboratorioModel();
-$resultModel = $model->insertArchivo(
-$_POST['idPaciente'] ?? null,
-$_POST['contenidoLaboratorio'] ?? '',
-$fileName,
-$fileTmpName,
-$fileSize,
-$fileExtension,
-$_POST['referencia'] ?? '',
-$_POST['titulo'] ?? ''
-);
+try {
+    // Insertar en el modelo después de autenticar, autorizar y validar CSRF.
+    $model = new LaboratorioModel();
+    $resultModel = $model->insertArchivo(
+    (int)$idPaciente,
+    $_POST['contenidoLaboratorio'] ?? '',
+    $fileName,
+    $fileTmpName,
+    $fileSize,
+    $fileExtension,
+    $_POST['referencia'] ?? '',
+    $_POST['titulo'] ?? ''
+    );
+} catch (\Throwable $e) {
+    error_log('Laboratory upload failed before completion.');
+    http_response_code(500);
+    echo json_encode([
+    'resultado' => false,
+    'mensaje' => 'No fue posible guardar el archivo.'
+    ]);
+    return;
+}
 
 // Responder en JSON
 echo json_encode([

@@ -20,7 +20,7 @@ $assertions = [
     'direct_frontend_endpoint' => str_contains($view, 'historia-clinica/entrevista/capturar-directo'),
     'direct_numeric_gate' => str_contains($view, 'isDirectM03Candidate'),
     'frontend_action' => str_contains($view, 'Interpretar respuesta'),
-    'confirmation' => str_contains($view, 'data-proposal-confirm'),
+    'direct_save_flow' => str_contains($view, 'proposal.direct_save === true') && str_contains($view, 'saveM02Proposal') && str_contains($view, 'saveM09Proposal'),
     'explanation' => str_contains($service, "'kind' => 'explanation'"),
 ];
 

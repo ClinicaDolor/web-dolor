@@ -52,11 +52,18 @@ $tokenFor = static function (int $clinic, int $patient) use ($p09AppKey): string
     ], $p09AppKey, 'HS256');
 };
 
-$request = static function (string $url, string $jwt = '', ?array $payload = null, string $host = 'p09clean.localhost:8109'): array {
+$request = static function (string $url, string $jwt = '', ?array $payload = null, string $host = 'p09clean.localhost:8109') use ($p09AppKey): array {
     $method = $payload === null ? 'GET' : 'POST';
     $headers = "Host: {$host}\r\n";
     if ($jwt !== '') $headers .= "Cookie: CLINICAJWT={$jwt}\r\n";
-    if ($payload !== null) $headers .= "Content-Type: application/json\r\n";
+    if ($payload !== null) {
+        $headers .= "Content-Type: application/json\r\n";
+        $patientId = filter_var($payload['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if ($jwt !== '' && $patientId !== false) {
+            $csrf = hash_hmac('sha256', 'm03-capture:' . (int)$patientId . ':' . hash('sha256', $jwt), $p09AppKey);
+            $headers .= "X-M03-CSRF: {$csrf}\r\n";
+        }
+    }
     $options = ['http' => [
         'method' => $method, 'ignore_errors' => true, 'follow_location' => 0,
         'header' => $headers,

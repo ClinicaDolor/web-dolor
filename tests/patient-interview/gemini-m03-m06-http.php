@@ -15,8 +15,20 @@ foreach (file($root . '/.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?:
 }
 require $root . '/vendor/autoload.php';
 
-$database = 'clinica_dolor_browser_20261012';
-$patient = 9302;
+$cliValue = static function (array $argv, string $name, string $default): string {
+    $prefix = '--' . $name . '=';
+    foreach ($argv as $argument) {
+        if (str_starts_with((string)$argument, $prefix)) return substr((string)$argument, strlen($prefix));
+    }
+    return $default;
+};
+$database = $cliValue($argv ?? [], 'database', 'clinica_dolor_browser_20261012');
+$patient = (int)$cliValue($argv ?? [], 'patient', '9302');
+$includeM02 = in_array('--include-m02', $argv ?? [], true);
+$allowedDatabases = ['clinica_dolor_browser_20261012', 'clinica_dolor_demo_20261010_final'];
+if (!in_array($database, $allowedDatabases, true) || !in_array($patient, [9301, 9302], true)) {
+    throw new RuntimeException('SYNTHETIC_SCOPE_NOT_ALLOWED');
+}
 $port = (int)(getenv('GEMINI_HTTP_TEST_PORT') ?: '8120');
 if ($port < 1024 || $port > 65535) throw new RuntimeException('INVALID_HTTP_TEST_PORT');
 $probeOnly = in_array('--probe', $argv ?? [], true);
@@ -31,7 +43,7 @@ $before = [];
 $result = ['database' => $database, 'patient_synthetic' => $patient, 'real_gemini_calls' => 0, 'errors' => []];
 
 $hash = static function (PDO $db, string $table, int $id): string {
-    $allowed = ['pac_respuestas_paciente_modulo_3', 'pac_medicacion_actual_modulo_6', 'pac_historia_clinica_finalizar'];
+    $allowed = ['pc_antecedentes_familiares', 'pac_respuestas_paciente_modulo_3', 'pac_medicacion_actual_modulo_6', 'pac_historia_clinica_finalizar'];
     if (!in_array($table, $allowed, true)) throw new RuntimeException('TABLE_NOT_ALLOWED');
     $stmt = $db->prepare('SELECT * FROM ' . $table . ' WHERE id_paciente=:id ORDER BY 1');
     $stmt->execute([':id' => $id]);
@@ -63,7 +75,7 @@ $get = static function (string $url): array {
     return [$status, is_array($json) ? $json : []];
 };
 
-$stopServer = static function () use (&$server, &$serverPid, &$pipes): void {
+$stopServer = static function () use (&$server, &$serverPid, &$pipes, $port): void {
     if (!is_resource($server)) return;
     $status = @proc_get_status($server);
     $serverPid = (int)($status['pid'] ?? $serverPid);
@@ -73,10 +85,23 @@ $stopServer = static function () use (&$server, &$serverPid, &$pipes): void {
         $status = @proc_get_status($server);
         if (!is_array($status) || ($status['running'] ?? false) !== true) break;
     }
-    if ($serverPid > 0 && PHP_OS_FAMILY === 'Windows') {
+    if (PHP_OS_FAMILY === 'Windows') {
         $ignored = [];
         $ignoredCode = 0;
-        @exec('taskkill /PID ' . $serverPid . ' /T /F', $ignored, $ignoredCode);
+        if ($serverPid > 0) @exec('taskkill /PID ' . $serverPid . ' /T /F >NUL 2>&1', $ignored, $ignoredCode);
+        $listenerPattern = '/^\\s*TCP\\s+127\\.0\\.0\\.1:' . preg_quote((string)$port, '/') . '\\s+\\S+\\s+LISTENING\\s+(\\d+)\\s*$/i';
+        for ($attempt = 0; $attempt < 20; $attempt++) {
+            $lines = [];
+            $netstatCode = 0;
+            @exec('netstat -ano -p tcp', $lines, $netstatCode);
+            $listenerPids = [];
+            foreach ($lines as $line) if (preg_match($listenerPattern, $line, $match)) $listenerPids[] = (int)$match[1];
+            foreach (array_unique($listenerPids) as $listenerPid) {
+                if ($listenerPid > 0 && $listenerPid !== getmypid()) @exec('taskkill /PID ' . $listenerPid . ' /T /F >NUL 2>&1', $ignored, $ignoredCode);
+            }
+            if ($listenerPids === []) break;
+            usleep(50000);
+        }
     }
     foreach ($pipes as $pipe) if (is_resource($pipe)) @fclose($pipe);
     @proc_close($server);
@@ -110,10 +135,16 @@ try {
     if (is_resource($portProbe)) { fclose($portProbe); throw new RuntimeException('PORT_ALREADY_OCCUPIED'); }
     $pdo = new PDO('mysql:host=' . $env['DB_HOST'] . ';port=' . ($env['DB_PORT'] ?? '3306') . ';dbname=' . $database . ';charset=utf8mb4', $env['DB_USERNAME'], $env['DB_PASSWORD'], [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
     if ((string)$pdo->query('SELECT DATABASE()')->fetchColumn() !== $database) throw new RuntimeException('DATABASE_NOT_ALLOWED');
-    $patientStmt = $pdo->prepare('SELECT id,id_clinica FROM pc_paciente WHERE id=:id LIMIT 1');
+    $patientStmt = $pdo->prepare('SELECT id,id_clinica,nombres,apellido_paterno,apellido_materno FROM pc_paciente WHERE id=:id LIMIT 1');
     $patientStmt->execute([':id' => $patient]);
     $patientRow = $patientStmt->fetch();
     if (!is_array($patientRow)) throw new RuntimeException('SYNTHETIC_PATIENT_NOT_FOUND');
+    $patientMarker = strtolower(implode(' ', [
+        (string)($patientRow['nombres'] ?? ''),
+        (string)($patientRow['apellido_paterno'] ?? ''),
+        (string)($patientRow['apellido_materno'] ?? ''),
+    ]));
+    if (!preg_match('/sint|test|prueba/u', $patientMarker)) throw new RuntimeException('SYNTHETIC_PATIENT_MARKER_MISSING');
 
     $beforeM03Stmt = $pdo->prepare('SELECT * FROM pac_respuestas_paciente_modulo_3 WHERE id_paciente=:patient ORDER BY id');
     $beforeM03Stmt->execute([':patient' => $patient]);
@@ -121,7 +152,12 @@ try {
     $beforeM06Stmt = $pdo->prepare('SELECT * FROM pac_medicacion_actual_modulo_6 WHERE id_paciente=:patient ORDER BY id');
     $beforeM06Stmt->execute([':patient' => $patient]);
     $beforeM06 = $beforeM06Stmt->fetchAll();
-    $before = ['m03' => $hash($pdo, 'pac_respuestas_paciente_modulo_3', $patient), 'm06' => $hash($pdo, 'pac_medicacion_actual_modulo_6', $patient), 'finalization' => $hash($pdo, 'pac_historia_clinica_finalizar', $patient)];
+    $before = [
+        'm02' => $hash($pdo, 'pc_antecedentes_familiares', $patient),
+        'm03' => $hash($pdo, 'pac_respuestas_paciente_modulo_3', $patient),
+        'm06' => $hash($pdo, 'pac_medicacion_actual_modulo_6', $patient),
+        'finalization' => $hash($pdo, 'pac_historia_clinica_finalizar', $patient),
+    ];
     $questionId = (int)$pdo->query("SELECT id FROM pac_preguntas_modulo_3 WHERE id_tema=1 AND tipo='select' ORDER BY id LIMIT 1")->fetchColumn();
     if ($questionId < 1) throw new RuntimeException('M03_SELECT_QUESTION_NOT_FOUND');
     $m03State = (new ConversationalM03Adapter($pdo))->read($patient);
@@ -133,8 +169,8 @@ try {
     if (!is_array($processEnv)) $processEnv = [];
     $processEnv = array_merge($processEnv, $env, ['DB_DATABASE' => $database, 'P04_TEST_DATABASE' => $database, 'APP_ENV' => 'testing', 'APP_KEY' => $appKey, 'CLINICAL_AI_SYNTHETIC_MODE' => '1', 'CLINICAL_AI_EXTERNAL_ENABLED' => '1', 'CLINICAL_AI_TRACE' => '1', 'CLINICAL_AI_TRACE_ID' => 'fase67v-' . getmypid(), 'CLINICAL_AI_TRACE_FILE' => $traceFile]);
     $router = $root . DIRECTORY_SEPARATOR . 'tests' . DIRECTORY_SEPARATOR . 'patient-interview' . DIRECTORY_SEPARATOR . 'gemini-m03-m06-http-router.php';
-    $command = '"' . PHP_BINARY . '" -d variables_order=EGPCS -S 127.0.0.1:' . $port . ' "' . $router . '"';
-    $server = proc_open($command, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $root, $processEnv);
+    $command = [PHP_BINARY, '-d', 'variables_order=EGPCS', '-S', '127.0.0.1:' . $port, $router];
+    $server = proc_open($command, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $root, $processEnv, ['bypass_shell' => true]);
     if (!is_resource($server)) throw new RuntimeException('HTTP_SERVER_START_FAILED');
     $serverStatus = proc_get_status($server);
     if ((int)($serverStatus['pid'] ?? 0) < 1) throw new RuntimeException('HTTP_SERVER_PID_UNVERIFIED');
@@ -173,6 +209,24 @@ try {
     $result['m03_provider_meta'] = ['model' => $m03Meta['model'] ?? null, 'latency_ms' => $m03Meta['latency_ms'] ?? null, 'usage' => $m03Meta['usage'] ?? null];
     $result['real_gemini_calls']++;
 
+    if ($includeM02) {
+        [$m02Status, $m02Response] = $request($base . '/interpretar', $jwt, $csrf, [
+            'idPaciente' => $patient,
+            'modulo' => 'M02',
+            'enfermedad' => 'Diabetes Mellitus',
+            'utterance' => 'Mi madre tuvo diabetes tipo 2, pero no recuerdo cuándo ocurrió.',
+            'context' => [],
+        ]);
+        $m02Proposal = $m02Response['proposal'] ?? [];
+        $m02Meta = is_array($m02Proposal['provider_meta'] ?? null) ? $m02Proposal['provider_meta'] : [];
+        $result['m02_http_diagnostic'] = ['status' => $m02Status, 'resultado' => $m02Response['resultado'] ?? null, 'top_level_keys' => array_keys($m02Response), 'proposal_keys' => array_keys(is_array($m02Proposal) ? $m02Proposal : [])];
+        $result['m02_real_http'] = $m02Status === 200 && ($m02Response['resultado'] ?? false) === true;
+        $result['m02_contract_mode'] = $m02Proposal['mode'] ?? null;
+        $result['m02_contract_kind'] = $m02Proposal['kind'] ?? null;
+        $result['m02_provider_meta'] = ['model' => $m02Meta['model'] ?? null, 'latency_ms' => $m02Meta['latency_ms'] ?? null, 'usage' => $m02Meta['usage'] ?? null];
+        $result['real_gemini_calls']++;
+    }
+
     [$envStatusM06, $envResponseM06] = $get('http://127.0.0.1:' . $port . '/__fase67/env');
     $result['http_environment_before_m06'] = [
         'status' => $envStatusM06,
@@ -193,7 +247,12 @@ try {
     $result['m06_real_http'] = $m06Status === 200 && ($m06Response['resultado'] ?? false) === true && ($m06Proposal['mode'] ?? '') === 'gemini' && ($m06Proposal['kind'] ?? '') === 'm06_proposal' && count(array_filter($m06Fields, static fn($value): bool => is_string($value) && trim($value) !== '')) === 5;
     $result['m06_provider_meta'] = ['model' => $m06Meta['model'] ?? null, 'latency_ms' => $m06Meta['latency_ms'] ?? null, 'usage' => $m06Meta['usage'] ?? null];
     $result['real_gemini_calls']++;
-    $result['zero_writes_before_confirmation'] = $before === ['m03' => $hash($pdo, 'pac_respuestas_paciente_modulo_3', $patient), 'm06' => $hash($pdo, 'pac_medicacion_actual_modulo_6', $patient), 'finalization' => $hash($pdo, 'pac_historia_clinica_finalizar', $patient)];
+    $result['zero_writes_before_confirmation'] = $before === [
+        'm02' => $hash($pdo, 'pc_antecedentes_familiares', $patient),
+        'm03' => $hash($pdo, 'pac_respuestas_paciente_modulo_3', $patient),
+        'm06' => $hash($pdo, 'pac_medicacion_actual_modulo_6', $patient),
+        'finalization' => $hash($pdo, 'pac_historia_clinica_finalizar', $patient),
+    ];
 
     if (!$verifyOnly) {
         $m03Question = null;
@@ -216,7 +275,12 @@ try {
     }
     $stopServer();
     if (!$verifyOnly) $restore($pdo, $patient, $beforeM03, $beforeM06);
-    $result['fixture_restored'] = $before === ['m03' => $hash($pdo, 'pac_respuestas_paciente_modulo_3', $patient), 'm06' => $hash($pdo, 'pac_medicacion_actual_modulo_6', $patient), 'finalization' => $hash($pdo, 'pac_historia_clinica_finalizar', $patient)];
+    $result['fixture_restored'] = $before === [
+        'm02' => $hash($pdo, 'pc_antecedentes_familiares', $patient),
+        'm03' => $hash($pdo, 'pac_respuestas_paciente_modulo_3', $patient),
+        'm06' => $hash($pdo, 'pac_medicacion_actual_modulo_6', $patient),
+        'finalization' => $hash($pdo, 'pac_historia_clinica_finalizar', $patient),
+    ];
     $traceEvents = [];
     foreach (@file($traceFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
         $event = json_decode($line, true);
@@ -232,6 +296,8 @@ try {
     @unlink($traceFile);
 }
 
-$result['status'] = $result['errors'] === [] && ($result['real_gemini_calls'] ?? 0) === 2 && ($result['fixture_restored'] ?? false) === true && !in_array(false, $result, true) ? 'PASS' : 'PARTIAL';
+$expectedRealCalls = $includeM02 ? 3 : 2;
+$result['expected_real_gemini_calls'] = $expectedRealCalls;
+$result['status'] = $result['errors'] === [] && ($result['real_gemini_calls'] ?? 0) === $expectedRealCalls && ($result['fixture_restored'] ?? false) === true && !in_array(false, $result, true) ? 'PASS' : 'PARTIAL';
 echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . PHP_EOL;
 exit($result['status'] === 'PASS' ? 0 : 1);

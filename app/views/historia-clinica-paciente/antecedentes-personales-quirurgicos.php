@@ -10,6 +10,7 @@ $versionedAsset = static function (string $baseUrl, string $assetPath, string $p
 $appCssUrl = $versionedAsset(RUTA_CSS, 'app.css', 'assets/css/app.css');
 $loaderJsUrl = $versionedAsset(RUTA_JS, 'loader.js', 'assets/js/loader.js');
 $voiceUtilitiesJsUrl = $versionedAsset(RUTA_JS, 'voice-utilities.js', 'assets/js/voice-utilities.js');
+$audioStatusJsUrl = $versionedAsset(RUTA_JS, 'patient-audio-status.js', 'assets/js/patient-audio-status.js');
 $featherJsUrl = $versionedAsset(RUTA_JS, 'feather-icons/feather.min.js', 'assets/js/feather-icons/feather.min.js');
 $appJsUrl = $versionedAsset(RUTA_JS, 'app.js', 'assets/js/app.js');
 $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
@@ -33,6 +34,7 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
     let p06FinalizationInFlight = false;
     let p06LastFocusedElement = null;
     let p06SpeechRequestId = 0;
+    let p06SpeechStarted = false;
 
     function p06PatientId() {
         const main = document.getElementById('main');
@@ -233,18 +235,36 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
     }
 
     function p06SetVoiceState(speaking) {
+        p06SpeechStarted = speaking;
         document.querySelectorAll('.p06-voice-button').forEach(button => button.setAttribute('aria-pressed', speaking ? 'true' : 'false'));
         const status = document.getElementById('p06VoiceStatus');
-        if (status) status.textContent = speaking ? 'Narración en curso.' : 'Narración detenida.';
+        if (status) {
+            if (speaking) PatientAudioStatus.playing(status);
+            else PatientAudioStatus.idle(status);
+        }
+        const modal = document.getElementById('p06InstructionsModal');
+        const prompt = document.getElementById('p06VoicePrompt');
+        if (modal && prompt && modal.getAttribute('aria-hidden') !== 'true') {
+            if (speaking) PatientAudioStatus.playing(prompt);
+            else PatientAudioStatus.idle(prompt);
+            PatientAudioControls.setState('p06-instructions', speaking ? 'playing' : 'idle');
+        }
     }
 
     function p06StopVoice(clearStatus = true) {
+        const hadSpeech = p06SpeechStarted;
         p06SpeechRequestId += 1;
         if ('speechSynthesis' in window) window.speechSynthesis.cancel();
         p06SetVoiceState(false);
-        if (clearStatus) {
+        if (clearStatus && hadSpeech) {
             const status = document.getElementById('p06VoiceStatus');
-            if (status) status.textContent = 'Narración detenida.';
+            const modal = document.getElementById('p06InstructionsModal');
+            const prompt = document.getElementById('p06VoicePrompt');
+            if (modal && prompt && modal.getAttribute('aria-hidden') !== 'true') {
+                PatientAudioStatus.stopped(prompt);
+                PatientAudioControls.stopped('p06-instructions');
+            }
+            else if (status) PatientAudioStatus.stopped(status);
         }
     }
 
@@ -254,6 +274,7 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
         if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
             const status = document.getElementById('p06VoiceStatus');
             if (status) status.textContent = 'La narración no está disponible en este navegador.';
+            PatientAudioControls.unavailable('p06-instructions');
             return false;
         }
         p06StopVoice(false);
@@ -286,7 +307,7 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
         const modal = document.getElementById('p06InstructionsModal');
         if (!modal) return;
         p06LastFocusedElement = PatientInstructionsModal.capture(modal, document.activeElement, '.patient-surgery-help');
-        PatientInstructionsModal.open(modal, { opener: p06LastFocusedElement, display: 'flex', focusSelector: '.p06-modal-close' });
+        PatientInstructionsModal.open(modal, { opener: p06LastFocusedElement, display: 'flex', focusSelector: '.th-modal-close' });
         document.body.classList.add('p06-modal-open');
         p06ReadInstructions();
     }
@@ -403,9 +424,9 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
             <div id="p06InstructionsModal" class="p06-modal patient-instructions-modal" role="dialog" aria-modal="true" aria-labelledby="p06InstructionsTitle" aria-describedby="p06InstructionsText" aria-hidden="true" style="display: none;">
                 <div class="modal-dialog modal-dialog-centered patient-instructions-dialog">
                 <div class="p06-modal-content patient-instructions-modal-content">
-                    <div class="p06-modal-header patient-instructions-modal-header"><h2 id="p06InstructionsTitle" class="modal-title patient-instructions-modal-title">Antes de comenzar: antecedentes quirúrgicos</h2><button type="button" class="p06-modal-close patient-instructions-close btn-close" aria-label="Cerrar" onclick="p06CloseInstructions()"><i data-feather="x" aria-hidden="true"></i></button></div>
+                    <div class="p06-modal-header patient-instructions-modal-header"><h2 id="p06InstructionsTitle" class="modal-title patient-instructions-modal-title">Antes de comenzar: antecedentes quirúrgicos</h2><?php $modalCloseConfig = ['onclick' => 'p06CloseInstructions()']; include __DIR__ . '/partials/modal-close.php'; unset($modalCloseConfig); ?></div>
                     <div class="p06-modal-body patient-instructions-modal-body"><p id="p06InstructionsText" data-narration-instructions>En esta sección puedes registrar el nombre de una cirugía, la fecha en que se realizó y observaciones adicionales. Puedes agregar más de un registro, editar la información y eliminar un registro agregado por error. Si no corresponde registrar una cirugía, puedes finalizar la sección sin crear datos.</p><p id="p06VoicePrompt" class="patient-instructions-voice-prompt" role="status" aria-live="polite">Para escuchar las instrucciones, presiona este botón.</p><p class="patient-instructions-modal-note">Tus respuestas se guardan mientras avanzas. Puedes cerrar esta ventana sin perder tu progreso.</p></div>
-                    <div class="p06-modal-actions patient-instructions-modal-actions"><button type="button" class="btn p06-secondary-button patient-instructions-secondary" onclick="p06ReadInstructions()"><i data-feather="volume-2" aria-hidden="true"></i><span>Escuchar</span></button><button type="button" class="btn p06-secondary-button patient-instructions-secondary" onclick="p06StopVoice()"><i data-feather="square" aria-hidden="true"></i><span>Detener</span></button><button type="button" class="btn btn-primary" onclick="p06CloseInstructions()">Entendido, comenzar</button></div>
+                    <div class="p06-modal-actions patient-instructions-modal-actions"><?php $modalAudioConfig = ['group' => 'p06-instructions', 'listen_id' => 'p06ReadInstructionsButton', 'stop_id' => 'p06StopInstructionsButton', 'listen_class' => 'btn p06-secondary-button patient-instructions-secondary', 'stop_class' => 'btn p06-secondary-button patient-instructions-secondary', 'listen_attrs' => ['onclick' => 'p06ReadInstructions()'], 'stop_attrs' => ['onclick' => 'p06StopVoice(true)']]; include __DIR__ . '/partials/modal-audio-controls.php'; unset($modalAudioConfig); ?><button type="button" class="btn btn-primary" onclick="p06CloseInstructions()">Entendido, comenzar</button></div>
                 </div>
                 </div>
             </div>
@@ -413,6 +434,7 @@ $mainJsUrl = $versionedAsset(RUTA_JS, 'main.js', 'assets/js/main.js');
             <?php include_once __DIR__ . '/../components/footer-doctor.php'; ?>
         </div>
     </div>
+    <script src="<?= $audioStatusJsUrl; ?>"></script>
     <script src="<?= RUTA_JS; ?>patient-instructions-modal.js"></script>
     <script src="<?= RUTA_JS; ?>patient-narration-highlight.js"></script>
     <script src="<?= $voiceUtilitiesJsUrl; ?>"></script>

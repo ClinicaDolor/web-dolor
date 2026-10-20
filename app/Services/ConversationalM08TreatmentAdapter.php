@@ -20,13 +20,30 @@ final class ConversationalM08TreatmentAdapter
     {
         if ($patientId < 1) throw new \InvalidArgumentException('PATIENT_INVALID');
         $db = $this->connection();
-        $catalog = (new ProcedimientosDolorModel())->p10Tratamientos($patientId);
+        $catalog = (new ProcedimientosDolorModel($db))->p10Tratamientos($patientId);
         $policy = (new ClinicalWriteEligibilityPolicy($db))->evaluate($patientId, 8);
+        $items = array_map(static function (array $item): array {
+            $utilizo = trim((string)($item['utilizo'] ?? ''));
+            $resultado = trim((string)($item['resultado'] ?? ''));
+            $descripcion = trim((string)($item['descripcion'] ?? ''));
+            $complete = $utilizo === 'No'
+                || ($utilizo === 'Si' && in_array($resultado, ['Funciono', 'No funciono'], true))
+                || ($utilizo === 'Si' && $resultado === 'Tuve efectos adversos' && $descripcion !== '');
+            $item['status'] = $complete ? 'complete' : 'pending';
+            $item['fields'] = [
+                'utilizo' => $utilizo,
+                'resultado' => $resultado,
+                'descripcion' => $descripcion,
+                'comentarios' => trim((string)($item['comentarios'] ?? '')),
+            ];
+            return $item;
+        }, $catalog['items'] ?? []);
+
         return [
             'key' => 'M08',
-            'items' => $catalog['items'] ?? [],
+            'items' => $items,
             'comments_available' => (bool)($catalog['comments_available'] ?? false),
-            'version' => hash('sha256', json_encode($catalog, JSON_UNESCAPED_UNICODE)),
+            'version' => hash('sha256', json_encode(['items' => $items, 'comments_available' => $catalog['comments_available'] ?? false], JSON_UNESCAPED_UNICODE)),
             'finalized' => (bool)($policy['finalized'] ?? true),
             'write_enabled' => (bool)($policy['editable'] ?? false),
             'write_blocker' => $policy['reason'] ?? null,
@@ -90,8 +107,8 @@ final class ConversationalM08TreatmentAdapter
         return [
             'mode' => 'deterministic', 'kind' => 'm08_treatment_proposal', 'target' => 'm08_treatment',
             'treatment_id' => (int)$item['id_tratamiento'], 'treatment' => (string)$item['tratamiento'],
-            'fields' => $fields, 'interpretation' => 'Propuesta M08 preparada con datos expresados por el paciente. No se guardó ningún dato.',
-            'requires_confirmation' => true, 'can_confirm' => false,
+            'fields' => $fields, 'interpretation' => 'Respuesta M08 validada con los datos expresados por el paciente.',
+            'requires_confirmation' => false, 'can_confirm' => false, 'direct_save' => true,
         ];
     }
 
@@ -117,17 +134,24 @@ final class ConversationalM08TreatmentAdapter
             if (($state['finalized'] ?? true) || !($state['write_enabled'] ?? false)) return ['resultado' => 403, 'mensaje' => 'El módulo M08 no admite nuevas respuestas.'];
             if ($expectedVersion !== null && $expectedVersion !== '' && !hash_equals((string)$state['version'], $expectedVersion)) return ['resultado' => 409, 'mensaje' => 'M08 cambió mientras se revisaba. Recarga antes de confirmar.'];
             if (!$this->item($patientId, $treatmentId)) return ['resultado' => 404, 'mensaje' => 'Tratamiento no encontrado.'];
-            $model = new ProcedimientosDolorModel();
+            $model = new ProcedimientosDolorModel($db);
             $order = ['utilizo' => 1, 'resultado' => 2, 'descripcion' => 4, 'comentarios' => 3];
+            $db->beginTransaction();
             foreach ($order as $field => $edit) {
                 if (!array_key_exists($field, $fields)) continue;
                 $value = trim((string)$fields[$field]);
                 if ($field === 'comentarios' && !($state['comments_available'] ?? false)) continue;
                 $result = $model->p10EditarTratamiento(['idPaciente' => $patientId, 'idTratamiento' => $treatmentId, 'edicion' => $edit, 'detalle' => $value]);
-                if ((int)($result['resultado'] ?? 500) !== 200) return ['resultado' => 500, 'mensaje' => 'No fue posible guardar la propuesta M08 completa.'];
+                if ((int)($result['resultado'] ?? 500) !== 200) {
+                    throw new \RuntimeException('M08_FIELD_WRITE_FAILED');
+                }
             }
+            $db->commit();
             $after = $this->read($patientId);
             return ['resultado' => 200, 'mensaje' => 'Respuesta M08 confirmada.', 'item' => $this->item($patientId, $treatmentId), 'version' => $after['version']];
+        } catch (\Throwable $exception) {
+            if ($db->inTransaction()) $db->rollBack();
+            return ['resultado' => 500, 'mensaje' => 'No fue posible guardar la propuesta M08 completa.'];
         } finally {
             $db->query('SELECT RELEASE_LOCK(' . $db->quote('clinica_m08_treatment_' . $patientId . '_' . $treatmentId) . ')');
         }

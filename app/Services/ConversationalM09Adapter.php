@@ -80,8 +80,8 @@ final class ConversationalM09Adapter
         return [
             'mode' => 'deterministic', 'kind' => 'm09_proposal', 'target' => 'm09',
             'fields' => $fields,
-            'interpretation' => 'Propuesta M09 preparada con los cuatro campos de evaluación del dolor. El mapa corporal permanece separado.',
-            'requires_confirmation' => true, 'can_confirm' => false,
+            'interpretation' => 'Respuesta M09 validada con los cuatro campos de evaluación del dolor. El mapa corporal permanece separado.',
+            'requires_confirmation' => false, 'can_confirm' => false, 'direct_save' => true,
         ];
     }
 
@@ -119,7 +119,7 @@ final class ConversationalM09Adapter
             foreach ([1 => 'dolor', 2 => 'tiempo_dolor', 3 => 'descripcion', 4 => 'incremento'] as $fieldId => $fieldName) {
                 if (array_key_exists($fieldName, $normalized)) $serviceChanges[$fieldId] = $normalized[$fieldName];
             }
-            $result = (new EvaluacionDolorModel())->p11ActualizarEvaluacion($patientId, $serviceChanges);
+            $result = (new EvaluacionDolorModel($db))->p11ActualizarEvaluacion($patientId, $serviceChanges);
             if ((int)($result['resultado'] ?? 422) !== 200) return $result;
             $after = $this->read($patientId);
             return ['resultado' => 200, 'mensaje' => 'Evaluación M09 guardada.', 'evaluation' => $after['evaluation'], 'version' => $after['version']];

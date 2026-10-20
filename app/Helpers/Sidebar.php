@@ -35,10 +35,13 @@ class Sidebar{
             $activeClass = ($item['titulo'] == $this->activeItem) ? 'active' : '';
             $currentAttribute = ($activeClass === 'active') ? ' aria-current="page"' : '';
 
+            $itemTitle = htmlspecialchars($item['titulo'], ENT_QUOTES, 'UTF-8');
+            $itemUrl = htmlspecialchars($item['url'], ENT_QUOTES, 'UTF-8');
+
             $html .= '<li class="sidebar-item '.$activeClass.'">
-            <a href="'.$item['url'].'" class="sidebar-link" aria-label="'.htmlspecialchars($item['titulo'], ENT_QUOTES, 'UTF-8').'"'.$currentAttribute.'>
+            <a href="'.$itemUrl.'" class="sidebar-link" aria-label="'.$itemTitle.'" title="'.$itemTitle.'"'.$currentAttribute.'>
                 <i data-feather="'.$item['icono'].'" width="20"></i> 
-                <span>'.htmlspecialchars($item['titulo'], ENT_QUOTES, 'UTF-8').'</span>
+                <span>'.$itemTitle.'</span>
             </a>
         </li> ';
            }

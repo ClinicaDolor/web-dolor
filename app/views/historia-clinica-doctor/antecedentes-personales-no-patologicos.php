@@ -130,7 +130,7 @@ $patientUrl = htmlspecialchars(SERVIDOR . 'clinica/paciente/' . $patientId, ENT_
     <p class="doctor-nonpathological-patient-context">Paciente autorizado: <strong><?=$escape($patientName);?></strong></p>
     </div>
     <div class="doctor-nonpathological-hero-actions">
-    <a class="doctor-nonpathological-action" href="<?=$patientUrl;?>">
+    <a class="doctor-nonpathological-action" data-doctor-back-action href="<?=$patientUrl;?>">
     <i data-feather="arrow-left" aria-hidden="true"></i>
     <span>Volver al expediente</span>
     </a>

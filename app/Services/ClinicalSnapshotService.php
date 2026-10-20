@@ -79,6 +79,10 @@ final class ClinicalSnapshotService
         if ($moduleNumber === 2 && $this->blank($row['detalle'] ?? null)) {
             unset($row['enfermedad'], $row['tipo'], $row['especificar']);
         }
+        if ($moduleNumber === 3 && $this->blank($row['estado_respuesta'] ?? null)) {
+            $textualState = \App\Models\AntecedentesNoPatologicosModel::canonicalM03UnknownState((string)($row['respuesta'] ?? ''));
+            if ($textualState !== null) $row['estado_respuesta'] = $textualState;
+        }
         foreach ($row as $key=>$value) { if (is_string($value)) $row[$key]=mb_substr(strip_tags($value),0,2000); }
         return $row;
     }
@@ -88,6 +92,7 @@ final class ClinicalSnapshotService
     }
     private function hasClinicalData(array $data, int $moduleNumber): bool
     {
+        if ($moduleNumber === 3 && in_array(strtoupper(trim((string)($data['estado_respuesta'] ?? ''))), ['UNKNOWN', 'NOT_REMEMBERED'], true)) return true;
         $fields = [
             1 => ['sexo','edad','estado_civil','lugar_origen','lugar_residencia','ocupacion','motivo_atencion','fecha_alta','fecha_nacimiento','ultima_actualizacion'],
             2 => ['detalle'],

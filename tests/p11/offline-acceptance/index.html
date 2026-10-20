@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; connect-src 'none'; font-src 'self'; form-action 'none'; frame-src 'none'; img-src 'self'; object-src 'none'; script-src 'self'; style-src 'self';">
+    <title>P11 · Prueba offline del mapa del dolor</title>
+    <link rel="stylesheet" href="../../../public/assets/css/bootstrap.css">
+    <link rel="stylesheet" href="../../../public/assets/css/app.css">
+    <link rel="stylesheet" href="offline.css">
+</head>
+<body class="app-shell-body app-shell-patient patient-clinical-form p11-pain-evaluation-page">
+    <div class="p11-offline-banner" role="note">
+        <strong>PRUEBA OFFLINE P11</strong>
+        <span>No pertenece a la aplicación clínica. No guarda datos ni realiza solicitudes.</span>
+    </div>
+
+    <main class="main-content container-fluid p11-content p11-offline-main">
+        <header class="page-title portal-page-title p11-hero mb-4">
+            <div class="p11-hero-copy">
+                <p class="dashboard-eyebrow">MI HISTORIA CLÍNICA</p>
+                <h1>Evaluación del dolor</h1>
+                <p>Prueba local de selección visual del mapa corporal.</p>
+                <span class="p11-patient-context">Paciente ficticio: Prueba offline</span>
+            </div>
+            <div class="p11-hero-actions">
+                <span class="btn p11-help p11-offline-label">Sin sesión clínica</span>
+            </div>
+        </header>
+
+        <div id="p11-message" class="p11-message" role="status" aria-live="polite"></div>
+        <section class="p11-workspace" aria-label="Prueba offline del mapa corporal">
+            <article id="p11-front-panel" class="card p11-card">
+                <div class="p11-map-content" data-p11-map="frente">
+                    <div class="p11-section-heading">
+                        <div>
+                            <p class="dashboard-eyebrow">MAPA CORPORAL</p>
+                            <h2>Imagen de frente</h2>
+                            <p class="p11-muted">Selecciona una sensación y marca la zona correspondiente.</p>
+                        </div>
+                        <button type="button" class="btn p11-secondary" disabled aria-disabled="true" title="Disponible sólo en la aplicación conectada">Limpiar frente</button>
+                    </div>
+                    <p class="p11-legend-note">Offline: las marcas sólo viven en esta página y se descartan al cerrarla.</p>
+                    <fieldset class="p11-colors">
+                        <legend>Selecciona el tipo de sensación</legend>
+                        <div class="p11-color-options">
+                            <label class="p11-color-option"><input type="radio" name="colorFrente" value="#ff0000"><span class="p11-color-swatch p11-offline-swatch--red" aria-hidden="true"></span><span>Dolor</span></label>
+                            <label class="p11-color-option"><input type="radio" name="colorFrente" value="#0000ff"><span class="p11-color-swatch p11-offline-swatch--blue" aria-hidden="true"></span><span>Adormecido</span></label>
+                            <label class="p11-color-option"><input type="radio" name="colorFrente" value="#00ff00"><span class="p11-color-swatch p11-offline-swatch--green" aria-hidden="true"></span><span>Molestia al roce</span></label>
+                            <label class="p11-color-option"><input type="radio" name="colorFrente" value="#ffff00"><span class="p11-color-swatch p11-offline-swatch--yellow" aria-hidden="true"></span><span>Sin sensibilidad</span></label>
+                            <label class="p11-color-option"><input type="radio" name="colorFrente" value="#ff00ff"><span class="p11-color-swatch p11-offline-swatch--magenta" aria-hidden="true"></span><span>Punzadas y calambres</span></label>
+                        </div>
+                    </fieldset>
+                    <div class="p11-canvas-wrap"><div class="p11-offline-canvas-frame p11-offline-canvas-frame--frente"><canvas id="painFrente" width="1200" height="1800" data-p11-orientation="frente" data-p11-image="../../../public/assets/images/evaluacion-dolor/frente/Frente_M.png" aria-label="Mapa corporal: Imagen de frente"></canvas><span class="p11-offline-side-label p11-offline-side-label--left">Derecha</span><span class="p11-offline-side-label p11-offline-side-label--right">Izquierda</span></div></div>
+                    <div class="p11-nav">
+                        <span class="p11-muted">Selecciona un color y dibuja sobre el mapa.</span>
+                        <button type="button" class="btn btn-primary" data-p11-nav="espalda"><span>Imagen de espalda</span><span aria-hidden="true">›</span></button>
+                    </div>
+                </div>
+            </article>
+
+            <article id="p11-back-panel" class="card p11-card" hidden>
+                <div class="p11-map-content" data-p11-map="espalda">
+                    <div class="p11-section-heading">
+                        <div>
+                            <p class="dashboard-eyebrow">MAPA CORPORAL</p>
+                            <h2>Imagen de espalda</h2>
+                            <p class="p11-muted">Selecciona una sensación y marca la zona correspondiente.</p>
+                        </div>
+                        <button type="button" class="btn p11-secondary" disabled aria-disabled="true" title="Disponible sólo en la aplicación conectada">Limpiar espalda</button>
+                    </div>
+                    <p class="p11-legend-note">Offline: las marcas sólo viven en esta página y se descartan al cerrarla.</p>
+                    <fieldset class="p11-colors">
+                        <legend>Selecciona el tipo de sensación</legend>
+                        <div class="p11-color-options">
+                            <label class="p11-color-option"><input type="radio" name="colorEspalda" value="#ff0000"><span class="p11-color-swatch p11-offline-swatch--red" aria-hidden="true"></span><span>Dolor</span></label>
+                            <label class="p11-color-option"><input type="radio" name="colorEspalda" value="#0000ff"><span class="p11-color-swatch p11-offline-swatch--blue" aria-hidden="true"></span><span>Adormecido</span></label>
+                            <label class="p11-color-option"><input type="radio" name="colorEspalda" value="#00ff00"><span class="p11-color-swatch p11-offline-swatch--green" aria-hidden="true"></span><span>Molestia al roce</span></label>
+                            <label class="p11-color-option"><input type="radio" name="colorEspalda" value="#ffff00"><span class="p11-color-swatch p11-offline-swatch--yellow" aria-hidden="true"></span><span>Sin sensibilidad</span></label>
+                            <label class="p11-color-option"><input type="radio" name="colorEspalda" value="#ff00ff"><span class="p11-color-swatch p11-offline-swatch--magenta" aria-hidden="true"></span><span>Punzadas y calambres</span></label>
+                        </div>
+                    </fieldset>
+                    <div class="p11-canvas-wrap"><div class="p11-offline-canvas-frame p11-offline-canvas-frame--espalda"><canvas id="painEspalda" width="1200" height="1800" data-p11-orientation="espalda" data-p11-image="../../../public/assets/images/evaluacion-dolor/espalda/Espalda_M.png" aria-label="Mapa corporal: Imagen de espalda"></canvas><span class="p11-offline-side-label p11-offline-side-label--left">Izquierda</span><span class="p11-offline-side-label p11-offline-side-label--right">Derecha</span></div></div>
+                    <div class="p11-nav">
+                        <button type="button" class="btn p11-secondary" data-p11-nav="frente"><span aria-hidden="true">‹</span><span>Imagen de frente</span></button>
+                        <button type="button" class="btn btn-primary" data-p11-nav="cuestionario"><span>Cuestionario</span><span aria-hidden="true">›</span></button>
+                    </div>
+                </div>
+            </article>
+
+            <article id="p11-question-panel" class="card p11-card" hidden>
+                <div class="p11-questionnaire" data-p11-questionnaire="true">
+                    <div class="p11-section-heading"><div><p class="dashboard-eyebrow">EVALUACIÓN DEL DOLOR</p><h2>Responde las preguntas</h2><p class="p11-muted">Esta sección es sólo una referencia visual offline.</p></div></div>
+                    <div class="p11-question"><h3>¿Tiene dolor actualmente?</h3><div class="p11-choice-grid">
+                        <label class="p11-choice"><input type="radio" name="p11Dolor" value="Si"><span>Sí</span></label>
+                        <label class="p11-choice"><input type="radio" name="p11Dolor" value="No"><span>No</span></label>
+                    </div></div>
+                    <div class="p11-dependent-fields" hidden>
+                        <label>¿Desde hace cuánto tiempo tiene dolor?<textarea name="tiempo_dolor" rows="2"></textarea></label>
+                        <label>Describa cómo inició el dolor, sus características y localización.<textarea name="descripcion" rows="4"></textarea></label>
+                        <label>¿Se ha incrementado el dolor o permanece igual desde el inicio?<textarea name="incremento" rows="3"></textarea></label>
+                    </div>
+                    <div class="p11-question-actions">
+                        <button type="button" class="btn p11-secondary" data-p11-nav="espalda"><span aria-hidden="true">‹</span><span>Volver a espalda</span></button>
+                        <span class="p11-muted">Guardado y finalización: sólo en la aplicación conectada.</span>
+                    </div>
+                </div>
+            </article>
+        </section>
+    </main>
+    <script src="p11-map-offline.js"></script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "PythonPid": 18356,
+  "PhpPid": 23560,
+  "PythonPath": "C:\\xampp\\htdocs\\clinica-dolor\\tests\\voice-stt-02\\..\\voice-stt-01\\.venv\\Scripts\\python.exe",
+  "PhpPath": "C:\\xampp\\php\\php.exe",
+  "PythonPort": 8766,
+  "PhpPort": 8767,
+  "ModelPath": "C:\\xampp\\htdocs\\clinica-dolor\\tests\\voice-stt-01\\model-cache\\models--Systran--faster-whisper-small\\snapshots\\536b0662742c02347bc0e980a01041f333bce120"
+}

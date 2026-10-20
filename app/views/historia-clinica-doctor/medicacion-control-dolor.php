@@ -1,5 +1,6 @@
 <?php
 use App\Models\MedicacionDolorModel;
+use App\Services\ClinicalSummarySecurity;
 
 $model = new MedicacionDolorModel();
 
@@ -8,6 +9,7 @@ $escape = static function ($value): string {
     return htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
 };
 $patientId = (int) ($data['idPaciente'] ?? 0);
+$m03CsrfToken = ClinicalSummarySecurity::captureCsrfToken($patientId);
 $patientName = trim((string) ($data['nombre'] ?? ''));
 $title = $data['title'] ?? 'Medicamentos para controlar el dolor';
 $patientUrl = $escape(SERVIDOR . 'clinica/paciente/' . $patientId);
@@ -107,7 +109,7 @@ $patientUrl = $escape(SERVIDOR . 'clinica/paciente/' . $patientId);
 
         fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-M03-CSRF': document.getElementById('main')?.dataset.m03Csrf || '' },
             body: JSON.stringify(parametros)
         }).then(res => res.json()).then(data => {
             if (idUpdate == 1) {
@@ -123,9 +125,12 @@ $patientUrl = $escape(SERVIDOR . 'clinica/paciente/' . $patientId);
 
     // ---------- EDITAR MEDICACIÓN PARA CONTROL DEL DOLOR ----------
     function respuestaPreguntaSelect(idPaciente, idRespuesta, elemento, idTema, idTipo, idRol, idUpdate = 0) {
+        const questionRow = elemento?.closest('[data-id-pregunta]');
+        const idPregunta = Number(questionRow?.dataset.idPregunta || 0);
         gestionarMedicacionControl(`/${idRol === 'Paciente' ? 'historia-clinica' : 'clinica'}/paciente/editar-cuestionario-modulo7`, {
             idPaciente,
             idRespuesta,
+            idPregunta,
             idTema,
             idTipo,
             detalle: elemento.value,
@@ -142,7 +147,7 @@ $patientUrl = $escape(SERVIDOR . 'clinica/paciente/' . $patientId);
     <div id="app">
         <?= $data['sidebar']; ?>
 
-        <div id="main" data-rol="<?= $escape($data['idRol'] ?? ''); ?>" data-paciente="<?= $patientId; ?>">
+        <div id="main" data-rol="<?= $escape($data['idRol'] ?? ''); ?>" data-paciente="<?= $patientId; ?>" data-m03-csrf="<?= $escape($m03CsrfToken); ?>">
             <?php include_once __DIR__ . '/../components/search-bar-doctor.php'; ?>
 
             <main class="main-content container-fluid doctor-medication-pain-content">
@@ -156,7 +161,7 @@ $patientUrl = $escape(SERVIDOR . 'clinica/paciente/' . $patientId);
                         <?php endif; ?>
                     </div>
                     <div class="doctor-medication-pain-hero-actions">
-                        <a class="doctor-medication-pain-action" href="<?= $patientUrl; ?>">
+                        <a class="doctor-medication-pain-action" data-doctor-back-action href="<?= $patientUrl; ?>">
                             <i data-feather="arrow-left" aria-hidden="true"></i>
                             <span>Volver al expediente</span>
                         </a>

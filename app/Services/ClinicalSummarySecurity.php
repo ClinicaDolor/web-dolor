@@ -18,6 +18,20 @@ final class ClinicalSummarySecurity
         return self::flag('CLINICAL_AI_EXTERNAL_ENABLED', false);
     }
 
+    public static function nativeSpeechEnabled(): bool
+    {
+        // La API del navegador puede procesar audio fuera del equipo. La voz
+        // solo se habilita con autorización sintética explícita del servidor.
+        $environment = strtolower(trim((string)($_ENV['APP_ENV'] ?? getenv('APP_ENV') ?: '')));
+        $database = trim((string)($_ENV['DB_DATABASE'] ?? getenv('DB_DATABASE') ?: ''));
+        $syntheticDatabase = in_array($database, ['clinica_dolor_browser_20261012', 'clinica_dolor_demo_20261010_final'], true);
+        return self::flag('NATIVE_STT_ENABLED', false)
+            && self::syntheticMode()
+            && !self::externalEnabled()
+            && $environment === 'testing'
+            && $syntheticDatabase;
+    }
+
     public static function csrfToken(int $patientId): string
     {
         return hash_hmac('sha256', 'clinical-summary:' . $patientId, (string)($_ENV['APP_KEY'] ?? ''));
@@ -39,6 +53,26 @@ final class ClinicalSummarySecurity
     public static function validCaptureCsrf(int $patientId, ?string $token): bool
     {
         $expected = self::captureCsrfToken($patientId);
+        return $expected !== '' && is_string($token) && hash_equals($expected, $token);
+    }
+
+    /** Token bound to the authenticated clinic JWT and clinic scope. */
+    public static function clinicActionCsrfToken(int $clinicId): string
+    {
+        $sessionCookie = (string)($_COOKIE['CLINICAJWT'] ?? '');
+        $appKey = (string)($_ENV['APP_KEY'] ?? '');
+        if ($clinicId < 1 || $sessionCookie === '' || $appKey === '') return '';
+
+        return hash_hmac(
+            'sha256',
+            'clinic-action:' . $clinicId . ':' . hash('sha256', $sessionCookie),
+            $appKey
+        );
+    }
+
+    public static function validClinicActionCsrf(int $clinicId, ?string $token): bool
+    {
+        $expected = self::clinicActionCsrfToken($clinicId);
         return $expected !== '' && is_string($token) && hash_equals($expected, $token);
     }
 

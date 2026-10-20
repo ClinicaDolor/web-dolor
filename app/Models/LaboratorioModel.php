@@ -4,6 +4,8 @@ namespace App\Models;
 use App\Config\Database;
 
 class LaboratorioModel{
+    public const MAX_UPLOAD_BYTES = 10485760;
+
     private $bd;
     private $fecha;
     private $hora;
@@ -101,42 +103,128 @@ class LaboratorioModel{
     }
 
     public function insertArchivo($idPaciente,$contenidoLaboratorio,$fileName, $fileData, $fileSize, $fileExtension, $referencia, $titulo){
-    $uploadDir = $_SERVER['DOCUMENT_ROOT'] . '/public/storage/laboratorio/';
-
-        if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0777, true);
+        $idPaciente = filter_var($idPaciente, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if ($idPaciente === false) {
+            return ['resultado' => 422, 'mensaje' => 'Paciente no válido.'];
         }
 
-        $filePath = $uploadDir . basename($fileName);
-        if (move_uploaded_file($fileData, $filePath)) {
+        $validation = $this->validateUploadedPdf($fileData, $fileName, $fileExtension);
+        if (!$validation['valid']) {
+            return ['resultado' => $validation['resultado'], 'mensaje' => $validation['mensaje']];
+        }
 
-            $query = "INSERT INTO laboratorio (id_paciente, nombre, ruta, tipo, tamano, titulo, descripcion, codigo_referencia) 
-                  VALUES (:id_paciente, :nombre, :ruta, :tipo, :tamano, :titulo, :descripcion, :codigo_referencia)";
-            $stmt = $this->bd->prepare($query);     
+        $documentRoot = rtrim((string)($_SERVER['DOCUMENT_ROOT'] ?? ''), '/\\');
+        $uploadDir = $documentRoot . '/public/storage/laboratorio/';
+        if ($documentRoot === '' || $uploadDir === '/public/storage/laboratorio/') {
+            return ['resultado' => 500, 'mensaje' => 'No fue posible preparar el almacenamiento.'];
+        }
 
-            $datos = [
-                ':id_paciente' => $idPaciente, 
-                ':nombre' => basename($fileName), 
-                ':ruta' => 'laboratorio', 
-                ':tipo' => $fileExtension, 
-                ':tamano' => $fileSize,
-                ':titulo' => $titulo, 
+        if (!is_dir($uploadDir) && !mkdir($uploadDir, 0750, true) && !is_dir($uploadDir)) {
+            return ['resultado' => 500, 'mensaje' => 'No fue posible preparar el almacenamiento.'];
+        }
+        if (!is_writable($uploadDir)) {
+            return ['resultado' => 500, 'mensaje' => 'El almacenamiento no está disponible.'];
+        }
+
+        $storedName = null;
+        for ($attempt = 0; $attempt < 3; $attempt++) {
+            try {
+                $candidate = 'lab_' . bin2hex(random_bytes(16)) . '.pdf';
+            } catch (\Throwable $e) {
+                return ['resultado' => 500, 'mensaje' => 'No fue posible preparar el archivo.'];
+            }
+            if (!file_exists($uploadDir . $candidate)) {
+                $storedName = $candidate;
+                break;
+            }
+        }
+
+        if ($storedName === null) {
+            return ['resultado' => 500, 'mensaje' => 'No fue posible reservar el archivo.'];
+        }
+
+        $filePath = $uploadDir . $storedName;
+        if (!move_uploaded_file($fileData, $filePath)) {
+            return ['resultado' => 500, 'mensaje' => 'No fue posible guardar el archivo.'];
+        }
+
+        $storedSize = filesize($filePath);
+        if ($storedSize === false || $storedSize <= 0) {
+            @unlink($filePath);
+            return ['resultado' => 500, 'mensaje' => 'No fue posible verificar el archivo guardado.'];
+        }
+
+        try {
+            $query = "INSERT INTO laboratorio (id_paciente, nombre, ruta, tipo, tamano, titulo, descripcion, codigo_referencia)
+                      VALUES (:id_paciente, :nombre, :ruta, :tipo, :tamano, :titulo, :descripcion, :codigo_referencia)";
+            $stmt = $this->bd->prepare($query);
+            $stmt->execute([
+                ':id_paciente' => $idPaciente,
+                ':nombre' => $storedName,
+                ':ruta' => 'laboratorio',
+                ':tipo' => 'pdf',
+                ':tamano' => (int)$storedSize,
+                ':titulo' => $titulo,
                 ':descripcion' => $contenidoLaboratorio,
                 ':codigo_referencia' => $referencia
-                ];
+            ]);
 
-                if ($stmt->execute($datos)) {
-
-                    return array('resultado' => 200,'mensaje' => $this->bd->lastInsertId());
-        
-                } else {
-                    return array('resultado' => 401,'mensaje' => '¡Error al guardar el archivo!');
-                }
-
-        }else{
-            return array('resultado' => 200,'mensaje' => '¡Error al guardar el archivo!');
+            return ['resultado' => 200, 'mensaje' => $this->bd->lastInsertId()];
+        } catch (\Throwable $e) {
+            if (is_file($filePath) && !@unlink($filePath)) {
+                error_log('Laboratory upload cleanup failed after database error.');
+            }
+            return ['resultado' => 500, 'mensaje' => 'No fue posible registrar el archivo.'];
         }
-        
+    }
+
+    private function validateUploadedPdf($fileData, $fileName, $fileExtension)
+    {
+        if (!is_string($fileData) || !is_uploaded_file($fileData)) {
+            return ['valid' => false, 'resultado' => 422, 'mensaje' => 'El archivo recibido no es válido.'];
+        }
+
+        $hasPathSeparator = is_string($fileName)
+            && (strpos($fileName, '/') !== false
+                || strpos($fileName, '\\') !== false
+                || strpos($fileName, "\0") !== false);
+        if (!is_string($fileName) || $fileName === '' || $hasPathSeparator) {
+            return ['valid' => false, 'resultado' => 422, 'mensaje' => 'El nombre del archivo no es válido.'];
+        }
+
+        $extension = strtolower((string)pathinfo($fileName, PATHINFO_EXTENSION));
+        if ($extension !== 'pdf' || strtolower((string)$fileExtension) !== 'pdf') {
+            return ['valid' => false, 'resultado' => 422, 'mensaje' => 'Sólo se permiten archivos PDF.'];
+        }
+
+        $actualSize = filesize($fileData);
+        if ($actualSize === false || $actualSize <= 0) {
+            return ['valid' => false, 'resultado' => 422, 'mensaje' => 'El archivo está vacío o no se puede leer.'];
+        }
+        if ($actualSize > self::MAX_UPLOAD_BYTES) {
+            return ['valid' => false, 'resultado' => 422, 'mensaje' => 'El archivo no puede superar los 10 MiB.'];
+        }
+
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        if ($finfo === false) {
+            return ['valid' => false, 'resultado' => 500, 'mensaje' => 'No fue posible verificar el archivo.'];
+        }
+        $mime = finfo_file($finfo, $fileData);
+        finfo_close($finfo);
+        if ($mime !== 'application/pdf') {
+            return ['valid' => false, 'resultado' => 422, 'mensaje' => 'El contenido del archivo no es un PDF válido.'];
+        }
+
+        $handle = @fopen($fileData, 'rb');
+        $signature = $handle ? fread($handle, 5) : false;
+        if (is_resource($handle)) {
+            fclose($handle);
+        }
+        if ($signature !== '%PDF-') {
+            return ['valid' => false, 'resultado' => 422, 'mensaje' => 'El contenido del archivo no es un PDF válido.'];
+        }
+
+        return ['valid' => true, 'resultado' => 200, 'mensaje' => '', 'size' => (int)$actualSize];
     }
 
     public function getLaboratorio($idLaboratorio){
@@ -151,18 +239,23 @@ class LaboratorioModel{
 
             $fecha = (new \DateTime($data['fecha_hora']))->format('d/m/Y');
             $hora = (new \DateTime($data['fecha_hora']))->format('h:i a');
+            $safeName = htmlspecialchars((string)$data['nombre'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            $safeRoute = rawurlencode((string)$data['ruta']);
+            $safeFile = rawurlencode((string)$data['nombre']);
+            $safeTitle = htmlspecialchars((string)$data['titulo'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            $safeDescription = RecetaModel::sanitizeMedicationHtml((string)$data['descripcion']);
             $result .= '
             <div class="float-end">
-            <a download="'.$data['nombre'].'" href="/descargar/'.$data['ruta'].'/'.$data['nombre'].'" class="btn icon btn-primary"><i data-feather="download"></i></a></div>
+            <a download="'.$safeName.'" href="/descargar/'.$safeRoute.'/'.$safeFile.'" class="btn icon btn-primary"><i data-feather="download"></i></a></div>
             <div>
             <label class="text-primary"><small>Fecha: </small></label> <label class="fs-5">' . $fecha . '</label>, <label class="text-primary"><small>Hora: </small></label> <label class="fs-5">'. $hora .'</label>
             </div>
 
             <label class="text-primary mt-3"><small>Titulo: </small></label>
-            <div class="fs-5">'.$data['titulo'].'</div>
+            <div class="fs-5">'.$safeTitle.'</div>
 
             <label class="text-primary mt-3"><small>Descripción: </small></label>
-            <div class="fs-5">'.$data['descripcion'].'</div>';
+            <div class="fs-5">'.$safeDescription.'</div>';
             
         } else {
             $result = '<div class="text-center p-4 text-light">No se encontró información.</div>';
@@ -175,10 +268,21 @@ class LaboratorioModel{
     public function mostrarTablaLaboratorio($idPaciente,$referencia){
 
         $result = '';
+        $idPaciente = filter_var($idPaciente, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if ($idPaciente === false) {
+            return $result;
+        }
 
-        $qry_referencia = ($referencia == 0)? ' id_paciente = "'.$idPaciente.'"' : ' id_paciente = "'.$idPaciente.'" AND codigo_referencia = "'.$referencia.'" ';
-        $query = $this->bd->query("SELECT * FROM laboratorio WHERE $qry_referencia ORDER BY fecha_hora DESC");
-        $registros = $query->fetchAll(\PDO::FETCH_ASSOC);
+        $query = "SELECT * FROM laboratorio WHERE id_paciente = :id_paciente";
+        $params = [':id_paciente' => (int)$idPaciente];
+        if ((string)$referencia !== '0') {
+            $query .= " AND codigo_referencia = :referencia";
+            $params[':referencia'] = (string)$referencia;
+        }
+        $query .= " ORDER BY fecha_hora DESC";
+        $stmt = $this->bd->prepare($query);
+        $stmt->execute($params);
+        $registros = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
         $result .= '<table class="table table-sm table-striped table-hover pb-0 mb-0" id="tableLaboratorio">
         <thead>
@@ -192,11 +296,13 @@ class LaboratorioModel{
            foreach ($registros as $data_laboratorio):
 
             $fecha_hora = (new \DateTime(datetime: $data_laboratorio['fecha_hora']))->format('d/m/Y h:i a');
+            $safeId = (int)$data_laboratorio['id'];
+            $safeTitle = htmlspecialchars((string)$data_laboratorio['titulo'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
-            $result .= '<tr onclick="DetalleLaboratorio('.$data_laboratorio['id'].')">
-                <td class="text-center">'.$data_laboratorio['id'].'</td>
+            $result .= '<tr onclick="DetalleLaboratorio('.$safeId.')">
+                <td class="text-center">'.$safeId.'</td>
                 <td>'.$fecha_hora.'</td>
-                <td>'.$data_laboratorio['titulo'].'</td>
+                <td>'.$safeTitle.'</td>
             </tr>';
             endforeach;  
     $result .= '</tbody>

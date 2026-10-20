@@ -12,7 +12,7 @@ final class ConversationalM09MapAdapter
     public function __construct(private ?PDO $db = null, private ?EvaluacionDolorModel $model = null) {}
 
     private function connection(): PDO { return $this->db ?: Database::getInstance(); }
-    private function imageModel(): EvaluacionDolorModel { return $this->model ?: new EvaluacionDolorModel(); }
+    private function imageModel(): EvaluacionDolorModel { return $this->model ?: new EvaluacionDolorModel($this->connection()); }
 
     public function read(int $patientId): array
     {

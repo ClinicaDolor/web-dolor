@@ -199,7 +199,7 @@ $patientUrl = htmlspecialchars(SERVIDOR . 'clinica/paciente/' . $patientId, ENT_
     <p class="doctor-medication-patient-context">Paciente autorizado: <strong><?=$escape($patientName);?></strong></p>
     </div>
     <div class="doctor-medication-hero-actions">
-    <a class="doctor-medication-action" href="<?=$patientUrl;?>">
+    <a class="doctor-medication-action" data-doctor-back-action href="<?=$patientUrl;?>">
     <i data-feather="arrow-left" aria-hidden="true"></i>
     <span>Volver al expediente</span>
     </a>

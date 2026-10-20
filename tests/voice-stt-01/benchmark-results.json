@@ -1,0 +1,121 @@
+{
+  "phase": "VOICE-STT-01",
+  "python": "3.13.15 (tags/v3.13.15:4061bc4, Aug  5 2026, 13:05:39) [MSC v.1944 64 bit (AMD64)]",
+  "model_snapshot": "C:\\xampp\\htdocs\\clinica-dolor\\tests\\voice-stt-01\\model-cache\\models--Systran--faster-whisper-small\\snapshots\\536b0662742c02347bc0e980a01041f333bce120",
+  "device": "cpu",
+  "compute_type": "int8",
+  "cold_start_seconds": 2.051,
+  "warm_transcription": [
+    {
+      "id": "audio-03s",
+      "duration_seconds": 3.144,
+      "sha256": "8492fc7bd131a2de7b52bcc3f596f55caa43766d3aaa22fcd77b659329c306c8",
+      "latency_seconds": 4.402,
+      "real_time_factor": 1.4,
+      "evaluation": {
+        "expected_text": "No fumo y no tomo medicamentos.",
+        "transcription": "No fumo y no tomo medicamentos.",
+        "critical_groups": [
+          [
+            "no"
+          ],
+          [
+            "fumo"
+          ],
+          [
+            "medicamentos"
+          ]
+        ],
+        "missing_critical_groups": [],
+        "clinical_significant_error": false,
+        "token_overlap": 1.0
+      }
+    },
+    {
+      "id": "audio-10s",
+      "duration_seconds": 8.848,
+      "sha256": "16122aa30134e0523e7fb7e291f21ac5b4566503ca8099ce9f99547bb35158e4",
+      "latency_seconds": 5.61,
+      "real_time_factor": 0.634,
+      "evaluation": {
+        "expected_text": "No fumo ni bebo alcohol. Tomo ibuprofeno de cuatrocientos miligramos dos veces al día para el dolor.",
+        "transcription": "No fumo ni bebo alcohol. Tomo ibuprofeno de 400 miligramos dos veces al día para el dolor.",
+        "critical_groups": [
+          [
+            "no"
+          ],
+          [
+            "fumo"
+          ],
+          [
+            "ibuprofeno"
+          ],
+          [
+            "cuatrocientos",
+            "400"
+          ],
+          [
+            "miligramos",
+            "mg"
+          ],
+          [
+            "dolor"
+          ]
+        ],
+        "missing_critical_groups": [],
+        "clinical_significant_error": false,
+        "token_overlap": 0.941
+      }
+    },
+    {
+      "id": "audio-20s",
+      "duration_seconds": 18.361,
+      "sha256": "2852d5c8bd312ab26be66b8e83bae8e83977b84c8a7ba769cad3d82be1bc49fb",
+      "latency_seconds": 7.156,
+      "real_time_factor": 0.39,
+      "evaluation": {
+        "expected_text": "No fumo ni bebo alcohol. Actualmente tomo ibuprofeno de cuatrocientos miligramos dos veces al día y paracetamol de quinientos miligramos por la noche. La dosis me ayuda un poco, pero el dolor continúa y no he tenido efectos secundarios.",
+        "transcription": "No fumo ni bebo alcohol. Actualmente tomo ibuprofeno de 400 miligramos dos veces al día y peraseta mal de 500 miligramos por la noche. La dosis me ayuda un poco, pero el dolor continúa y no he tenido efectos secundarios.",
+        "critical_groups": [
+          [
+            "no"
+          ],
+          [
+            "fumo"
+          ],
+          [
+            "ibuprofeno"
+          ],
+          [
+            "cuatrocientos",
+            "400"
+          ],
+          [
+            "miligramos",
+            "mg"
+          ],
+          [
+            "paracetamol"
+          ],
+          [
+            "quinientos",
+            "500"
+          ],
+          [
+            "dolor"
+          ]
+        ],
+        "missing_critical_groups": [
+          "paracetamol"
+        ],
+        "clinical_significant_error": true,
+        "token_overlap": 0.912
+      }
+    }
+  ],
+  "peak_ram_mb": 588.9,
+  "peak_process_cpu_percent": 795.2,
+  "offline_after_model_load": true,
+  "external_audio_transmission": false,
+  "synthetic_audio_only": true
+}
