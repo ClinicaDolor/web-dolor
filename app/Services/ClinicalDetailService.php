@@ -41,8 +41,8 @@ final class ClinicalDetailService
             'schema_version' => 'clinical-detail.v1',
             'modules' => [
                 'M01' => $this->module('M01', 'Identificación clínicamente pertinente', $m01Records),
-                'M02' => $this->moduleFromRows('M02', 'Antecedentes familiares', $this->many('SELECT enfermedad, tipo, detalle, especificar FROM pc_antecedentes_familiares WHERE id_paciente = :id ORDER BY id ASC', $patientId), [
-                    'enfermedad' => 'Enfermedad', 'tipo' => 'Tipo de diabetes', 'detalle' => 'Respuesta documentada', 'especificar' => 'Parentesco especificado'
+                'M02' => $this->moduleFromRows('M02', 'Antecedentes familiares', $this->m02Rows($patientId), [
+                    'enfermedad' => 'Enfermedad', 'tipo' => 'Tipo de diabetes', 'detalle' => 'Respuesta documentada', 'parentescos' => 'Parentescos estructurados anteriores', 'especificar' => 'Descripción familiar'
                 ]),
                 'M03' => $this->moduleFromRows('M03', 'Antecedentes personales no patológicos', $m03Rows, [
                     'tema' => 'Tema', 'pregunta' => 'Pregunta', 'respuesta' => 'Respuesta', 'estado_respuesta' => 'Estado de respuesta', 'origen_respuesta' => 'Procedencia'
@@ -200,6 +200,35 @@ final class ClinicalDetailService
         } catch (\Throwable) {
             return $this->columnAvailability[$key] = false;
         }
+    }
+
+    private function m02Rows(int $patientId): array
+    {
+        $rows = $this->many('SELECT id,enfermedad,tipo,detalle,especificar FROM pc_antecedentes_familiares WHERE id_paciente = :id ORDER BY id ASC', $patientId);
+        if ($rows === []) return [];
+        try {
+            $check = $this->db->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='pc_antecedentes_familiares_parentescos'");
+            if ((int)$check->fetchColumn() === 1) {
+                $ids = array_map(static fn(array $row): int => (int)$row['id'], $rows);
+                $marks = implode(',', array_fill(0, count($ids), '?'));
+                $children = $this->db->prepare("SELECT id_antecedente,parentesco FROM pc_antecedentes_familiares_parentescos WHERE id_antecedente IN ($marks) ORDER BY parentesco");
+                $children->execute($ids);
+                $sets = [];
+                foreach ($children->fetchAll(PDO::FETCH_ASSOC) as $child) $sets[(int)$child['id_antecedente']][] = (string)$child['parentesco'];
+                foreach ($rows as &$row) {
+                    $set = $sets[(int)$row['id']] ?? [];
+                    $row['parentescos'] = $set === [] ? null : implode(', ', $set);
+                    unset($row['id']);
+                }
+                unset($row);
+                return $rows;
+            }
+        } catch (\Throwable) {
+            // The legacy schema remains readable through its scalar field.
+        }
+        foreach ($rows as &$row) unset($row['id']);
+        unset($row);
+        return $rows;
     }
 
     private function date($value): string

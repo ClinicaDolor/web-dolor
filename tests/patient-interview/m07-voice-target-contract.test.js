@@ -13,7 +13,7 @@ assert(view.includes('const isM07AnswerableStage = stage =>'), 'M07 answerabilit
 assert(view.includes("card?.dataset.m07WriteEnabled === '1'") && view.includes("resolver.state === 'ANSWERABLE'"), 'M07 voice target must require an answerable server state.');
 assert(view.includes("const isM07BlockedStage = stage => stageModuleId(stage) === 'M07' && !isM07AnswerableStage(stage);"), 'M07 blocked voice guard missing.');
 assert(view.includes("|| isM07AnswerableStage(stage)"), 'Authorized M07 stages must use the canonical question target.');
-assert(view.includes("const event = moduleBlockedVoiceEventFor(target) || conversationCoordinator.voiceEvent('HELP', target, false);"), 'Blocked M07 help must not narrate a clinical question.');
+assert(view.includes('const blockedEvent = moduleBlockedVoiceEventFor(target);') && view.includes('if (blockedEvent) {') && view.includes('setStatus(blockedEvent.text ||'), 'Blocked M07 help must remain an informational block, not a clinical HELP/question narration.');
 assert(view.includes("const blockedM07 = moduleBlockedVoiceEventFor(snapshot.currentTarget);"), 'M07 startup must distinguish module-blocked narration.');
 assert(view.includes("const question = blockedM07 || conversationCoordinator.voiceEvent(action ? 'ACTION' : 'QUESTION', snapshot.currentTarget, false);"), 'M07 startup event selection is not fail-closed.');
 

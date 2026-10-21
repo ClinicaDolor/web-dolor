@@ -125,6 +125,14 @@ $report['preflight_result'] = is_array($preflightPayload) ? $preflightPayload : 
 
 if ($mode === 'conversational') {
     $phpTests = [
+        'piper-m02-manifest-contract.php',
+        'm02-free-text-contract.php',
+        'm02-contextual-help-contract.php',
+        'm02-context-memory.php',
+        'm02-natural-language-relationship-contract.php',
+        'm02-multiple-relatives-contract.php',
+        'voice-panel-ui-contract.php',
+        'interview-pause-resume-ui-contract.php',
         'm07-conversational-implementation-contract.php',
         'm07-shared-canonical-contract.php',
         'm07-phase-b1-shared-read-contract.php',
@@ -140,12 +148,14 @@ if ($mode === 'conversational') {
     }
 
     $nodeTests = [
+        'piper-m02-audio.test.js',
         'conversation-coordinator.test.js',
         'm07-voice-target-contract.test.js',
         'm06-contextual-buttons.test.js',
         'm06-input-operation-regression.test.js',
         'voice-context-integrity.test.js',
         'voice-autoplay.test.js',
+        'voice-selector.test.js',
     ];
     foreach ($nodeTests as $test) {
         $record($test, $run([$node, $root . '/tests/patient-interview/' . $test], 60));

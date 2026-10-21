@@ -120,11 +120,15 @@ final class ConversationalModuleFinalizationService
     private function m02Complete(array $state): bool
     {
         $records = $state['records'] ?? [];
-        if ($records === []) return false;
+        if ($records === [] || !empty($state['duplicate_diseases'])) return false;
         foreach ($records as $record) {
+            if (!empty($record['inconsistent'])) return false;
             if (($record['status'] ?? 'pending') !== 'documented') return false;
-            if (($record['detail'] ?? '') === 'Si' && trim((string)($record['relative'] ?? '')) === '') return false;
-            if (($record['disease'] ?? '') === 'Diabetes Mellitus' && ($record['detail'] ?? '') === 'Si' && trim((string)($record['diabetes_type'] ?? '')) === '') return false;
+            if (($record['detail'] ?? '') === 'No'
+                && (($record['relatives'] ?? []) !== [] || trim((string)($record['legacy_relative_text'] ?? '')) !== '')) return false;
+            if (($record['detail'] ?? '') === 'Si'
+                && ($record['relatives'] ?? []) === []
+                && trim((string)($record['legacy_relative_text'] ?? '')) === '') return false;
         }
         return true;
     }

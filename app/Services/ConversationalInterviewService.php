@@ -565,18 +565,25 @@ final class ConversationalInterviewService
         foreach (($state['records'] ?? []) as $record) {
             $disease = (string)($record['disease'] ?? 'antecedente familiar');
             $status = (string)($record['status'] ?? 'pending');
+            $help = $disease === 'Diabetes Mellitus'
+                ? 'Escribe qué familiar o familiares tienen diabetes. Puedes mencionar uno o varios, por ejemplo: “mi papá” o “mis padres y mi hermana”. Si conoces el tipo de diabetes, también puedes incluirlo, pero no es obligatorio.'
+                : 'Escribe qué familiar o familiares tienen esta enfermedad. Puedes responder con tus propias palabras, por ejemplo: “mi papá y mi mamá” o “mis padres y mi hermana mayor”. Si ninguno tiene esta enfermedad, selecciona “No, guardar y continuar”. Si no lo recuerdas, puedes indicarlo; no se registrará como Sí ni como No y la respuesta quedará sin guardar.';
             $questions[] = $this->contractQuestion('M02', 'M02:family:' . $this->stableToken($disease), '¿Algún familiar tiene ' . mb_strtolower($disease, 'UTF-8') . '?', [
                 'question_id' => $disease,
                 'visible_text' => '¿Algún familiar tiene ' . mb_strtolower($disease, 'UTF-8') . '?',
-                'instruction' => 'Responde Sí o No. Si respondes Sí, indica el familiar y completa el dato dependiente cuando corresponda.',
-                'help' => 'Si no lo recuerdas, dilo expresamente; no se interpretará como No.',
-                'options' => ['detail' => ['Si', 'No'], 'relative' => ['madre', 'padre', 'hermana', 'hermano', 'abuela', 'abuelo', 'hija', 'hijo', 'familia']],
+                'instruction' => $disease === 'Diabetes Mellitus'
+                    ? 'Describe con tus propias palabras qué familiar o familiares tienen diabetes. El tipo puede incluirse si lo conoces, pero es opcional.'
+                    : 'Describe con tus propias palabras qué familiar o familiares tienen la enfermedad.',
+                'help' => $help,
+                'options' => ['detail' => ['Si', 'No'], 'relative_description' => 'free_text', 'diabetes_type' => $disease === 'Diabetes Mellitus' ? ['Tipo 1', 'Tipo 2', 'Gestacional'] : []],
                 'dependencies' => [
-                    ['when' => 'detail=Si', 'requires' => ['relative']],
-                    ['when' => 'disease=Diabetes Mellitus AND detail=Si', 'requires' => ['diabetes_type']],
+                    ['when' => 'detail=Si', 'requires' => ['relative_description']],
                 ],
                 'response' => $this->contractResponse($record['detail'] ?? null, $status === 'documented' ? 'documented' : 'pending', $status === 'documented', [
                     'relative' => $record['relative'] ?? null,
+                    'relatives' => $record['relatives'] ?? [],
+                    'relative_description' => $record['relative_description'] ?? $record['legacy_relative_text'] ?? null,
+                    'legacy_relative_text' => $record['legacy_relative_text'] ?? null,
                     'diabetes_type' => $record['diabetes_type'] ?? null,
                     'version' => $record['version'] ?? null,
                 ]),
@@ -1095,11 +1102,7 @@ final class ConversationalInterviewService
         return $this->normalizeProposal($this->deterministic($question, $utterance), $question, 'deterministic', $utterance);
     }
 
-    /**
-     * Interpret M02 through the existing provider only in the isolated synthetic
-     * database. The returned proposal never writes; captureM02 remains the sole
-     * persistence path and still requires normal server authorization.
-     */
+    /** M02 uses deterministic free-text safeguards; captureM02 remains the sole writer. */
     public function interpretM02(string $disease, string $utterance, array $context = []): array
     {
         $disease = trim($disease);
@@ -1107,42 +1110,7 @@ final class ConversationalInterviewService
         if ($disease === '' || $utterance === '') {
             throw new \InvalidArgumentException('Antecedente incompleto.');
         }
-
-        $adapter = new ConversationalM02Adapter();
-        $fallback = static fn (): array => $adapter->interpret($disease, $utterance, $context);
-        $started = microtime(true);
-        $eligibility = $this->syntheticGeminiEligibility();
-        if (!$eligibility['allowed']) {
-            $this->emitTrace('M02', 'provider_selection', 'gemini_not_selected', true, $started, $eligibility['reason']);
-            return $fallback();
-        }
-
-        try {
-            $this->emitTrace('M02', 'provider_selection', 'gemini_selected', false, $started);
-            $this->emitTrace('M02', 'provider_invocation', 'request_started', false, $started);
-            $proposal = ($this->gemini ?: new GeminiProvider())->interpretConversation([
-                'module' => 'M02',
-                'question_code' => 'M02:' . $disease,
-                'question' => '¿Algún familiar tiene ' . $disease . '?',
-                'question_type' => 'family_history',
-                'utterance' => $utterance,
-                'context' => $context,
-                'allowed_values' => [
-                    'Si', 'No', 'madre', 'padre', 'hermana', 'hermano', 'abuela', 'abuelo',
-                    'hija', 'hijo', 'familia', 'Tipo 1', 'Tipo 2', 'Gestacional',
-                ],
-            ]);
-            $this->emitTrace('M02', 'provider_response', 'response_received', false, $started);
-            $this->validateProviderProposal($proposal, 'M02');
-            $this->validateProviderEvidence($proposal, 'M02', $utterance, $context);
-            $normalized = $this->normalizeM02Proposal($proposal, $disease, $utterance, $context);
-            $this->emitTrace('M02', 'orchestrator_acceptance', ($normalized['kind'] ?? '') === 'clarification' ? 'clarification_accepted' : 'proposal_accepted', false, $started);
-            return $normalized;
-        } catch (\Throwable $error) {
-            $this->emitTrace('M02', 'fallback', 'provider_rejected', true, $started, $this->classifyProviderFailure($error));
-            // External interpretation must fail closed to the existing deterministic adapter.
-            return $fallback();
-        }
+        return (new ConversationalM02Adapter())->interpret($disease, $utterance, $context);
     }
 
     /**
@@ -1557,17 +1525,6 @@ final class ConversationalInterviewService
             if ($meta !== null) $result['provider_meta'] = $meta;
             return $result;
         }
-        if ($disease === 'Diabetes Mellitus' && $safeContext['detail'] === 'Si' && $safeContext['diabetes_type'] === null) {
-            $result = [
-                'mode' => 'gemini', 'kind' => 'clarification', 'disease' => $disease,
-                'context' => $safeContext, 'detail' => 'Si', 'relative' => $safeContext['relative'],
-                'diabetes_type' => null, 'clarification' => '¿Es diabetes Tipo 1, Tipo 2 o gestacional?',
-                'clarification_reason' => 'diabetes_type', 'can_confirm' => false, 'write_enabled' => false,
-            ];
-            if ($meta !== null) $result['provider_meta'] = $meta;
-            return $result;
-        }
-
         $result = [
             'mode' => 'gemini', 'kind' => 'm02_read_only_proposal', 'disease' => $disease,
             'context' => $safeContext, 'detail' => $safeContext['detail'],

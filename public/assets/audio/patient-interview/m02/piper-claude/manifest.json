@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "voice": "es_MX-claude-high",
+  "engine": "Piper TTS 1.8.0",
+  "locale": "es-MX",
+  "sample_rate_hz": 22050,
+  "entries": [
+    {
+      "stable_id": "M02:family:enfermedades-del-coraz-n",
+      "text": "¿Algún familiar tiene enfermedades del corazón?",
+      "text_sha256": "bba3b244a616c6b7c0060f9320b078a0d42c912aab7f5ae30cfc57414220ae07",
+      "audio_file": "M02-01.mp3",
+      "audio_sha256": "ffc6ae3c409ff0f8c5136fec5225aacdb7f84e1b74c436bf1d6a56645e309ea5"
+    },
+    {
+      "stable_id": "M02:family:hipertensi-n-arterial-sist-mica",
+      "text": "¿Algún familiar tiene hipertensión arterial sistémica?",
+      "text_sha256": "b1aecb80911c05b50f45deba24891c9e7f28118c44f34950fc33d67e4feca942",
+      "audio_file": "M02-02.mp3",
+      "audio_sha256": "f272cf52cd1d80b32fcef7985ff0a9013670fb2d1b73ca7ef6030be933537e97"
+    },
+    {
+      "stable_id": "M02:family:enfermedad-cerebrovascular",
+      "text": "¿Algún familiar tiene enfermedad cerebrovascular?",
+      "text_sha256": "01f8fdde5edbaca455f9c8249772aa8403d35f9a0b51812f9410dbe4d10c7c35",
+      "audio_file": "M02-03.mp3",
+      "audio_sha256": "0dbc9c103ed406035880117e94bd081e9c66ee99f02ac428fe75524f656aec5a"
+    },
+    {
+      "stable_id": "M02:family:diabetes-mellitus",
+      "text": "¿Algún familiar tiene diabetes mellitus?",
+      "text_sha256": "a6958e0f637b32c44802aafb4d216896d9767c5339181d36549f4c61561b8414",
+      "audio_file": "M02-04.mp3",
+      "audio_sha256": "b3431dbc9f679c092b86d7e5ddd665e707ceef49a3052052c60c25b6efa53c72"
+    },
+    {
+      "stable_id": "M02:family:c-ncer",
+      "text": "¿Algún familiar tiene cáncer?",
+      "text_sha256": "f37c360f78540b03c4426fe46b2d7685721e3994c255826f10f23738669561a4",
+      "audio_file": "M02-05.mp3",
+      "audio_sha256": "ee9e2b9ad0d9651a755b6c64d5414caf67d24cb84411427416b47b06e782f90b"
+    }
+  ],
+  "help_catalog": [
+    {
+      "module_id": "M02",
+      "stable_id_prefix": "M02:family:",
+      "text": "Escribe qué familiar o familiares tienen esta enfermedad. Puedes responder con tus propias palabras, por ejemplo: “mi papá y mi mamá” o “mis padres y mi hermana mayor”. Si ninguno tiene esta enfermedad, selecciona “No, guardar y continuar”. Si no lo recuerdas, puedes indicarlo; no se registrará como Sí ni como No y la respuesta quedará sin guardar.",
+      "text_sha256": "dcf5b27872d24d039cf6fefa3b891b9be77bf8746d50b859a45857a29f2506f6",
+      "audio_file": "M02-help-generic.mp3",
+      "audio_sha256": "751a79f363804d0321540afacdca4b875e912da675603b08a97a27b7b21e2e97"
+    },
+    {
+      "module_id": "M02",
+      "stable_ids": ["M02:family:diabetes-mellitus"],
+      "text": "Escribe qué familiar o familiares tienen diabetes. Puedes mencionar uno o varios, por ejemplo: “mi papá” o “mis padres y mi hermana”. Si conoces el tipo de diabetes, también puedes incluirlo, pero no es obligatorio.",
+      "text_sha256": "270890c3ad0fec2d24669fb997515180aef2ebbbf5622db8c8441b55b3730b80",
+      "audio_file": "M02-help-diabetes.mp3",
+      "audio_sha256": "06e7ec0208cc4ef5d19d97f7015d18f2c0a2d57011deb73677be8c3a0ab59619"
+    }
+  ],
+  "error_audio": [
+    {
+      "module_id": "M02",
+      "error_code": "EMPTY_RESPONSE",
+      "stable_id": "M02:error:EMPTY_RESPONSE",
+      "text": "Escribe una respuesta para revisarla.",
+      "text_sha256": "cfbd06f7b89b63a8664a179825017de6249a0b2f7e7d3384f3a40d030cde69b6",
+      "audio_file": "M02-error-empty-response.mp3",
+      "audio_sha256": "dbdcc8426ff23b29fe2b4bc3310b171fa55760ccd1a8c2c8c04b467eb120e4b7"
+    },
+    {
+      "module_id": "M02",
+      "error_code": "INVALID_RESPONSE",
+      "stable_id": "M02:error:INVALID_RESPONSE",
+      "text": "No pude validar esa respuesta. No se guardó ningún dato.",
+      "text_sha256": "f83bdd0039c78f0e408fff80daa235fb37850a408b2e68bb55c338370c250ca1",
+      "audio_file": "M02-error-invalid-response.mp3",
+      "audio_sha256": "66159f695b8276c80c0e5ae32c4941c489a4782906d0b036bd08bde13be86f1b"
+    },
+    {
+      "module_id": "M02",
+      "error_code": "INTERPRET_FAILED",
+      "stable_id": "M02:error:INTERPRET_FAILED",
+      "text": "No fue posible revisar tu respuesta. Puedes intentarlo de nuevo.",
+      "text_sha256": "11c97b8d251bcbea7bdb215862c42b52a56ba2f200bf86c4a2e70c3a4e96854c",
+      "audio_file": "M02-error-interpret-failed.mp3",
+      "audio_sha256": "a2b43ff35b2c777682e70e0336bc00678e411fbd96c6ea8690249dfbab88616e"
+    },
+    {
+      "module_id": "M02",
+      "error_code": "SAVE_FAILED",
+      "stable_id": "M02:error:SAVE_FAILED",
+      "text": "No pude confirmar el guardado. Revisa la respuesta antes de volver a intentar.",
+      "text_sha256": "377e1b16d72782f25adb7913841dd8314c0b93e1d4a691014e7bad497e7e71bf",
+      "audio_file": "M02-error-save-failed.mp3",
+      "audio_sha256": "ff0fd8b7442dee5073c26e82f09f9fe5bb9c515d6b6ba827e0ddacd44f84aba0"
+    },
+    {
+      "module_id": "M02",
+      "error_code": "READBACK_FAILED",
+      "stable_id": "M02:error:READBACK_FAILED",
+      "text": "No pude confirmar que tu respuesta quedara guardada. No avancé.",
+      "text_sha256": "7cea0d2f1b7920c598b9aeed30a68936d5c28d46b8e11672bfb061667d9379ac",
+      "audio_file": "M02-error-readback-failed.mp3",
+      "audio_sha256": "7d2cbe792e52486ed97f225615dbcd867b1043eb0e5deecfbd632ebb3f49943c"
+    }
+  ]
+}

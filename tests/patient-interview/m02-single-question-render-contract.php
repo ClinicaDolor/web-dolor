@@ -81,6 +81,7 @@ $pendingState = [
     'M02' => [
         'records' => $makeM02Records('pending'),
         'write_enabled' => true,
+        'multi_relative_write_enabled' => false,
         'finalized' => false,
     ],
 ];
@@ -101,7 +102,7 @@ $assert($pendingXPath->query('//*[@data-module="M02"]//h3[@id="m02-question-titl
 $assert($pendingXPath->query('//*[@data-module="M02"]//*[contains(@class,"patient-interview-context-grid")]')->length === 0, 'M02 must not render a secondary context/question card');
 $assert(!str_contains($pendingModule->textContent, 'Pregunta activa ·'), 'M02 must not repeat the question in a secondary active-question row');
 $assert(!str_contains($pendingModule->textContent, 'Responder después'), 'M02 must not expose the removed defer action');
-$assert($pendingXPath->query('//*[@data-module="M02"]//*[@data-m02-quick]')->length === 1, 'M02 must expose one affirmative quick action');
+$assert($pendingXPath->query('//*[@data-module="M02"]//*[@data-m02-quick]')->length === 0, 'M02 affirmative answers must use text and Enviar, not a quick Sí button');
 $assert($pendingXPath->query('//*[@data-module="M02"]//*[@data-m02-safe-no]')->length === 1, 'M02 must expose one explicit negative quick action');
 $assert($pendingXPath->query('//*[@data-module="M02"]//*[@data-m02-resolution-action]')->length === 0, 'pending M02 must not render the finalization action');
 $assert(str_contains($pendingHtml, "querySelectorAll('.patient-interview-question[data-question-index]')"), 'M02 must not be included in the M03 question navigator');
@@ -121,6 +122,11 @@ $assert(str_starts_with($activeStableId, 'M02:family:enfermedades-del-coraz'), '
 $assert(str_contains($pendingHtml, $activeStableId), 'rendered contract must expose the active stable_id');
 $activeQuestion = $pendingContract['question_index'][$activeStableId] ?? [];
 $assert(($activeQuestion['voice']['QUESTION'] ?? '') === ($activeQuestion['visible_text'] ?? ''), 'TTS must use the visible active question');
+$assert(($activeQuestion['help'] ?? '') === 'Escribe qué familiar o familiares tienen esta enfermedad. Puedes responder con tus propias palabras, por ejemplo: “mi papá y mi mamá” o “mis padres y mi hermana mayor”. Si ninguno tiene esta enfermedad, selecciona “No, guardar y continuar”. Si no lo recuerdas, puedes indicarlo; no se registrará como Sí ni como No y la respuesta quedará sin guardar.', 'The M02 help must match free-text capture and the visible negative/uncertainty paths.');
+$assert(($activeQuestion['voice']['HELP'] ?? '') === ($activeQuestion['help'] ?? ''), 'M02 help narration must match visible contextual help.');
+$assert($pendingModule->getAttribute('data-stable-id') === $activeStableId, 'The rendered active M02 card must expose its canonical stable_id for contextual voice controls.');
+$secondM02Question = $pendingContract['question_index']['M02:family:hipertensi-n-arterial-sist-mica'] ?? [];
+$assert(($secondM02Question['help'] ?? '') === ($activeQuestion['help'] ?? ''), 'Every M02 family question must use the same free-text, negative and uncertainty guidance.');
 $assert(str_contains($pendingModule->textContent, 'Enfermedades del corazón'), 'active M02 question must be rendered');
 foreach (array_slice($diseases, 1) as $otherDisease) {
     $assert(!str_contains($pendingModule->textContent, $otherDisease), 'non-active M02 questions must not be rendered');
@@ -141,7 +147,7 @@ $readyXPath = new DOMXPath($readyDom);
 $readyModule = $readyXPath->query('//*[@data-module="M02"]')->item(0);
 $assert($readyModule instanceof DOMElement, 'ready M02 card must exist');
 $assert($readyXPath->query('//*[@data-module="M02" and @data-m02-disease]')->length === 0, 'ready M02 must not render all documented cards');
-$assert($readyXPath->query('//*[@data-module="M02"]//*[@data-m02-input]')->length === 0, 'ready M02 must not render a response input');
+$assert($readyXPath->query('//*[@data-module="M02"]//*[@data-m02-input]')->length === 0, 'ready-to-finalize M02 must not render an answer composer before consultation.');
 $assert($readyXPath->query('//*[@data-module="M02"]//*[@data-m02-resolution-action]')->length === 1, 'ready M02 must render one finalization action');
 $assert(str_contains($readyModule->textContent, 'Tus antecedentes familiares están registrados'), 'ready M02 must explain the finalization action');
 $readyAction = $readyContract['modules']['M02']['conversation_state'] ?? [];
@@ -151,5 +157,27 @@ $assert(str_contains($pendingHtml, 'body.patient-interview-page { overflow-x:cli
 $assert(!preg_match('/\.patient-interview-main\s*\{[^}]*overflow-x\s*:\s*clip/i', $pendingHtml) && !preg_match('/\.patient-interview-main\s*\{[^}]*overflow-x\s*:\s*clip/i', $readyHtml), 'responsive layout must not hide inner overflow with overflow-x:clip');
 $assert(str_contains($pendingHtml, 'max-width:1199.98px') && str_contains($pendingHtml, 'max-width:767.98px') && str_contains($pendingHtml, 'max-width:430px'), 'responsive header breakpoints must cover desktop, tablet and narrow layouts');
 $assert(str_contains($pendingHtml, 'Preparando la entrevista'), 'progress must not render a false Etapa 1 de 1 placeholder before the client computes the canonical stage count');
+
+$finalizedRecords = $makeM02Records('documented');
+$finalizedRecords[0]['detail'] = 'Si';
+$finalizedRecords[0]['relative_description'] = 'Mi tía materna';
+$finalizedState = [
+    'M02' => [
+        'records' => $finalizedRecords,
+        'write_enabled' => true,
+        'finalized' => true,
+    ],
+];
+$finalizedContract = $service->buildUnifiedContract($finalizedState);
+$finalizedHtml = $render($finalizedContract, $finalizedState['M02']);
+$finalizedDom = new DOMDocument();
+@$finalizedDom->loadHTML($finalizedHtml, LIBXML_NOERROR | LIBXML_NOWARNING);
+$finalizedXPath = new DOMXPath($finalizedDom);
+$finalizedCard = $finalizedXPath->query('//*[@data-module="M02"]')->item(0);
+$assert($finalizedCard instanceof DOMElement, 'finalized M02 must retain its single read-only consultation card');
+$assert($finalizedXPath->query('//*[@data-module="M02"]//*[@data-m02-input and @readonly and not(@disabled)]')->length === 1, 'finalized M02 consultation must expose a readable but non-editable answer field.');
+$assert($finalizedXPath->query('//*[@data-module="M02"]//*[@data-m02-question-source and @data-m02-answer="Mi tía materna"]')->length === 1, 'finalized M02 source must preserve the exact saved free-text answer for consultation.');
+$assert($finalizedXPath->query('//*[@data-module="M02"]//*[@data-m02-question-source and @data-m02-answer="No"]')->length === 5, 'finalized M02 sources must preserve explicit negative answers as No.');
+$assert($finalizedXPath->query('//*[@data-module="M02"]//*[@data-m02-safe-no]')->length === 0, 'finalized M02 consultation must not expose a write action.');
 
 echo "M02 single-question rendered contract: PASS (pending and ready-to-finalize states)\n";

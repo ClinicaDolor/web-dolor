@@ -28,7 +28,7 @@ $assert(str_contains($m02, 'FIXED_DISEASES') && str_contains($m02, 'expectedVers
 $assert(str_contains($controller, 'interpretM02') && str_contains($controller, 'captureM02'), 'M02 controller integration missing');
 $assert(str_contains($view, 'patient-interview-question patient-interview-active-question') && !str_contains($view, 'data-m02-defer') && !str_contains($view, 'Responder después'), 'M02 must use one answerable question card without a defer action');
 $assert(str_contains($view, "data-m02-safe-no") && str_contains($view, 'fastNo:true'), 'M02 explicit negative action missing');
-$assert(str_contains($m02, 'No convertiré la duda en “No”'), 'M02 unknown state must not become negative');
+$assert(str_contains($m02, 'no guarda actualmente un estado persistente de incertidumbre'), 'M02 uncertainty must be disclosed as not durably persisted');
 
 $noBranch = substr($m03, strpos($m03, 'if ((string)$question[\'tipo\'] === \'select\' && $value === \'No\')'));
 $assert(str_contains($noBranch, 'dependentResponses'), 'M03 negative dependency guard missing');
@@ -44,11 +44,11 @@ $assert(str_contains($view, 'advanceM02') && str_contains($view, 'showNextM03Que
 // constructing a database connection or writing clinical data.
 require $root . '/vendor/autoload.php';
 $m02Adapter = new App\Services\ConversationalM02Adapter();
-$relative = $m02Adapter->interpret('Hipertensión arterial sistémica', 'Mi padre');
-$yes = $m02Adapter->interpret('Hipertensión arterial sistémica', 'Sí', $relative['context']);
+$yes = $m02Adapter->interpret('Hipertensión arterial sistémica', 'Sí');
+$relative = $m02Adapter->interpret('Hipertensión arterial sistémica', 'Mi padre', $yes['context']);
 $unknown = $m02Adapter->interpret('Hipertensión arterial sistémica', 'No recuerdo');
-$assert(($relative['kind'] ?? '') === 'clarification' && ($relative['context']['relative'] ?? null) === 'padre', 'M02 relative clarification failed');
-$assert(($yes['kind'] ?? '') === 'm02_read_only_proposal' && ($yes['detail'] ?? '') === 'Si' && ($yes['relative'] ?? '') === 'padre', 'M02 affirmative proposal failed');
+$assert(($yes['kind'] ?? '') === 'clarification' && ($yes['clarification_reason'] ?? '') === 'positive_first', 'M02 bare yes must request a family description');
+$assert(($relative['kind'] ?? '') === 'm02_read_only_proposal' && ($relative['detail'] ?? '') === 'Si' && ($relative['relative_description'] ?? '') === 'Mi padre', 'M02 free-text description after yes failed');
 $assert(($unknown['kind'] ?? '') === 'clarification' && ($unknown['detail'] ?? null) === null, 'M02 unknown was inferred as negative');
 
 $assert(str_contains($service, "['M01', 'M02', 'M03'"), 'Unified M01-M03 order missing');
