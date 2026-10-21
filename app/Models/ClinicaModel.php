@@ -153,6 +153,15 @@ class ClinicaModel{
      */
     private function getAverageHistoriaClinica(int $idClinica): ?float
     {
+        try {
+            $m02TableCheck = $this->bd->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='pc_antecedentes_familiares_parentescos'");
+            $m02HasStructuredRelatives = (int)$m02TableCheck->fetchColumn() === 1;
+        } catch (\Throwable) {
+            $m02HasStructuredRelatives = false;
+        }
+        $m02RelativeEvidence = $m02HasStructuredRelatives
+            ? "(EXISTS (SELECT 1 FROM pc_antecedentes_familiares_parentescos r WHERE r.id_antecedente=pc_antecedentes_familiares.id) OR (especificar IS NOT NULL AND TRIM(especificar)<>''))"
+            : "(especificar IS NOT NULL AND TRIM(especificar)<>'')";
         $queries = [
             // Módulo 1: ficha de identificación.
             "SELECT AVG(ROUND((
@@ -180,12 +189,12 @@ class ClinicaModel{
                 SELECT id_paciente,
                     ROUND(SUM(CASE
                         WHEN detalle = 'No' AND enfermedad IS NOT NULL AND enfermedad != '' THEN 1
-                        WHEN detalle = 'Sí' AND enfermedad = 'Diabetes Mellitus'
-                            AND especificar IS NOT NULL AND especificar != ''
+                        WHEN detalle IN ('Si','Sí') AND enfermedad = 'Diabetes Mellitus'
+                            AND $m02RelativeEvidence
                             AND detalle IS NOT NULL AND detalle != ''
                             AND enfermedad IS NOT NULL AND enfermedad != '' THEN 1
-                        WHEN detalle = 'Sí' AND enfermedad != 'Diabetes Mellitus'
-                            AND especificar IS NOT NULL AND especificar != ''
+                        WHEN detalle IN ('Si','Sí') AND enfermedad != 'Diabetes Mellitus'
+                            AND $m02RelativeEvidence
                             AND enfermedad IS NOT NULL AND enfermedad != '' THEN 1
                         ELSE 0 END) / COUNT(*) * 100, 0) AS porcentaje
                 FROM pc_antecedentes_familiares

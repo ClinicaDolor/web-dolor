@@ -329,66 +329,26 @@ class PacienteModulosModelo{
     }
 
     public function porcentajeModulo2($idPaciente){
-    $result = "";
-    $porcentajeCumpliiento = 0;
-
-    $stmt = $this->bd->query("SELECT 
-    id_paciente,
-    COUNT(*) AS total_enfermedades,
-
-    SUM(
-    CASE 
-    WHEN detalle = 'No' AND enfermedad IS NOT NULL AND enfermedad != ''
-    THEN 1
-
-    WHEN detalle = 'Sí' AND enfermedad = 'Diabetes Mellitus'
-    AND especificar IS NOT NULL AND especificar != ''
-    AND detalle IS NOT NULL AND detalle != ''
-    AND enfermedad IS NOT NULL AND enfermedad != ''
-    THEN 1
-
-    WHEN detalle = 'Sí' AND enfermedad != 'Diabetes Mellitus'
-    AND especificar IS NOT NULL AND especificar != ''
-    AND enfermedad IS NOT NULL AND enfermedad != ''
-    THEN 1
-
-    ELSE 0
-    END
-
-    ) AS enfermedades_validas,
-
-    ROUND((
-    SUM(
-    CASE 
-    WHEN detalle = 'No' AND enfermedad IS NOT NULL AND enfermedad != ''
-    THEN 1
-
-    WHEN detalle = 'Sí' AND enfermedad = 'Diabetes Mellitus'
-    AND especificar IS NOT NULL AND especificar != ''
-    AND detalle IS NOT NULL AND detalle != ''
-    AND enfermedad IS NOT NULL AND enfermedad != ''
-    THEN 1
-
-    WHEN detalle = 'Sí' AND enfermedad != 'Diabetes Mellitus'
-    AND especificar IS NOT NULL AND especificar != ''
-    AND enfermedad IS NOT NULL AND enfermedad != ''
-    THEN 1
-
-    ELSE 0
-    END
-    ) / COUNT(*) * 100
-    ), 0) AS porcentaje_cumplimiento
-    FROM pc_antecedentes_familiares
-    WHERE id_paciente = '".$idPaciente."'");
-
-    $preguntas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-    
-    foreach ($preguntas as $index => $pregunta) :
-    $porcentajeCumpliiento = $pregunta['porcentaje_cumplimiento'];
-    endforeach;
-    
-
-    return $porcentajeCumpliiento;
+    try {
+        $tableCheck = $this->bd->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='pc_antecedentes_familiares_parentescos'");
+        $hasStructuredRelatives = (int)$tableCheck->fetchColumn() === 1;
+    } catch (\Throwable) {
+        $hasStructuredRelatives = false;
+    }
+    $relativeExists = $hasStructuredRelatives
+        ? "(EXISTS (SELECT 1 FROM pc_antecedentes_familiares_parentescos r WHERE r.id_antecedente = f.id) OR NULLIF(TRIM(f.especificar), '') IS NOT NULL)"
+        : "NULLIF(TRIM(f.especificar), '') IS NOT NULL";
+    $sql = "SELECT COALESCE(ROUND(SUM(CASE
+        WHEN f.detalle='No' AND f.enfermedad<>'' THEN 1
+        WHEN f.detalle IN ('Si','Sí') AND f.enfermedad='Diabetes Mellitus'
+            AND $relativeExists THEN 1
+        WHEN f.detalle IN ('Si','Sí') AND f.enfermedad<>'Diabetes Mellitus'
+            AND $relativeExists THEN 1
+        ELSE 0 END) / NULLIF(COUNT(*),0) * 100, 0), 0)
+        FROM pc_antecedentes_familiares f WHERE f.id_paciente=:patient";
+    $stmt = $this->bd->prepare($sql);
+    $stmt->execute([':patient' => (int)$idPaciente]);
+    return (float)$stmt->fetchColumn();
     }
 
     public function porcentajeModulo3($idPaciente){

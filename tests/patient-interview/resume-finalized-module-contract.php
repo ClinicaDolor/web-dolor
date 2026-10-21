@@ -188,7 +188,7 @@ $assert(is_string($view) && str_contains($view, 'No hay otra etapa autorizada pe
 $assert(is_string($view) && str_contains($view, 'pending_question_ids'), 'M02 resolution must use canonical pending question IDs');
 $assert(is_string($view) && str_contains($view, 'M02_ACTIVE_QUESTION_UNRESOLVED'), 'M02 without a resolvable question must expose a functional blocker');
 $assert(is_string($view) && str_contains($view, 'M02_CONTRACT_BLOCKED'), 'M02 contract blocking must remain explicit');
-$assert(is_string($view) && str_contains($view, 'conversationContract.question_index?.[target]?.module_id !== \'M02\''), 'M02 target must remain aligned with the canonical module');
+$assert(is_string($view) && str_contains($view, 'conversationContract.question_index?.[stableId]') && str_contains($view, "canonical?.module_id !== 'M02'"), 'M02 navigation target must resolve to a canonical question in the M02 module');
 $assert(is_string($view) && !str_contains($view, 'historia-clinica/antecedentes-familiares/paciente/'), 'M02 finalization must not redirect to the traditional form when the conversational action is available');
 $assert(is_string($view) && str_contains($view, 'Finalizar antecedentes familiares y continuar'), 'M02 ready-to-finalize state must expose an explicit patient action');
 $assert(is_string($view) && str_contains($view, 'finalize: true'), 'M02 finalization must be an explicit POST action');

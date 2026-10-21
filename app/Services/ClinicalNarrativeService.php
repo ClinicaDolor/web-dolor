@@ -29,13 +29,19 @@ final class ClinicalNarrativeService
                     $disease = $this->meaningful($fields['Enfermedad'] ?? null);
                     $response = $fields['Respuesta documentada'] ?? null;
                     $responseClass = $this->classifyResponse($response);
-                    $relative = $this->meaningful($fields['Parentesco especificado'] ?? null);
+                    $relativeDescription = $this->meaningful($fields['Descripción familiar'] ?? null)
+                        ?? $this->meaningful($fields['Parentesco histórico'] ?? null)
+                        ?? $this->meaningful($fields['Parentesco especificado'] ?? null);
+                    $structuredRelatives = $this->meaningful($fields['Parentescos estructurados anteriores'] ?? $fields['Familiares asociados'] ?? null);
                     if (!$disease) continue;
                     if (in_array($responseClass, ['no_response', 'not_applicable'], true)) continue;
                     if ($this->negative($response)) {
                         $background['negative'][] = $this->item('Se registró respuesta negativa respecto al antecedente familiar de ' . $disease . '.', $ref);
                     } elseif ($this->positive($response)) {
-                        $suffix = $relative ? ' en ' . $relative : ', sin parentesco especificado';
+                        $suffix = $relativeDescription
+                            ? ' según la descripción: ' . $relativeDescription
+                            : ($structuredRelatives ? ' según registros estructurados anteriores: ' . $structuredRelatives : ', sin descripción familiar');
+                        if ($relativeDescription && $structuredRelatives) $suffix .= ' (también constan parentescos estructurados anteriores: ' . $structuredRelatives . ')';
                         $background['positive'][] = $this->item('Se registra antecedente familiar de ' . $disease . $suffix . '.', $ref);
                     } elseif ($this->meaningful($response)) {
                         $background['positive'][] = $this->item('Se registra antecedente familiar de ' . $disease . '; respuesta documentada: ' . $response . '.', $ref);

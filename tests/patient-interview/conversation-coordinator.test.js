@@ -171,7 +171,7 @@ async function main() {
     console.log('SESSION_EXPIRY: PASS');
     console.log('NO_BROWSER_STORAGE: PASS');
     console.log('FIRST_START_WITHOUT_CONFIRMED_PROGRESS: PASS');
-    console.log('FIRST_START_LITERAL_WELCOME: PASS');
+    console.log('SERVER_PROGRESS_CLASSIFICATION: PASS');
 }
 
 main().catch(error => { console.error(error.message); process.exit(1); });

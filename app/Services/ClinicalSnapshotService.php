@@ -34,7 +34,8 @@ final class ClinicalSnapshotService
         foreach ($definitions as $number => $definition) {
             $records = [];
             foreach ($definition['sources'] as $source) {
-                foreach ($this->many($source['table'], $source['key'], $patientId) as $row) {
+                $sourceRows = $number === 2 ? $this->m02Rows($patientId) : $this->many($source['table'], $source['key'], $patientId);
+                foreach ($sourceRows as $row) {
                     // References are intentionally opaque and must not expose database IDs.
                     $rowId = (string)(count($records) + 1);
                     $data = $this->cleanRow($row, $number);
@@ -68,6 +69,39 @@ final class ClinicalSnapshotService
     {
         try { $s=$this->db->prepare("SELECT * FROM `$table` WHERE `$key`=:id ORDER BY id ASC"); $s->execute(['id'=>$id]); return $s->fetchAll(PDO::FETCH_ASSOC); }
         catch (\Throwable $e) { $this->unavailable[]=$table; return []; }
+    }
+
+    private function m02Rows(int $patientId): array
+    {
+        $rows = $this->many('pc_antecedentes_familiares', 'id_paciente', $patientId);
+        if ($rows === []) return [];
+        try {
+            $check = $this->db->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='pc_antecedentes_familiares_parentescos'");
+            if ((int)$check->fetchColumn() === 1) {
+                $ids = array_map(static fn(array $row): int => (int)$row['id'], $rows);
+                $marks = implode(',', array_fill(0, count($ids), '?'));
+                $children = $this->db->prepare("SELECT id_antecedente,parentesco FROM pc_antecedentes_familiares_parentescos WHERE id_antecedente IN ($marks) ORDER BY parentesco");
+                $children->execute($ids);
+                $sets = [];
+                foreach ($children->fetchAll(PDO::FETCH_ASSOC) as $child) $sets[(int)$child['id_antecedente']][] = (string)$child['parentesco'];
+                foreach ($rows as &$row) {
+                    $set = $sets[(int)$row['id']] ?? [];
+                    if ($set !== []) {
+                        $row['parentescos'] = implode(', ', $set);
+                        // Keep the original free-text description alongside
+                        // the legacy structured values; neither is discarded.
+                    }
+                    unset($row['id']);
+                }
+                unset($row);
+                return $rows;
+            }
+        } catch (\Throwable) {
+            // Read-only legacy projection remains available without the additive table.
+        }
+        foreach ($rows as &$row) unset($row['id']);
+        unset($row);
+        return $rows;
     }
     private function cleanRow(array $row, int $moduleNumber): array
     {

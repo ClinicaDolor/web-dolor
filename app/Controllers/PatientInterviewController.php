@@ -204,12 +204,15 @@ final class PatientInterviewController extends BaseController
                 $disease = is_scalar($data['enfermedad'] ?? null) ? (string)$data['enfermedad'] : '';
                 $context = is_array($data['context'] ?? null) ? $data['context'] : [];
                 $proposal = $this->conversationService()->interpretM02($disease, $utterance, $context);
-                $m02State = (new ConversationalM02Adapter())->read((int)$patientId);
+                $m02Adapter = new ConversationalM02Adapter();
+                $m02State = $m02Adapter->read((int)$patientId);
                 $proposal['write_enabled'] = (bool)$m02State['write_enabled'];
                 $proposal['direct_save'] = ($proposal['kind'] ?? '') === 'm02_read_only_proposal'
                     && ($proposal['direct_save'] ?? false) === true
                     && $proposal['write_enabled'];
                 $proposal['can_confirm'] = $proposal['direct_save'];
+                $proposal['replacement_confirmation_required'] = $proposal['direct_save']
+                    && $m02Adapter->replacementConfirmationRequired($m02State, $disease, $proposal);
                 echo HttpMethod::jsonResponse(200, true, 'Propuesta M02 preparada; no se guardó ningún dato.', '', ['proposal' => $proposal, 'context' => $proposal['context'] ?? null]);
                 return;
             }
@@ -371,7 +374,7 @@ final class PatientInterviewController extends BaseController
         $result = $this->finalizeAfterCapture((int)$patientId, 2, $result);
         $status = (int)($result['resultado'] ?? 422);
         if (!in_array($status, [200, 403, 409, 422, 500, 503], true)) $status = 422;
-        echo HttpMethod::jsonResponse($status, $status === 200, $result['mensaje'] ?? 'No fue posible guardar M02.', '', ['record' => $result['record'] ?? null, 'readback' => $result['readback'] ?? false, 'finalized' => $result['finalized'] ?? false]);
+        echo HttpMethod::jsonResponse($status, $status === 200, $result['mensaje'] ?? 'No fue posible guardar M02.', '', ['code' => $result['code'] ?? null, 'record' => $result['record'] ?? null, 'readback' => $result['readback'] ?? false, 'finalized' => $result['finalized'] ?? false]);
     }
 
     public function captureM04(): void
