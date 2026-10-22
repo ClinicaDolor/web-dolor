@@ -16,6 +16,9 @@ $targetEnd = strpos($view, 'const repeatActiveQuestion =', $targetStart ?: 0);
 $targetResolver = $targetStart !== false && $targetEnd !== false ? substr($view, $targetStart, $targetEnd - $targetStart) : '';
 $assert(str_contains($targetResolver, "if (module === 'M02')")
     && str_contains($targetResolver, 'card.dataset.stableId')
+    && str_contains($targetResolver, "message.querySelector('[data-m02-action-id]')")
+    && str_contains($targetResolver, "conversationCoordinator.actionContract(actionId)")
+    && str_contains($targetResolver, "action.action_id === actionId")
     && str_contains($targetResolver, "canonicalQuestion?.module_id === 'M02'")
     && str_contains($targetResolver, 'canonicalQuestion.stable_id === stableId'), 'M02 controls must bind to the exact canonical active question, not the module ID.');
 $assert(str_contains($view, 'card.dataset.stableId = stableId;')
@@ -25,7 +28,7 @@ $assert(str_contains($view, 'card.dataset.stableId = stableId;')
     && str_contains($view, 'bindVoiceControls()'), 'A legitimate M02 question transition must refresh the card target and rebind voice controls to canonical contract data.');
 
 $helpStart = strpos($view, 'const showContractHelp =');
-$helpEnd = strpos($view, 'const normalizedSpeechWords =', $helpStart ?: 0);
+$helpEnd = strpos($view, 'const startRecognition =', $helpStart ?: 0);
 $helpHandler = $helpStart !== false && $helpEnd !== false ? substr($view, $helpStart, $helpEnd - $helpStart) : '';
 $assert(str_contains($helpHandler, 'const target = snapshot.currentTarget;')
     && str_contains($helpHandler, 'visibleMessages.find(candidate => stableTargetForMessage(candidate) === target)'), 'Help must always resolve from the currently visible canonical question rather than a stale button target.');
@@ -35,6 +38,11 @@ $assert(str_contains($helpHandler, 'question.stable_id !== target'), 'Help must 
 $assert(str_contains($helpHandler, 'stableTargetForMessage(candidate) === target'), 'Visible card and active target must remain synchronized during transitions.');
 $assert(str_contains($helpHandler, 'panel.textContent = helpText') && str_contains($helpHandler, "panel.setAttribute('role', 'note')"), 'Help must remain visibly available in an accessible contextual block.');
 $assert(str_contains($helpHandler, "voiceEvent('HELP', target, false)") && str_contains($helpHandler, 'voiceController.speakEvent(helpEvent'), 'Help narration must use the shared voice controller and canonical HELP contract.');
+$assert(str_contains($view, "data-m02-finalize-help-text")
+    && str_contains($helpHandler, "action.action_id === 'M02:action:finalize'")
+    && str_contains($helpHandler, "action_id: action?.action_id || null")
+    && str_contains($helpHandler, "stable_id: action ? null : question.stable_id")
+    && str_contains($view, 'Respuestas previas antes de finalizar'), 'Finalization Help must resolve from the real M02 ACTION identity and refer only to the visible history control.');
 $assert(!str_contains($helpHandler, 'fetch(') && !str_contains($helpHandler, 'conversationCoordinator.request('), 'Displaying help must not submit or persist a clinical answer.');
 $assert(str_contains($view, 'event.metadata?.reason)) clearContextualHelp()'), 'Displayed help must clear when the active target changes.');
 $assert(str_contains($view, "\$m02PiperManifest['help_catalog'] ?? []")

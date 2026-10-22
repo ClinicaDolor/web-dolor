@@ -105,5 +105,23 @@
       "audio_file": "M02-error-readback-failed.mp3",
       "audio_sha256": "7d2cbe792e52486ed97f225615dbcd867b1043eb0e5deecfbd632ebb3f49943c"
     }
-  ]
+  ],
+  "action_audio": {
+    "module_id": "M02",
+    "action_id": "M02:action:finalize",
+    "stable_id": null,
+    "text": "Tus antecedentes familiares están registrados. ¿Deseas finalizar esta sección y continuar?",
+    "text_sha256": "a269ac3d7ed940c8f6c153b8a3295e10a72743115219bc9236dce7f1facb3dcf",
+    "audio_file": "M02-finalize.mp3",
+    "audio_sha256": "bfb5b366cd48498a9a18f6479ecd5c51c2af3fa740bac423b51c8f05de3dfe1a"
+  },
+  "action_help_audio": {
+    "module_id": "M02",
+    "action_id": "M02:action:finalize",
+    "stable_id": null,
+    "text": "Ya respondiste las preguntas de antecedentes familiares. Puedes revisar tus respuestas en Respuestas previas antes de finalizar. Si toda la información es correcta y deseas continuar, pulsa el botón Finalizar antecedentes familiares y continuar.",
+    "text_sha256": "e39714c75b2e5bca3fdf47a1e1e064291ce02bf8495830dcd3ee1df75fe7cb81",
+    "audio_file": "M02-finalize-help.mp3",
+    "audio_sha256": "c096168c19c8cd12d85b83312c8df3f4a6c88e8ee294afaa85b31cb086b5f72d"
+  }
 }

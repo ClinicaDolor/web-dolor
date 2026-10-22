@@ -29,9 +29,12 @@ $unrelated = $adapter->interpret($disease, 'Mi papá tiene diabetes');
 $assert(($unrelated['kind'] ?? '') === 'clarification' && ($unrelated['direct_save'] ?? false) !== true, 'A different disease must not be captured under the active question');
 
 $adapterSource = file_get_contents($root . '/app/Services/ConversationalM02Adapter.php');
+$captureStart = strpos($adapterSource, 'public function capture(');
+$editStart = strpos($adapterSource, 'public function editExistingResponse(');
+$captureBody = ($captureStart !== false && $editStart !== false) ? substr($adapterSource, $captureStart, $editStart - $captureStart) : '';
 $assert(str_contains($adapterSource, 'GET_LOCK(:lock_name, 5)') && str_contains($adapterSource, 'FOR UPDATE'), 'Persistence must serialize same patient/disease and lock owned rows');
 $assert(str_contains($adapterSource, 'UPDATE pc_antecedentes_familiares SET detalle=:detail,tipo=:type,especificar=:description'), 'Free text must be persisted in the existing especificar column');
-$assert(!str_contains($adapterSource, 'INSERT INTO pc_antecedentes_familiares_parentescos'), 'The auxiliary table must not be required for new free-text writes');
+$assert($captureBody !== '' && !str_contains($captureBody, 'INSERT INTO pc_antecedentes_familiares_parentescos'), 'The auxiliary table must not be required for ordinary new free-text writes');
 $assert(str_contains($adapterSource, 'M02_REPLACEMENT_CONFIRMATION_REQUIRED') && str_contains($adapterSource, 'confirm_replace_existing'), 'Replacing existing data must require explicit confirmation');
 $assert(str_contains($adapterSource, 'beginTransaction()') && str_contains($adapterSource, 'rollBack()') && str_contains($adapterSource, 'findRecord($patientId, $disease)'), 'Text update must remain transactional and perform an independent readback');
 

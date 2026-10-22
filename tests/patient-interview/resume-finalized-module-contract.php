@@ -136,6 +136,39 @@ $assert(($reloadedObservedState['modules']['M04']['completion']['complete'] ?? f
 $assert(($reloadedObservedState['interview_progress']['first_pending_module_id'] ?? null) === 'M02', 'observed reload state must not let finalized M04 displace actionable M02');
 $assert(($reloadedObservedState['interview_progress']['first_pending_stable_id'] ?? null) === null, 'observed reload state must expose an action instead of a phantom question');
 
+// After persisted M02 finalization, a reload of the conversational route must
+// resolve the next pending module/question instead of following the legacy form URL.
+$afterM02Finalization = $service->buildUnifiedContract([
+    'M02' => [
+        'records' => [[
+            'disease' => 'Enfermedades del corazón',
+            'detail' => 'No',
+            'status' => 'documented',
+            'version' => 'm02-finalized-v1',
+        ]],
+        'write_enabled' => true,
+        'finalized' => true,
+    ],
+    'M03' => [
+        'title' => 'Antecedentes personales no patológicos',
+        'questions' => [[
+            'idPregunta' => 6,
+            'pregunta' => '¿Fumas?',
+            'tipo' => 'select',
+            'respuesta' => '',
+            'idRespuesta' => 0,
+            'idTema' => 2,
+            'tema' => 'Tabaquismo',
+            'eligible' => true,
+        ]],
+        'write_enabled' => true,
+        'version' => 'm03-pending-v1',
+    ],
+]);
+$assert(($afterM02Finalization['modules']['M02']['completion']['complete'] ?? false) === true, 'persisted M02 finalization must project as complete after reload');
+$assert(($afterM02Finalization['interview_progress']['first_pending_module_id'] ?? null) === 'M03', 'the server resolver must select M03 after finalized M02 when M03 is pending');
+$assert(($afterM02Finalization['interview_progress']['first_pending_stable_id'] ?? null) === 'M03:question:6', 'the server resolver must select M03 first pending question after finalized M02');
+
 $m02Review = $service->buildUnifiedContract([
     'M02' => [
         'records' => [[
@@ -193,6 +226,14 @@ $assert(is_string($view) && !str_contains($view, 'historia-clinica/antecedentes-
 $assert(is_string($view) && str_contains($view, 'Finalizar antecedentes familiares y continuar'), 'M02 ready-to-finalize state must expose an explicit patient action');
 $assert(is_string($view) && str_contains($view, 'finalize: true'), 'M02 finalization must be an explicit POST action');
 $assert(is_string($view) && str_contains($view, 'data.finalization_readback !== true'), 'M02 finalization must require server readback before advancing');
+$finalizeHandlerStart = is_string($view) ? strpos($view, 'const finalizeM02 = async card => {') : false;
+$finalizeHandlerEnd = is_string($view) ? strpos($view, 'const exposeM02ResolutionAction = card => {', (int)$finalizeHandlerStart) : false;
+$finalizeHandler = $finalizeHandlerStart !== false && $finalizeHandlerEnd !== false
+    ? substr($view, $finalizeHandlerStart, $finalizeHandlerEnd - $finalizeHandlerStart)
+    : '';
+$assert($finalizeHandler !== '' && str_contains($finalizeHandler, 'window.location.reload();'), 'confirmed M02 finalization must reload the same conversational route');
+$assert($finalizeHandler !== '' && !str_contains($finalizeHandler, 'data.next_url') && !str_contains($finalizeHandler, 'window.location.assign('), 'M02 conversational finalization must not follow the legacy form next_url');
+$assert($finalizeHandler !== '' && strpos($finalizeHandler, 'data.finalization_readback !== true') < strpos($finalizeHandler, 'window.location.reload();'), 'the same-route reload must only occur after confirmed finalization readback');
 $assert(is_string($view) && str_contains($view, 'keep requests enabled'), 'M02 finalization action must not enter the coordinator blocked state');
 $assert(is_string($view) && str_contains($view, 'setActionTarget(resolver.action_id'), 'M02 finalization must use a validated action target rather than a clinical question id');
 $assert(is_string($view) && str_contains($view, "event.action_id !== current"), 'M02 action narration must validate its action context');

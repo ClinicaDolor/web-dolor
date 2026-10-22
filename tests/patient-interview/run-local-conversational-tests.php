@@ -127,6 +127,7 @@ if ($mode === 'conversational') {
     $phpTests = [
         'piper-m02-manifest-contract.php',
         'm02-free-text-contract.php',
+        'm02-previous-responses-edit-contract.php',
         'm02-contextual-help-contract.php',
         'm02-context-memory.php',
         'm02-natural-language-relationship-contract.php',
@@ -146,6 +147,7 @@ if ($mode === 'conversational') {
     foreach ($phpTests as $test) {
         $record($test, $run([$php, $root . '/tests/patient-interview/' . $test], 60));
     }
+    $record('local_dictation_ticket_contract', $run([$php, $root . '/tests/voice-stt-03/ticket-contract-test.php'], 30));
 
     $nodeTests = [
         'piper-m02-audio.test.js',
@@ -160,6 +162,7 @@ if ($mode === 'conversational') {
     foreach ($nodeTests as $test) {
         $record($test, $run([$node, $root . '/tests/patient-interview/' . $test], 60));
     }
+    $record('local_dictation_client_contract', $run([$node, $root . '/tests/voice-stt-03/client-contract-test.cjs'], 30));
 
     if ($preflightPassed) {
         $httpCommand = [

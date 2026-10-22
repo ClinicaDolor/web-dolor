@@ -57,7 +57,6 @@ foreach ($manifest['entries'] as $entry) {
     $assert(($entry['audio_sha256'] ?? '') === ($approvedQuestionAudioHashes[$stableId] ?? null), 'Previously approved M02 question audio must remain byte-for-byte unchanged.');
 }
 $assert(count($seen) === 5, 'Manifest must map all five approved M02 stable_ids exactly once.');
-
 require_once $root . '/vendor/autoload.php';
 $conversation = new App\Services\ConversationalInterviewService();
 $questionsMethod = new ReflectionMethod($conversation, 'contractM02Questions');
@@ -118,6 +117,38 @@ foreach ($manifest['error_audio'] as $errorEntry) {
         && is_file($audioPath) && filesize($audioPath) > 0 && hash_file('sha256', $audioPath) === ($errorEntry['audio_sha256'] ?? ''),
         'Error audio must be a safe, present, hash-matched MP3.');
 }
+$finalizationAudio = $manifest['action_audio'] ?? null;
+$finalizationText = 'Tus antecedentes familiares están registrados. ¿Deseas finalizar esta sección y continuar?';
+$actionFile = (string)($finalizationAudio['audio_file'] ?? '');
+$actionPath = $assetDirectory . '/' . $actionFile;
+$assert(is_array($finalizationAudio) && ($finalizationAudio['module_id'] ?? '') === 'M02'
+    && ($finalizationAudio['action_id'] ?? '') === 'M02:action:finalize'
+    && array_key_exists('stable_id', $finalizationAudio) && $finalizationAudio['stable_id'] === null
+    && ($finalizationAudio['text'] ?? '') === $finalizationText
+    && ($finalizationAudio['text_sha256'] ?? '') === hash('sha256', $finalizationText),
+    'Finalization narration must be tied to the exact canonical M02 action without a clinical stable_id.');
+$assert($actionFile !== '' && basename($actionFile) === $actionFile
+    && strtolower(pathinfo($actionFile, PATHINFO_EXTENSION)) === 'mp3'
+    && !isset($usedMediaFiles[$actionFile]) && is_file($actionPath) && filesize($actionPath) > 0
+    && hash_file('sha256', $actionPath) === ($finalizationAudio['audio_sha256'] ?? ''),
+    'Finalization audio must be a distinct safe MP3 with a verified digest.');
+$usedMediaFiles[$actionFile] = true;
+$actionHelp = $manifest['action_help_audio'] ?? null;
+$actionHelpText = 'Ya respondiste las preguntas de antecedentes familiares. Puedes revisar tus respuestas en Respuestas previas antes de finalizar. Si toda la información es correcta y deseas continuar, pulsa el botón Finalizar antecedentes familiares y continuar.';
+$actionHelpFile = (string)($actionHelp['audio_file'] ?? '');
+$actionHelpPath = $assetDirectory . '/' . $actionHelpFile;
+$assert(is_array($actionHelp) && ($actionHelp['module_id'] ?? '') === 'M02'
+    && ($actionHelp['action_id'] ?? '') === 'M02:action:finalize'
+    && array_key_exists('stable_id', $actionHelp) && $actionHelp['stable_id'] === null
+    && ($actionHelp['text'] ?? '') === $actionHelpText
+    && ($actionHelp['text_sha256'] ?? '') === hash('sha256', $actionHelpText),
+    'Finalization Help must use a separate ACTION identity and the approved contextual explanation.');
+$assert($actionHelpFile !== '' && basename($actionHelpFile) === $actionHelpFile
+    && strtolower(pathinfo($actionHelpFile, PATHINFO_EXTENSION)) === 'mp3'
+    && !isset($usedMediaFiles[$actionHelpFile]) && is_file($actionHelpPath) && filesize($actionHelpPath) > 0
+    && hash_file('sha256', $actionHelpPath) === ($actionHelp['audio_sha256'] ?? ''),
+    'Finalization Help must use its own distinct safe MP3 with a verified digest.');
+$usedMediaFiles[$actionHelpFile] = true;
 
 $view = file_get_contents($viewPath);
 $voice = file_get_contents($voicePath);
@@ -128,6 +159,23 @@ $assert(str_contains($view, "\$_GET['m02_voice'] ?? '') !== 'web'"), 'A local-on
 $assert(str_contains($view, "\$m02PiperManifestSha256 = '" . hash('sha256', $manifestRaw) . "'") , 'The application must pin the current manifest digest.');
 $assert(str_contains($view, "\$canonicalQuestion['module_id'] ?? null) !== 'M02'") && str_contains($view, "\$canonicalText !== \$manifestText"), 'Server must require the matching canonical M02 question text.');
 $assert(str_contains($voice, "!['QUESTION', 'HELP'].includes(event?.type)") && str_contains($voice, "event.type === 'HELP' ? mappedEntry?.help : mappedEntry") && str_contains($voice, "event?.stable_id || ''))"), 'Piper routing must require a canonical M02 event and select a distinct help asset only for HELP.');
+$assert(str_contains($view, "\$m02PiperManifest['action_audio'] ?? null")
+    && str_contains($view, "\$canonicalFinalizeText !== '' && \$actionText === \$canonicalFinalizeText")
+    && str_contains($view, "\$m02PiperAudioConfig['actions'][\$finalizeActionId]"),
+    'Finalization audio must be resolved against the server contract, exact action id, exact text and its own verified file digest.');
+$assert(str_contains($view, "\$m02PiperManifest['action_help_audio'] ?? null")
+    && str_contains($view, "\$actionHelpText === \$m02FinalizeHelpText")
+    && str_contains($view, "'action_id' => \$finalizeActionId")
+    && str_contains($view, "'stable_id' => null"),
+    'Finalization Help audio must be validated separately against the approved action-help text and null question identity.');
+$assert(str_contains($voice, "event?.type === 'HELP' && event.module_id === 'M02'")
+    && str_contains($voice, "event.action_id === 'M02:action:finalize'")
+    && str_contains($voice, 'this.piperAudio.actions?.[event.action_id]?.help'),
+    'ACTION Help must select only its own validated Piper asset, never the finalization narration.');
+$assert(str_contains($voice, "event?.type === 'ACTION'")
+    && str_contains($voice, "event.action_id !== 'M02:action:finalize'")
+    && str_contains($voice, 'actionEntry.stable_id !== null'),
+    'Piper action routing must require the separate canonical action identity without inventing a clinical stable_id.');
 $assert(str_contains($view, "\$m02PiperManifest['help_catalog'] ?? []")
     && str_contains($view, "foreach (\$questionIndex as \$stableId => \$canonicalQuestion)")
     && str_contains($view, "hash('sha256', \$canonicalHelp)")
@@ -158,7 +206,7 @@ $assert(str_contains($voice, "if (event?.type === 'ERROR')")
     && str_contains($voice, 'this.piperAudio.errors?.[errorCode]')
     && str_contains($voice, "errorCode === 'EMPTY_RESPONSE'")
     && str_contains($voice, "errorEntry.shared_modules.includes('M03')")
-    && str_contains($voice, 'event.type !== \'ERROR\''), 'Errors use only approved assets; only the explicitly shared empty-response clip can serve M03 and no error replaces the repeatable question event.');
+    && str_contains($voice, "event.type !== 'ERROR' && !(event.type === 'HELP' && event.module_id === 'M02')"), 'Errors and M02 Help must not replace the repeatable main event; M03 remains outside this focused behavior change.');
 $assert(str_contains($view, "'EMPTY_RESPONSE' => 'Escribe una respuesta para revisarla.'")
     && str_contains($view, "announceM02Error(card, 'READBACK_FAILED')")
     && str_contains($view, "announceM02Error(card, 'INVALID_RESPONSE')"), 'Only genuine empty, invalid, interpretation, save, and readback failure branches should invoke error speech.');
@@ -166,7 +214,13 @@ $inputHandlerStart = strpos($view, "document.querySelectorAll('[data-m02-input]'
 $inputHandlerEnd = strpos($view, "document.querySelectorAll('[data-m02-input]').forEach(input => input.dispatchEvent", $inputHandlerStart ?: 0);
 $inputHandler = $inputHandlerStart !== false && $inputHandlerEnd !== false ? substr($view, $inputHandlerStart, $inputHandlerEnd - $inputHandlerStart) : '';
 $assert($inputHandler !== '' && !str_contains($inputHandler, 'announceM02Error') && !str_contains($inputHandler, 'speakEvent('), 'Typing and changing an answer must never start an error narration loop.');
-$assert(str_contains($voice, 'source.origin !== global.location.origin') && str_contains($voice, 'PIPER_AUDIO_LOAD_OR_DECODE_FAILED'), 'Cross-origin audio must be rejected and media failures must fall back.');
+$assert(str_contains($voice, 'source.origin !== global.location.origin')
+    && str_contains($voice, 'PIPER_AUDIO_LOAD_OR_DECODE_FAILED')
+    && str_contains($voice, "source: 'blocked_autoplay'")
+    && str_contains($voice, "source: 'unavailable'")
+    && str_contains($voice, 'this.requiresM02PiperAudio(event)')
+    && str_contains($voice, 'PIPER_AUDIO_AUTOPLAY_BLOCKED'),
+    'Cross-origin audio must be rejected; M02 autoplay denial remains pending and missing or failed Piper assets are reported without switching to another voice.');
 $assert(str_contains($service, "'M02:family:' . \$this->stableToken(\$disease)") && str_contains($service, "'¿Algún familiar tiene ' . mb_strtolower(\$disease, 'UTF-8') . '?'") , 'Canonical M02 IDs and source question wording must remain service-derived.');
 
 echo "PIPER_M02_MANIFEST_CONTRACT=PASS\n";

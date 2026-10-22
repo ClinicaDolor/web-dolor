@@ -443,6 +443,40 @@
                 }
                 return errorEntry;
             }
+            if (event?.type === 'ACTION') {
+                if (event.module_id !== 'M02' || event.action_id !== 'M02:action:finalize' || event.stable_id !== null) return null;
+                const actionEntry = this.piperAudio.actions?.[event.action_id];
+                if (!actionEntry || actionEntry.module_id !== 'M02' || actionEntry.action_id !== event.action_id
+                    || actionEntry.stable_id !== null
+                    || typeof actionEntry.text !== 'string' || actionEntry.text !== String(event.text || '')
+                    || !/^[a-f0-9]{64}$/.test(String(actionEntry.text_sha256 || ''))
+                    || !/^[a-f0-9]{64}$/.test(String(actionEntry.audio_sha256 || ''))
+                    || typeof actionEntry.src !== 'string' || !actionEntry.src) return null;
+                try {
+                    const source = new URL(actionEntry.src, global.location?.href);
+                    if (!global.location?.origin || source.origin !== global.location.origin) return null;
+                } catch (error) {
+                    return null;
+                }
+                return actionEntry;
+            }
+            if (event?.type === 'HELP' && event.module_id === 'M02'
+                && event.action_id === 'M02:action:finalize' && event.stable_id === null) {
+                const actionHelp = this.piperAudio.actions?.[event.action_id]?.help;
+                if (!actionHelp || actionHelp.module_id !== 'M02' || actionHelp.action_id !== event.action_id
+                    || actionHelp.stable_id !== null
+                    || typeof actionHelp.text !== 'string' || actionHelp.text !== String(event.text || '')
+                    || !/^[a-f0-9]{64}$/.test(String(actionHelp.text_sha256 || ''))
+                    || !/^[a-f0-9]{64}$/.test(String(actionHelp.audio_sha256 || ''))
+                    || typeof actionHelp.src !== 'string' || !actionHelp.src) return null;
+                try {
+                    const source = new URL(actionHelp.src, global.location?.href);
+                    if (!global.location?.origin || source.origin !== global.location.origin) return null;
+                } catch (error) {
+                    return null;
+                }
+                return actionHelp;
+            }
             if (!['QUESTION', 'HELP'].includes(event?.type) || !/^M02:family:/.test(String(event?.stable_id || ''))) return null;
             const mappedEntry = this.piperAudio.entries[event.stable_id];
             const entry = event.type === 'HELP' ? mappedEntry?.help : mappedEntry;
@@ -458,6 +492,48 @@
                 return null;
             }
             return entry;
+        }
+
+        requiresM02PiperAudio(event) {
+            const target = String(event?.stable_id || '');
+            const isSharedM03Error = event?.type === 'ERROR' && event?.module_id === 'M03';
+            const m02Identity = !isSharedM03Error && (event?.module_id === 'M02'
+                || /^M02:(?:family|error):/.test(target)
+                || event?.action_id === 'M02:action:finalize');
+            return this.piperAudio.enabled === true && m02Identity
+                && ['QUESTION', 'HELP', 'ACTION', 'ERROR', 'INTERVIEW_STARTUP'].includes(String(event.type || ''));
+        }
+
+        piperEntryFailureReason(event) {
+            if (!this.piperAudio.enabled) return 'PIPER_AUDIO_DISABLED';
+            if (typeof this.audioConstructor !== 'function') return 'PIPER_AUDIO_UNSUPPORTED';
+            let candidate = null;
+            if (event?.type === 'ACTION') candidate = this.piperAudio.actions?.[event.action_id];
+            else if (event?.type === 'HELP' && event.action_id) candidate = this.piperAudio.actions?.[event.action_id]?.help;
+            else if (event?.type === 'ERROR') candidate = this.piperAudio.errors?.[event.error_code];
+            else {
+                const mapped = this.piperAudio.entries?.[event?.stable_id];
+                candidate = event?.type === 'HELP' ? mapped?.help : mapped;
+            }
+            return candidate ? 'PIPER_AUDIO_ENTRY_INVALID' : 'PIPER_AUDIO_ENTRY_MISSING';
+        }
+
+        failPiperAudio(event, generation, reason) {
+            if (generation !== this.generation) return false;
+            this.clearPlaybackTimer();
+            this.clearActiveAudio(true);
+            this.activeUtterance = null;
+            this.pendingActivation = null;
+            if (event.type !== 'ERROR' && !(event.type === 'HELP' && event.module_id === 'M02')) this.lastEvent = event;
+            this.lastVoiceDiagnostic = {
+                context: 'clinical', source: 'unavailable',
+                requested: {name: 'Piper Claude', lang: 'es-MX', voiceURI: 'piper-claude'},
+                effective: null, fallbackReason: reason,
+                rate: this.rate, pitch: 1, volume: 1,
+            };
+            this.setState(STATES.VOICE_ERROR);
+            this.onError({code: 'PIPER_AUDIO_UNAVAILABLE', reason});
+            return false;
         }
 
         clearActiveAudio(resetSource = true) {
@@ -494,7 +570,7 @@
             this.playbackTimer = global.setTimeout(() => {
                 this.playbackTimer = null;
                 if (context.generation === this.generation && this.activeAudio === audio && this.state === STATES.AUDIO_PENDING) {
-                    context.fallbackToSpeech('PIPER_AUDIO_START_TIMEOUT');
+                    context.handleFailure('PIPER_AUDIO_START_TIMEOUT');
                 }
             }, 8000);
         }
@@ -508,6 +584,7 @@
                 audio.playbackRate = this.rate;
                 if ('preservesPitch' in audio) audio.preservesPitch = true;
             } catch (error) {
+                if (this.requiresM02PiperAudio(event)) return this.failPiperAudio(event, generation, 'PIPER_AUDIO_UNAVAILABLE');
                 return this.speakEvent(event, {...options, skipPiper: true});
             }
 
@@ -529,10 +606,37 @@
                     this.emit();
                 }
             };
+            const handleFailure = reason => this.requiresM02PiperAudio(event)
+                ? this.failPiperAudio(event, generation, reason)
+                : fallbackToSpeech(reason);
+            const blockPiperAutoplay = () => {
+                if (generation !== this.generation) return false;
+                this.clearActiveAudio(true);
+                this.lastVoiceDiagnostic = {
+                    context: 'clinical', source: 'blocked_autoplay',
+                    requested: {name: 'Piper Claude', lang: 'es-MX', voiceURI: 'piper-claude'},
+                    effective: null, fallbackReason: 'PIPER_AUDIO_AUTOPLAY_BLOCKED',
+                    rate: this.rate, pitch: 1, volume: 1,
+                };
+                this.blockPlayback(event, options.after, {
+                    source: 'blocked_autoplay',
+                    fallbackReason: 'PIPER_AUDIO_AUTOPLAY_BLOCKED',
+                });
+                return false;
+            };
+            const handlePlayRejection = error => {
+                if (this.requiresM02PiperAudio(event) && automatic && options.userGesture !== true
+                    && String(error?.name || '') === 'NotAllowedError') {
+                    blockPiperAutoplay();
+                    return;
+                }
+                handleFailure('PIPER_AUDIO_PLAY_REJECTED');
+            };
+            context.handleFailure = handleFailure;
             this.activeAudio = audio;
-            this.activeAudioContext = {...context, fallbackToSpeech};
+            this.activeAudioContext = {...context, fallbackToSpeech, handleFailure};
             this.activeUtterance = null;
-            if (event.type !== 'ERROR') this.lastEvent = event;
+            if (event.type !== 'ERROR' && !(event.type === 'HELP' && event.module_id === 'M02')) this.lastEvent = event;
             this.lastVoiceDiagnostic = {
                 context: 'clinical', source: 'piper_audio',
                 requested: {name: 'Piper Claude', lang: 'es-MX', voiceURI: 'piper-claude'},
@@ -550,17 +654,17 @@
             audio.onplaying = beginSpeaking;
             audio.onplay = beginSpeaking;
             audio.onended = () => this.completePlayback(generation, options);
-            audio.onerror = () => fallbackToSpeech('PIPER_AUDIO_LOAD_OR_DECODE_FAILED');
+            audio.onerror = () => handleFailure('PIPER_AUDIO_LOAD_OR_DECODE_FAILED');
             this.watchPiperAudioStartup(audio, this.activeAudioContext);
             try {
                 const result = audio.play();
                 if (result && typeof result.then === 'function') {
-                    result.then(beginSpeaking).catch(() => fallbackToSpeech('PIPER_AUDIO_PLAY_REJECTED'));
+                    result.then(beginSpeaking).catch(handlePlayRejection);
                 } else if (audio.paused === false) {
                     beginSpeaking();
                 }
             } catch (error) {
-                fallbackToSpeech('PIPER_AUDIO_PLAY_REJECTED');
+                handlePlayRejection(error);
             }
             return true;
         }
@@ -583,6 +687,9 @@
             this.clearActiveAudio(true);
             const piperEntry = options.skipPiper === true ? null : this.piperAudioEntryFor(event);
             if (piperEntry) return this.startPiperAudio(event, piperEntry, options, generation, automatic);
+            if (options.skipPiper !== true && this.requiresM02PiperAudio(event)) {
+                return this.failPiperAudio(event, generation, this.piperEntryFailureReason(event));
+            }
             const utterance = new this.utteranceConstructor(String(event.text));
             const voice = this.selectVoice();
             this.recordVoiceDiagnostic(voice, this.preferredVoiceIdentity, 'clinical');
@@ -593,7 +700,7 @@
             utterance.volume = this.volume;
             let playbackStarted = false;
             this.activeUtterance = utterance;
-            if (event.type !== 'ERROR') this.lastEvent = event;
+            if (event.type !== 'ERROR' && !(event.type === 'HELP' && event.module_id === 'M02')) this.lastEvent = event;
             this.setState(automatic ? STATES.AUDIO_PENDING : STATES.SPEAKING);
             utterance.onend = () => this.completePlayback(generation, options);
             utterance.onstart = () => {
@@ -645,13 +752,21 @@
             }, 1200);
         }
 
-        blockPlayback(event, after = null) {
+        blockPlayback(event, after = null, diagnostic = null) {
             this.generation += 1;
             this.clearPlaybackTimer();
             this.pendingEvents = null;
             this.pendingActivation = {event, after};
             try { this.speechApi?.cancel(); } catch (error) {}
             this.activeUtterance = null;
+            if (diagnostic) {
+                this.lastVoiceDiagnostic = {
+                    context: 'clinical', source: diagnostic.source || 'blocked_autoplay',
+                    requested: {name: 'Piper Claude', lang: 'es-MX', voiceURI: 'piper-claude'},
+                    effective: null, fallbackReason: diagnostic.fallbackReason || 'PIPER_AUDIO_AUTOPLAY_BLOCKED',
+                    rate: this.rate, pitch: 1, volume: 1,
+                };
+            }
             this.setState(STATES.AUDIO_BLOCKED);
             this.onError({code: 'AUDIO_BLOCKED'});
         }
@@ -683,13 +798,13 @@
                     if (result && typeof result.then === 'function') {
                         result.then(() => {
                             if (context?.generation === this.generation && this.activeAudio === audio && this.state === STATES.PAUSED) this.setState(STATES.SPEAKING);
-                        }).catch(() => context?.fallbackToSpeech?.('PIPER_AUDIO_RESUME_REJECTED'));
+                        }).catch(() => context?.handleFailure?.('PIPER_AUDIO_RESUME_REJECTED'));
                     } else {
                         this.setState(STATES.SPEAKING);
                     }
                     return true;
                 } catch (error) {
-                    context?.fallbackToSpeech?.('PIPER_AUDIO_RESUME_REJECTED');
+                    context?.handleFailure?.('PIPER_AUDIO_RESUME_REJECTED');
                     return true;
                 }
             }

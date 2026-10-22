@@ -18,6 +18,9 @@ $followup = $adapter->interpret($question, $text, $yes['context']);
 $assert(($followup['relative_description'] ?? null) === $text && ($followup['kind'] ?? '') === 'm02_read_only_proposal', 'The yes clarification must lead directly to the free-text proposal');
 
 $adapterSource = file_get_contents($root . '/app/Services/ConversationalM02Adapter.php');
+$captureStart = strpos($adapterSource, 'public function capture(');
+$editStart = strpos($adapterSource, 'public function editExistingResponse(');
+$captureBody = ($captureStart !== false && $editStart !== false) ? substr($adapterSource, $captureStart, $editStart - $captureStart) : '';
 $doctorSource = file_get_contents($root . '/app/Models/AntecedenteFamiliarModel.php');
 $detailSource = file_get_contents($root . '/app/Services/ClinicalDetailService.php');
 $snapshotSource = file_get_contents($root . '/app/Services/ClinicalSnapshotService.php');
@@ -25,7 +28,10 @@ $narrativeSource = file_get_contents($root . '/app/Services/ClinicalNarrativeSer
 $finalizationSource = file_get_contents($root . '/app/Services/ConversationalModuleFinalizationService.php');
 $assert(str_contains($adapterSource, 'pc_antecedentes_familiares_parentescos') && str_contains($adapterSource, "'relatives' => " . '$relatives'), 'Legacy structured relationships must remain readable');
 $assert(str_contains($adapterSource, "'relative_description' =>") && str_contains($adapterSource, "'legacy_relative_text' => \$legacyText"), 'Free-text description must remain separate from structured legacy rows');
-$assert(!str_contains($adapterSource, 'INSERT INTO pc_antecedentes_familiares_parentescos'), 'New writes must not classify or insert catalog relatives');
+$assert($captureBody !== '' && !str_contains($captureBody, 'INSERT INTO pc_antecedentes_familiares_parentescos'), 'Ordinary conversational capture must not classify or insert catalog relatives');
+$assert(str_contains($adapterSource, 'normalizeStructuredRelatives')
+    && str_contains($adapterSource, 'DELETE FROM pc_antecedentes_familiares_parentescos WHERE id_antecedente=:id AND parentesco=:relative')
+    && str_contains($adapterSource, 'INSERT INTO pc_antecedentes_familiares_parentescos (id_antecedente,parentesco) VALUES (:id,:relative)'), 'Only the explicit previous-response edit path may reconcile selected structured relatives');
 $assert(str_contains($adapterSource, 'M02_REPLACEMENT_CONFIRMATION_REQUIRED')
     && str_contains($adapterSource, 'beginTransaction()')
     && str_contains($adapterSource, 'rollBack()'), 'A confirmed replacement must be transactional and protected from accidental data loss');

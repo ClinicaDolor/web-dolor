@@ -15,8 +15,20 @@ final class ConversationalM02Adapter
         'Diabetes Mellitus',
         'Cáncer',
     ];
+    private const STRUCTURED_RELATIVES = ['madre', 'padre', 'hermana', 'hermano', 'abuela', 'abuelo', 'hija', 'hijo', 'familia'];
 
     public function __construct(private ?PDO $db = null) {}
+
+    /** Normalize only relationship values already understood by the M02 reader. */
+    public static function normalizeStructuredRelatives(mixed $values): ?array
+    {
+        if (!is_array($values) || !array_is_list($values)) return null;
+        foreach ($values as $value) {
+            if (!is_string($value) || !in_array($value, self::STRUCTURED_RELATIVES, true)) return null;
+        }
+        if (count($values) !== count(array_unique($values))) return null;
+        return array_values(array_intersect(self::STRUCTURED_RELATIVES, $values));
+    }
 
     public function read(int $patientId): array
     {
@@ -91,9 +103,25 @@ final class ConversationalM02Adapter
             'multi_relative_write_enabled' => $multiWriteEnabled,
             'relative_storage_available' => $childTableExists && $relativeReadAvailable,
             'relative_storage_absent_confirmed' => $relativeStorageChecked && !$childTableExists,
+            'database_authorized' => $localWriteAuthorized,
             'write_blocker' => $finalized ? 'M02_FINALIZED' : ($duplicates !== [] ? 'M02_DUPLICATE_DISEASE_ROWS' : (!$relativeReadAvailable ? 'M02_RELATIVE_STORAGE_UNVERIFIED' : (!$localWriteAuthorized ? 'M02_DATABASE_NOT_AUTHORIZED' : null))),
             'duplicate_diseases' => array_keys($duplicates),
         ];
+    }
+
+    /** Machine-readable policy shared by the review UI and the update action. */
+    public function existingResponseEditBlockerCode(array $state, array $record): ?string
+    {
+        $disease = (string)($record['disease'] ?? '');
+        if (empty($state['database_authorized'])) return 'M02_DATABASE_NOT_AUTHORIZED';
+        if (!(($state['relative_storage_available'] ?? false) || ($state['relative_storage_absent_confirmed'] ?? false))) return 'M02_RELATIVE_STORAGE_UNVERIFIED';
+        if (!in_array($disease, self::FIXED_DISEASES, true)) return 'M02_QUESTION_NOT_SUPPORTED';
+        if (in_array($disease, $state['duplicate_diseases'] ?? [], true)) return 'M02_DUPLICATE_DISEASE_ROWS';
+        if ((int)($record['id'] ?? 0) < 1 || !$this->hasExistingAnswer($record)) return 'M02_RESPONSE_NOT_PERSISTED';
+        if (!empty($record['inconsistent']) || !empty($record['invalid_relatives'])) return 'M02_RESPONSE_INCONSISTENT';
+        $hasStructuredRelations = ($record['relatives'] ?? []) !== [];
+        if ($hasStructuredRelations && ($record['detail'] ?? null) !== 'Si') return 'M02_STRUCTURED_RELATION_EDIT_UNSUPPORTED';
+        return null;
     }
 
     public function interpret(string $disease, string $utterance, array $context = []): array
@@ -354,12 +382,197 @@ final class ConversationalM02Adapter
         }
     }
 
-    private function sameClinicalAnswer(array $record, string $disease, string $detail, string $description, string $diabetesType): bool
+    /**
+     * Edits an existing M02 answer without reopening/finalizing the module.
+     * Structured relationship changes are accepted only as an explicit,
+     * allowlisted set and are reconciled atomically with the parent row.
+     * Ordinary interview capture remains a separate path and this method can
+     * never INSERT a second parent answer.
+     */
+    public function editExistingResponse(int $patientId, string $disease, array $proposal, string $expectedVersion): array
+    {
+        if ($patientId < 1 || !in_array($disease, self::FIXED_DISEASES, true)
+            || !preg_match('/^[a-f0-9]{64}$/', $expectedVersion)) {
+            return ['resultado' => 422, 'mensaje' => 'La solicitud de edición M02 no es válida.'];
+        }
+        if (($proposal['kind'] ?? null) !== 'm02_read_only_proposal'
+            || ($proposal['disease'] ?? null) !== $disease) {
+            return ['resultado' => 422, 'mensaje' => 'La respuesta no corresponde a la pregunta M02.'];
+        }
+
+        $detail = (string)($proposal['detail'] ?? '');
+        $descriptionInput = $proposal['relative_description'] ?? '';
+        $description = is_string($descriptionInput) ? trim($descriptionInput) : '';
+        $diabetesType = trim((string)($proposal['diabetes_type'] ?? ''));
+        if (!in_array($detail, ['Si', 'No'], true)
+            || ($detail === 'No' && $description !== '')
+            || ($diabetesType !== '' && ($disease !== 'Diabetes Mellitus' || !in_array($diabetesType, ['Tipo 1', 'Tipo 2', 'Gestacional'], true)))) {
+            return ['resultado' => 422, 'mensaje' => 'Completa una respuesta M02 válida antes de guardar.'];
+        }
+
+        $db = $this->db ?: Database::getInstance();
+        if (!$this->isAuthorizedLocalWriteDatabase($db)) {
+            return ['resultado' => 403, 'mensaje' => 'La edición M02 no está autorizada en esta base de datos.'];
+        }
+        $state = $this->read($patientId);
+        $record = $this->findRecordFromState($state, $disease);
+        if (!$record) {
+            return ['resultado' => 409, 'mensaje' => 'Solo se pueden editar respuestas M02 ya registradas.'];
+        }
+        $blocker = $this->existingResponseEditBlockerCode($state, $record);
+        if ($blocker !== null) {
+            return ['resultado' => 409, 'code' => $blocker, 'mensaje' => 'Esta respuesta no cumple las condiciones de edición M02. No se modificó.'];
+        }
+        $structuredBefore = ($record['relatives'] ?? []) !== [];
+        $targetRelatives = $structuredBefore
+            ? self::normalizeStructuredRelatives($proposal['relatives'] ?? null)
+            : ($record['relatives'] ?? []);
+        if ($targetRelatives === null
+            || ($structuredBefore && ($detail !== 'Si' || $targetRelatives === [] || ($record['invalid_relatives'] ?? []) !== []))
+            || (!$structuredBefore && array_key_exists('relatives', $proposal))
+            || ($detail === 'Si' && $description === '' && (!$structuredBefore || $targetRelatives === []))) {
+            return ['resultado' => 422, 'mensaje' => 'La selección de parentescos no es válida. Conserva al menos un parentesco estructurado.'];
+        }
+
+        $lockName = 'm02:' . $patientId . ':' . substr(hash('sha256', $disease), 0, 32);
+        try {
+            $lockStatement = $db->prepare('SELECT GET_LOCK(:lock_name, 5)');
+            $lockStatement->execute([':lock_name' => $lockName]);
+            if ((int)$lockStatement->fetchColumn() !== 1) {
+                return ['resultado' => 409, 'mensaje' => 'No fue posible bloquear la respuesta para su edición. Inténtalo de nuevo.'];
+            }
+
+            $db->beginTransaction();
+            $patientLock = $db->prepare('SELECT id FROM pc_paciente WHERE id=:patient FOR UPDATE');
+            $patientLock->execute([':patient' => $patientId]);
+            if (!$patientLock->fetchColumn()) throw new \RuntimeException('M02_PATIENT_NOT_FOUND');
+
+            $lookup = $db->prepare('SELECT id FROM pc_antecedentes_familiares WHERE id_paciente=:patient AND enfermedad=:disease ORDER BY id FOR UPDATE');
+            $lookup->execute([':patient' => $patientId, ':disease' => $disease]);
+            $ids = array_map('intval', $lookup->fetchAll(PDO::FETCH_COLUMN));
+            $rowId = (int)$record['id'];
+            if (count($ids) !== 1 || $ids[0] !== $rowId) {
+                $db->rollBack();
+                return ['resultado' => 409, 'mensaje' => 'El registro cambió o dejó de ser único. Recarga las respuestas antes de editar.'];
+            }
+            if (!empty($state['relative_storage_available'])) {
+                $relationLock = $db->prepare('SELECT id_antecedente,parentesco FROM pc_antecedentes_familiares_parentescos WHERE id_antecedente=:id ORDER BY parentesco FOR UPDATE');
+                $relationLock->execute([':id' => $rowId]);
+                $lockedRelations = array_map('strval', $relationLock->fetchAll(PDO::FETCH_COLUMN, 1));
+                $lockedNormalized = self::normalizeStructuredRelatives($lockedRelations);
+                if ($lockedNormalized === null || count($lockedRelations) !== count($lockedNormalized)
+                    || $lockedNormalized !== ($record['relatives'] ?? [])) {
+                    $db->rollBack();
+                    return ['resultado' => 409, 'code' => 'M02_STALE_RELATIONSHIPS', 'mensaje' => 'Los parentescos cambiaron o no son consistentes. Recarga antes de editar.'];
+                }
+            }
+
+            // Rebuild the current adapter projection under the row lock. A
+            // stale form is rejected before any UPDATE is issued.
+            $lockedState = $this->read($patientId);
+            $current = $this->findRecordFromState($lockedState, $disease);
+            if (!$current || (int)($current['id'] ?? 0) !== $rowId
+                || !hash_equals((string)$current['version'], $expectedVersion)) {
+                $db->rollBack();
+                return ['resultado' => 409, 'code' => 'M02_STALE_RESPONSE', 'mensaje' => 'Esta respuesta cambió desde que abriste la revisión. Recarga para ver el valor actual.'];
+            }
+            $lockedBlocker = $this->existingResponseEditBlockerCode($lockedState, $current);
+            if ($lockedBlocker !== null) {
+                $db->rollBack();
+                return ['resultado' => 409, 'code' => $lockedBlocker, 'mensaje' => 'La respuesta requiere conservar su estado actual y no se modificó.'];
+            }
+
+            $effectiveType = $detail === 'Si' && $disease === 'Diabetes Mellitus'
+                ? ($diabetesType !== '' ? $diabetesType : (string)($current['diabetes_type'] ?? ''))
+                : '';
+            if ($this->sameClinicalAnswer($current, $disease, $detail, $description, $effectiveType, $targetRelatives)) {
+                $db->commit();
+                $readback = $this->findRecord($patientId, $disease);
+                return ['resultado' => 200, 'mensaje' => 'La respuesta M02 ya contiene ese valor.', 'record' => $readback, 'readback' => true, 'idempotent_replay' => true];
+            }
+
+            $update = $db->prepare('UPDATE pc_antecedentes_familiares SET detalle=:detail,tipo=:type,especificar=:description WHERE id=:id AND id_paciente=:patient AND enfermedad=:disease');
+            $update->execute([
+                ':detail' => $detail,
+                ':type' => $effectiveType,
+                ':description' => $detail === 'Si' ? $description : '',
+                ':id' => $rowId,
+                ':patient' => $patientId,
+                ':disease' => $disease,
+            ]);
+
+            if ($structuredBefore && $targetRelatives !== ($current['relatives'] ?? [])) {
+                $removedRelatives = array_values(array_diff($current['relatives'] ?? [], $targetRelatives));
+                $addedRelatives = array_values(array_diff($targetRelatives, $current['relatives'] ?? []));
+                $deleteRelative = $db->prepare('DELETE FROM pc_antecedentes_familiares_parentescos WHERE id_antecedente=:id AND parentesco=:relative');
+                foreach ($removedRelatives as $relative) {
+                    $deleteRelative->execute([':id' => $rowId, ':relative' => $relative]);
+                    if ($deleteRelative->rowCount() !== 1) throw new \RuntimeException('M02_RELATION_DELETE_CONFLICT');
+                }
+                $insertRelative = $db->prepare('INSERT INTO pc_antecedentes_familiares_parentescos (id_antecedente,parentesco) VALUES (:id,:relative)');
+                foreach ($addedRelatives as $relative) {
+                    $insertRelative->execute([':id' => $rowId, ':relative' => $relative]);
+                    if ($insertRelative->rowCount() !== 1) throw new \RuntimeException('M02_RELATION_INSERT_CONFLICT');
+                }
+            }
+
+            $verify = $db->prepare('SELECT id,detalle,tipo,especificar FROM pc_antecedentes_familiares WHERE id=:id AND id_paciente=:patient AND enfermedad=:disease');
+            $verify->execute([':id' => $rowId, ':patient' => $patientId, ':disease' => $disease]);
+            $saved = $verify->fetch(PDO::FETCH_ASSOC);
+            if (!$saved || (int)$saved['id'] !== $rowId || (string)$saved['detalle'] !== $detail
+                || (string)$saved['especificar'] !== ($detail === 'Si' ? $description : '')
+                || (string)$saved['tipo'] !== $effectiveType) {
+                throw new \RuntimeException('M02_EDIT_READBACK_FAILED');
+            }
+            if ($structuredBefore) {
+                $verifyRelatives = $db->prepare('SELECT parentesco FROM pc_antecedentes_familiares_parentescos WHERE id_antecedente=:id ORDER BY parentesco');
+                $verifyRelatives->execute([':id' => $rowId]);
+                $savedRelativesRaw = array_map('strval', $verifyRelatives->fetchAll(PDO::FETCH_COLUMN));
+                $savedRelatives = self::normalizeStructuredRelatives($savedRelativesRaw);
+                if ($savedRelatives === null || count($savedRelativesRaw) !== count($savedRelatives) || $savedRelatives !== $targetRelatives) {
+                    throw new \RuntimeException('M02_RELATION_READBACK_FAILED');
+                }
+            }
+
+            $db->commit();
+            $readback = $this->findRecord($patientId, $disease);
+            if ((int)($readback['id'] ?? 0) !== $rowId
+                || ($readback['detail'] ?? null) !== $detail
+                || trim((string)($readback['legacy_relative_text'] ?? '')) !== ($detail === 'Si' ? $description : '')
+                || (string)($readback['diabetes_type'] ?? '') !== $effectiveType
+                || ($readback['relatives'] ?? []) !== $targetRelatives
+                || ($readback['invalid_relatives'] ?? []) !== ($current['invalid_relatives'] ?? [])) {
+                return ['resultado' => 500, 'mensaje' => 'La lectura posterior no confirmó la respuesta actualizada.', 'readback' => false];
+            }
+            return ['resultado' => 200, 'mensaje' => 'Respuesta M02 actualizada.', 'record' => $readback, 'readback' => true];
+        } catch (\Throwable) {
+            if ($db->inTransaction()) $db->rollBack();
+            return ['resultado' => 500, 'mensaje' => 'No fue posible actualizar la respuesta M02.'];
+        } finally {
+            try {
+                $release = $db->prepare('SELECT RELEASE_LOCK(:lock_name)');
+                $release->execute([':lock_name' => $lockName]);
+            } catch (\Throwable) {
+                // Connection teardown also releases a MySQL named lock.
+            }
+        }
+    }
+
+    private function findRecordFromState(array $state, string $disease): ?array
+    {
+        foreach (($state['records'] ?? []) as $candidate) {
+            if (($candidate['disease'] ?? null) === $disease) return $candidate;
+        }
+        return null;
+    }
+
+    private function sameClinicalAnswer(array $record, string $disease, string $detail, string $description, string $diabetesType, ?array $relatives = null): bool
     {
         return empty($record['inconsistent'])
             && ($record['detail'] ?? null) === $detail
             && trim((string)($record['legacy_relative_text'] ?? '')) === ($detail === 'Si' ? $description : '')
-            && (($disease !== 'Diabetes Mellitus' || $detail !== 'Si' || $diabetesType === '') || ($record['diabetes_type'] ?? '') === $diabetesType);
+            && (($disease !== 'Diabetes Mellitus' || $detail !== 'Si' || $diabetesType === '') || ($record['diabetes_type'] ?? '') === $diabetesType)
+            && ($relatives === null || ($record['relatives'] ?? []) === $relatives);
     }
 
     private function hasExistingAnswer(array $record): bool
@@ -379,11 +592,9 @@ final class ConversationalM02Adapter
         if ($detail === '') $detail = null;
         $legacyText = $row ? trim((string)($row['especificar'] ?? '')) : '';
         $rawRelatives = $row ? array_values(array_unique(array_filter($row['_relatives'] ?? [], static fn($v): bool => is_string($v)))) : [];
-        $allowedOrder = ['madre', 'padre', 'hermana', 'hermano', 'abuela', 'abuelo', 'hija', 'hijo', 'familia'];
-        $invalidRelatives = array_values(array_diff($rawRelatives, $allowedOrder));
+        $invalidRelatives = array_values(array_diff($rawRelatives, self::STRUCTURED_RELATIVES));
         $negativeHasRelatives = $detail === 'No' && ($rawRelatives !== [] || $legacyText !== '');
-        $relatives = array_values(array_intersect($rawRelatives, $allowedOrder));
-        usort($relatives, static fn(string $a, string $b): int => array_search($a, $allowedOrder, true) <=> array_search($b, $allowedOrder, true));
+        $relatives = self::normalizeStructuredRelatives(array_values(array_unique($rawRelatives))) ?? [];
         $versionPayload = [
             'id' => $row['id'] ?? null,
             'detail' => $detail,

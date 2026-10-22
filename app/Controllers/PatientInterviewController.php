@@ -18,6 +18,7 @@ use App\Services\ConversationalM09Adapter;
 use App\Services\ConversationalM03Adapter;
 use App\Services\ConversationalM09MapAdapter;
 use App\Services\ConversationalM08TreatmentAdapter;
+use App\Services\LocalDictationTicketService;
 use App\Services\ConversationalModuleFinalizationService;
 use App\Core\HttpMethod;
 
@@ -81,9 +82,408 @@ final class PatientInterviewController extends BaseController
             'm09Map' => $m09MapState,
             'conversationContract' => $conversationContract,
             'csrf' => ClinicalSummarySecurity::captureCsrfToken($patientId),
-            'nativeSttEnabled' => ClinicalSummarySecurity::nativeSpeechEnabled(),
             'sidebar' => $sidebar->render(),
         ]);
+    }
+
+    /** Read-only M02 answer review for the authenticated patient. */
+    public function previousResponses(): void
+    {
+        header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+        $authGuard = new AuthMiddleware('historia-clinica');
+        $auth = $authGuard->authPermisos();
+        $patientId = (int)($auth['id_usuario'] ?? 0);
+        $authGuard->assertPatientAccess($patientId, $auth);
+
+        $sidebar = new Sidebar();
+        (new SidebarController())->configureSidebar('PACIENTE', 'historia-clinica', $sidebar);
+        $sidebar->setActivarItem('Entrevista Conversacional');
+
+        $m02Adapter = new ConversationalM02Adapter();
+        $m02State = $m02Adapter->read($patientId);
+        $contract = $this->conversationService()->buildUnifiedContract(['M02' => $m02State]);
+        $questions = $contract['modules']['M02']['questions'] ?? [];
+        $recordsByDisease = [];
+        foreach (($m02State['records'] ?? []) as $record) {
+            if (is_array($record) && is_string($record['disease'] ?? null)) $recordsByDisease[$record['disease']] = $record;
+        }
+
+        $entries = [];
+        foreach ($questions as $question) {
+            $disease = (string)($question['question_id'] ?? '');
+            $record = $recordsByDisease[$disease] ?? null;
+            if (($question['module_id'] ?? null) !== 'M02'
+                || ($question['response']['persisted'] ?? false) !== true
+                || !is_array($record)
+                || (int)($record['id'] ?? 0) < 1) {
+                continue;
+            }
+            $structured = ($record['relatives'] ?? []) !== [] || ($record['invalid_relatives'] ?? []) !== [];
+            $invalidStructured = ($record['invalid_relatives'] ?? []) !== [];
+            $editBlockerCode = $m02Adapter->existingResponseEditBlockerCode($m02State, $record);
+            $structuredEditable = $structured && !$invalidStructured && ($record['detail'] ?? null) === 'Si' && $editBlockerCode === null;
+            $editable = $editBlockerCode === null;
+            $answerInput = ($record['detail'] ?? null) === 'No'
+                ? 'No'
+                : (trim((string)($record['legacy_relative_text'] ?? '')) !== ''
+                    ? (string)$record['legacy_relative_text']
+                    : (($record['detail'] ?? null) === 'Si' ? '' : 'Sí'));
+            $relativeLabels = [
+                'madre' => 'Madre', 'padre' => 'Padre', 'hermana' => 'Hermana', 'hermano' => 'Hermano',
+                'abuela' => 'Abuela', 'abuelo' => 'Abuelo', 'hija' => 'Hija', 'hijo' => 'Hijo', 'familia' => 'Otro familiar',
+            ];
+            $entries[] = [
+                'stable_id' => (string)$question['stable_id'],
+                'question' => (string)($question['original_question'] ?? $question['visible_text'] ?? ''),
+                'disease' => $disease,
+                'answer' => $this->formatM02CurrentAnswer($record),
+                'answer_input' => $answerInput,
+                'relatives' => array_values(array_filter($record['relatives'] ?? [], 'is_string')),
+                'relative_options' => $relativeLabels,
+                'structured_editable' => $structuredEditable,
+                'diabetes_type' => (string)($record['diabetes_type'] ?? ''),
+                'version' => (string)($record['version'] ?? ''),
+                'editable' => $editable,
+                'structured' => $structured,
+                'edit_blocker' => match ($editBlockerCode) {
+                    'M02_DATABASE_NOT_AUTHORIZED' => 'La edición no está autorizada en este entorno.',
+                    'M02_RELATIVE_STORAGE_UNVERIFIED' => 'No se pudo verificar el almacenamiento de parentescos; esta respuesta se mantiene en solo lectura.',
+                    'M02_QUESTION_NOT_SUPPORTED' => 'Esta pregunta histórica no tiene un editor M02 compatible en esta pantalla.',
+                    'M02_DUPLICATE_DISEASE_ROWS' => 'Hay registros duplicados para esta pregunta. No se permite editar hasta aclarar cuál es el vigente.',
+                    'M02_RESPONSE_NOT_PERSISTED' => 'Solo se pueden editar respuestas ya registradas.',
+                    'M02_RESPONSE_INCONSISTENT' => 'Esta respuesta requiere revisión antes de editarse.',
+                    'M02_STRUCTURED_RELATION_EDIT_UNSUPPORTED' => 'Esta respuesta conserva parentescos estructurados incompatibles con una edición segura y se mantiene en solo lectura.',
+                    default => $structuredEditable ? 'Actualiza los parentescos seleccionados y la descripción opcional; se guardan juntos.' : '',
+                },
+            ];
+        }
+
+        $this->view('/paciente/respuestas-previas.php', [
+            'title' => 'Respuestas previas',
+            'datos' => $auth,
+            'idPaciente' => $patientId,
+            'm02Finalized' => (bool)($m02State['finalized'] ?? false),
+            'entries' => $entries,
+            'csrf' => ClinicalSummarySecurity::captureCsrfToken($patientId),
+            'sidebar' => $sidebar->render(),
+        ]);
+    }
+
+    /** Update an existing M02 answer or its legacy free-text component; never creates a row. */
+    public function updatePreviousM02(): void
+    {
+        header('Content-Type: application/json; charset=UTF-8');
+        header('Cache-Control: no-store, private');
+        header('Pragma: no-cache');
+        if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? '')) !== 'POST') {
+            echo HttpMethod::jsonResponse(405, false, 'Método no permitido.');
+            return;
+        }
+        $contentType = strtolower(trim(explode(';', (string)($_SERVER['CONTENT_TYPE'] ?? ''), 2)[0]));
+        $contentLength = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
+        if ($contentType !== 'application/json' || $contentLength < 1 || $contentLength > 8192) {
+            echo HttpMethod::jsonResponse(400, false, 'Solicitud de edición no válida.');
+            return;
+        }
+        $raw = file_get_contents('php://input', false, null, 0, 8193);
+        if (!is_string($raw) || strlen($raw) > 8192) {
+            echo HttpMethod::jsonResponse(413, false, 'La solicitud excede el tamaño permitido.');
+            return;
+        }
+        try {
+            $data = json_decode($raw, true, 16, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            echo HttpMethod::jsonResponse(400, false, 'Solicitud de edición no válida.');
+            return;
+        }
+        $allowedKeys = ['stable_id', 'expected_version', 'answer', 'diabetes_type', 'relatives'];
+        if (!is_array($data) || array_diff(array_keys($data), $allowedKeys) !== []) {
+            echo HttpMethod::jsonResponse(422, false, 'Solicitud de edición no válida.');
+            return;
+        }
+
+        $authGuard = new AuthMiddleware('historia-clinica');
+        $auth = $authGuard->authPermisos();
+        $patientId = (int)($auth['id_usuario'] ?? 0);
+        $authGuard->assertPatientAccess($patientId, $auth);
+        $csrf = $_SERVER['HTTP_X_M03_CSRF'] ?? null;
+        if (!ClinicalSummarySecurity::validCaptureCsrf($patientId, is_string($csrf) ? $csrf : null)) {
+            echo HttpMethod::jsonResponse(403, false, 'Token de seguridad inválido o ausente.');
+            return;
+        }
+
+        $stableId = is_string($data['stable_id'] ?? null) ? trim($data['stable_id']) : '';
+        $expectedVersion = is_string($data['expected_version'] ?? null) ? $data['expected_version'] : '';
+        $answer = is_string($data['answer'] ?? null) ? trim($data['answer']) : '';
+        $submittedType = is_string($data['diabetes_type'] ?? null) ? trim($data['diabetes_type']) : '';
+        if ($stableId === '' || strlen($stableId) > 180 || mb_strlen($answer, 'UTF-8') > 2000
+            || !preg_match('/^[a-f0-9]{64}$/', $expectedVersion)) {
+            echo HttpMethod::jsonResponse(422, false, 'La respuesta debe tener como máximo 2000 caracteres.');
+            return;
+        }
+
+        $adapter = new ConversationalM02Adapter();
+        $state = $adapter->read($patientId);
+        $contract = $this->conversationService()->buildUnifiedContract(['M02' => $state]);
+        $question = $contract['question_index'][$stableId] ?? null;
+        if (!is_array($question) || ($question['module_id'] ?? null) !== 'M02'
+            || ($question['response']['persisted'] ?? false) !== true) {
+            echo HttpMethod::jsonResponse(404, false, 'La respuesta M02 ya no está disponible para edición. Recarga la página.');
+            return;
+        }
+        $disease = (string)($question['question_id'] ?? '');
+        $record = null;
+        foreach (($state['records'] ?? []) as $candidate) {
+            if (($candidate['disease'] ?? null) === $disease) { $record = $candidate; break; }
+        }
+        if (!is_array($record) || (int)($record['id'] ?? 0) < 1) {
+            echo HttpMethod::jsonResponse(404, false, 'La respuesta M02 ya no está disponible para edición. Recarga la página.');
+            return;
+        }
+        $structuredCurrent = ($record['relatives'] ?? []) !== [];
+        $targetRelatives = null;
+        if ($structuredCurrent) {
+            $targetRelatives = ConversationalM02Adapter::normalizeStructuredRelatives($data['relatives'] ?? null);
+            if ($targetRelatives === null || $targetRelatives === [] || ($record['detail'] ?? null) !== 'Si') {
+                echo HttpMethod::jsonResponse(422, false, 'Selecciona al menos un parentesco válido para conservar la respuesta afirmativa.');
+                return;
+            }
+        } elseif (array_key_exists('relatives', $data) || $answer === '') {
+            echo HttpMethod::jsonResponse(422, false, 'Completa una respuesta M02 válida antes de guardar.');
+            return;
+        }
+        $editBlocker = $adapter->existingResponseEditBlockerCode($state, $record);
+        if ($editBlocker !== null) {
+            echo HttpMethod::jsonResponse(409, false, 'Esta respuesta no cumple las condiciones de edición M02. No se modificó.');
+            return;
+        }
+        if ($submittedType !== '' && $submittedType !== '__KEEP__'
+            && ($disease !== 'Diabetes Mellitus' || !in_array($submittedType, ['Tipo 1', 'Tipo 2', 'Gestacional'], true))) {
+            echo HttpMethod::jsonResponse(422, false, 'El tipo de diabetes seleccionado no es válido.');
+            return;
+        }
+        $context = [
+            'detail' => $record['detail'] ?? null,
+            'relative_description' => $record['legacy_relative_text'] ?? '',
+            'diabetes_type' => $record['diabetes_type'] ?? null,
+        ];
+        if ($structuredCurrent) {
+            $proposal = [
+                'kind' => 'm02_read_only_proposal',
+                'disease' => $disease,
+                'detail' => 'Si',
+                'relative_description' => $answer,
+                'relatives' => $targetRelatives,
+                'diabetes_type' => (string)($record['diabetes_type'] ?? ''),
+            ];
+        } else {
+            try {
+                $proposal = $adapter->interpret($disease, $answer, $context);
+            } catch (\InvalidArgumentException) {
+                echo HttpMethod::jsonResponse(422, false, 'La respuesta no cumple el formato permitido para M02.');
+                return;
+            }
+            if (($proposal['kind'] ?? null) !== 'm02_read_only_proposal') {
+                echo HttpMethod::jsonResponse(422, false, (string)($proposal['clarification'] ?? 'Aclara la respuesta antes de guardar.'));
+                return;
+            }
+        }
+        if ($submittedType !== '' && $submittedType !== '__KEEP__') {
+            if (($proposal['detail'] ?? null) !== 'Si') {
+                echo HttpMethod::jsonResponse(422, false, 'El tipo de diabetes solo puede acompañar una respuesta afirmativa.');
+                return;
+            }
+            $proposal['diabetes_type'] = $submittedType;
+        }
+
+        $result = $adapter->editExistingResponse($patientId, $disease, $proposal, $expectedVersion);
+        $status = (int)($result['resultado'] ?? 500);
+        if (!in_array($status, [200, 403, 409, 422, 500], true)) $status = 500;
+        $readback = ($result['readback'] ?? false) === true;
+        $ok = $status === 200 && $readback && is_array($result['record'] ?? null);
+        $extra = ['readback' => $readback];
+        if ($ok) {
+            $saved = $result['record'];
+            $extra['answer'] = $this->formatM02CurrentAnswer($saved);
+            $extra['diabetes_type'] = (string)($saved['diabetes_type'] ?? '');
+            $extra['version'] = (string)($saved['version'] ?? '');
+            $extra['relatives'] = array_values(array_filter($saved['relatives'] ?? [], 'is_string'));
+        }
+        echo HttpMethod::jsonResponse($status, $ok, (string)($result['mensaje'] ?? 'No fue posible actualizar la respuesta M02.'), '', $extra);
+    }
+
+    private function formatM02CurrentAnswer(array $record): string
+    {
+        $detail = (string)($record['detail'] ?? '');
+        $legacyText = trim((string)($record['legacy_relative_text'] ?? ''));
+        $relatives = array_values(array_filter(array_merge($record['relatives'] ?? [], $record['invalid_relatives'] ?? []), 'is_string'));
+        $context = [];
+        if ($legacyText !== '') $context[] = $legacyText;
+        if ($relatives !== []) $context[] = 'parentescos registrados: ' . implode(', ', $relatives);
+        if ($detail === 'No') return $context === [] ? 'No' : 'No — también se conserva ' . implode('; ', $context);
+        if (in_array($detail, ['Si', 'Sí'], true)) {
+            if ($context !== []) return 'Sí — ' . implode('; ', $context);
+            return 'Sí';
+        }
+        $storedDetail = trim($detail) !== '' ? $detail : 'Respuesta registrada';
+        return $context === [] ? $storedDetail : $storedDetail . ' — ' . implode('; ', $context);
+    }
+
+    /** Issues a one-use, 30-second ticket for local-only microphone streaming. */
+    public function issueDictationTicket(): void
+    {
+        header('Content-Type: application/json; charset=UTF-8');
+        header('Cache-Control: no-store, private');
+        header('Pragma: no-cache');
+
+        $expectedOrigin = $_SERVER['CLINICA_VOSK_ORIGIN'] ?? null;
+        $root = $_SERVER['CLINICA_VOSK_ROOT'] ?? null;
+        $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+        $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
+        $https = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+        $fetchSite = strtolower((string)($_SERVER['HTTP_SEC_FETCH_SITE'] ?? ''));
+        $allowedHosts = [
+            'https://clinica.test' => 'clinica.test',
+            'https://clinica.test:8443' => 'clinica.test:8443',
+        ];
+        if (!is_string($expectedOrigin)
+            || !isset($allowedHosts[$expectedOrigin])
+            || !$https
+            || $host !== $allowedHosts[$expectedOrigin]
+            || $origin !== $expectedOrigin
+            || $fetchSite !== 'same-origin'
+            || !is_string($root)
+            || $root === '') {
+            echo HttpMethod::jsonResponse(403, false, 'Dictado local no disponible en este entorno.');
+            return;
+        }
+        if (strtolower(trim((string)($_SERVER['CONTENT_TYPE'] ?? ''))) !== 'application/json' || (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 4096) {
+            echo HttpMethod::jsonResponse(400, false, 'Solicitud de dictado no válida.');
+            return;
+        }
+
+        $raw = file_get_contents('php://input', false, null, 0, 4097);
+        $data = json_decode(is_string($raw) ? $raw : '', true);
+        if (!is_array($data) || count($data) !== 3) {
+            echo HttpMethod::jsonResponse(400, false, 'Solicitud de dictado no válida.');
+            return;
+        }
+        $patientId = filter_var($data['idPaciente'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $stableId = is_string($data['stable_id'] ?? null) ? trim($data['stable_id']) : '';
+        $contractVersion = is_string($data['contract_version'] ?? null) ? $data['contract_version'] : '';
+        if ($patientId === false || $stableId === '' || $contractVersion === '') {
+            echo HttpMethod::jsonResponse(422, false, 'Pregunta no disponible para dictado.');
+            return;
+        }
+
+        $authGuard = new AuthMiddleware('historia-clinica');
+        $auth = $authGuard->authPermisos();
+        if ((int)$auth['id_usuario'] !== (int)$patientId) {
+            echo HttpMethod::jsonResponse(403, false, 'No autorizado.');
+            return;
+        }
+        $authGuard->assertPatientAccess((int)$patientId, $auth);
+        $csrf = $_SERVER['HTTP_X_M03_CSRF'] ?? null;
+        if (!ClinicalSummarySecurity::validCaptureCsrf((int)$patientId, is_string($csrf) ? $csrf : null)) {
+            echo HttpMethod::jsonResponse(403, false, 'Token de seguridad inválido o ausente.');
+            return;
+        }
+
+        try {
+            $contract = $this->buildInterviewContractForPatient((int)$patientId, (int)$auth['id_clinica']);
+            $question = $contract['question_index'][$stableId] ?? null;
+            $moduleId = is_array($question) ? (string)($question['module_id'] ?? '') : '';
+            $module = $contract['modules'][$moduleId] ?? null;
+            $responseStatus = is_array($question['response'] ?? null) ? (string)($question['response']['status'] ?? 'pending') : 'pending';
+            $activeQuestion = is_array($module['conversation_state'] ?? null) ? ($module['conversation_state']['stable_id'] ?? null) : null;
+            $pendingQuestionAuthorized = $responseStatus === 'pending'
+                && is_string($activeQuestion)
+                && hash_equals($activeQuestion, $stableId);
+            $savedQuestionAuthorized = $moduleId === 'M02'
+                && is_array($module)
+                && $responseStatus === 'documented'
+                && is_array($question['response'] ?? null)
+                && ($question['response']['persisted'] ?? false) === true
+                && $this->isEditableM02SavedQuestion((int)$patientId, $question, $module);
+            if (!is_array($question)
+                || !is_array($module)
+                || $moduleId !== 'M02'
+                || ($module['conversation_state']['state'] ?? '') !== 'ANSWERABLE'
+                || ($module['state']['write_enabled'] ?? false) !== true
+                || ($question['write_enabled'] ?? false) !== true
+                || (!$pendingQuestionAuthorized && !$savedQuestionAuthorized)
+                || !hash_equals((string)$contract['version'], $contractVersion)) {
+                echo HttpMethod::jsonResponse(409, false, 'La pregunta ya no está disponible para dictado; revisa la entrevista.');
+                return;
+            }
+
+            $rootPath = rtrim($root, "\\/");
+            $keyPath = $rootPath . DIRECTORY_SEPARATOR . 'ticket.key';
+            if (!is_file($keyPath) || is_link($keyPath) || filesize($keyPath) !== 32) {
+                echo HttpMethod::jsonResponse(503, false, 'El dictado local no está preparado. Puedes responder por escrito.');
+                return;
+            }
+            $secret = file_get_contents($keyPath);
+            if (!is_string($secret) || strlen($secret) !== 32) {
+                echo HttpMethod::jsonResponse(503, false, 'El dictado local no está preparado. Puedes responder por escrito.');
+                return;
+            }
+            $jwt = is_string($_COOKIE['CLINICAJWT'] ?? null) ? $_COOKIE['CLINICAJWT'] : '';
+            $issued = (new LocalDictationTicketService($secret))->issue((int)$patientId, $jwt, $stableId, $expectedOrigin);
+            echo HttpMethod::jsonResponse(200, true, 'Autorización local de dictado lista.', '', [
+                'ticket' => $issued['ticket'],
+                'expires_at' => $issued['expires_at'],
+                'websocket_url' => 'wss://clinica.test:8766/dictation',
+                'contract_version' => $contract['version'],
+            ]);
+        } catch (\Throwable) {
+            echo HttpMethod::jsonResponse(503, false, 'El dictado local no está disponible. Puedes responder por escrito.');
+        }
+    }
+
+    private function buildInterviewContractForPatient(int $patientId, int $clinicId): array
+    {
+        return $this->conversationService()->buildUnifiedContract([
+            'M01' => (new ConversationalM01Adapter())->read($patientId),
+            'M02' => (new ConversationalM02Adapter())->read($patientId),
+            'M03' => (new ConversationalM03Adapter())->read($patientId),
+            'M04' => (new ConversationalM04Adapter())->read($patientId),
+            'M05' => (new ConversationalM05Adapter())->read($patientId),
+            'M06' => (new ConversationalM06Adapter())->read($patientId),
+            'M07' => (new ConversationalM07Adapter())->read($patientId, $clinicId, 'patient'),
+            'M08' => (new ConversationalM08TreatmentAdapter())->read($patientId),
+            'M09' => (new ConversationalM09Adapter())->read($patientId),
+            'M09Map' => (new ConversationalM09MapAdapter())->read($patientId),
+        ]);
+    }
+
+    /** A previously saved M02 answer may use dictation only when the same read model permits editing it. */
+    private function isEditableM02SavedQuestion(int $patientId, array $question, array $module): bool
+    {
+        if ($patientId < 1
+            || ($question['module_id'] ?? null) !== 'M02'
+            || !is_scalar($question['question_id'] ?? null)
+            || ($module['state']['write_enabled'] ?? false) !== true
+            || ($module['state']['finalized'] ?? true) === true
+            || ($module['conversation_state']['state'] ?? '') !== 'ANSWERABLE') {
+            return false;
+        }
+
+        $disease = (string)$question['question_id'];
+        $state = (new ConversationalM02Adapter())->read($patientId);
+        if (($state['write_enabled'] ?? false) !== true || ($state['finalized'] ?? true) === true) return false;
+
+        foreach (($state['records'] ?? []) as $record) {
+            if (!is_array($record) || (string)($record['disease'] ?? '') !== $disease) continue;
+            if ((int)($record['id'] ?? 0) < 1 || ($record['status'] ?? '') !== 'documented') return false;
+            $legacyText = (string)($record['legacy_relative_text'] ?? $record['relative_description'] ?? '');
+            $structured = ($record['relatives'] ?? []) !== [] || ($record['invalid_relatives'] ?? []) !== [];
+            return !$structured || (($record['detail'] ?? '') === 'Si' && $legacyText !== '');
+        }
+
+        return false;
     }
 
     public function capture(): void

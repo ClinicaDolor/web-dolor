@@ -125,6 +125,11 @@ $assert(($activeQuestion['voice']['QUESTION'] ?? '') === ($activeQuestion['visib
 $assert(($activeQuestion['help'] ?? '') === 'Escribe qué familiar o familiares tienen esta enfermedad. Puedes responder con tus propias palabras, por ejemplo: “mi papá y mi mamá” o “mis padres y mi hermana mayor”. Si ninguno tiene esta enfermedad, selecciona “No, guardar y continuar”. Si no lo recuerdas, puedes indicarlo; no se registrará como Sí ni como No y la respuesta quedará sin guardar.', 'The M02 help must match free-text capture and the visible negative/uncertainty paths.');
 $assert(($activeQuestion['voice']['HELP'] ?? '') === ($activeQuestion['help'] ?? ''), 'M02 help narration must match visible contextual help.');
 $assert($pendingModule->getAttribute('data-stable-id') === $activeStableId, 'The rendered active M02 card must expose its canonical stable_id for contextual voice controls.');
+$pendingQuestionHeader = $pendingXPath->query('//*[@data-module="M02"]//*[@data-m02-question-message]')->item(0);
+$assert($pendingQuestionHeader instanceof DOMElement && !$pendingQuestionHeader->hasAttribute('hidden'), 'the normal M02 question must keep the shared clinical header visible.');
+$assert($pendingXPath->query('//*[@data-module="M02"]//*[@data-m02-question-message]//*[@data-m02-question-text and contains(@class,"clinical-question-title")]')->length === 1
+    && $pendingXPath->query('//*[@data-module="M02"]//*[@data-m02-question-instruction and not(@hidden)]')->length === 1,
+    'normal M02 questions must preserve the shared large title and instruction.');
 $secondM02Question = $pendingContract['question_index']['M02:family:hipertensi-n-arterial-sist-mica'] ?? [];
 $assert(($secondM02Question['help'] ?? '') === ($activeQuestion['help'] ?? ''), 'Every M02 family question must use the same free-text, negative and uncertainty guidance.');
 $assert(str_contains($pendingModule->textContent, 'Enfermedades del corazón'), 'active M02 question must be rendered');
@@ -149,10 +154,41 @@ $assert($readyModule instanceof DOMElement, 'ready M02 card must exist');
 $assert($readyXPath->query('//*[@data-module="M02" and @data-m02-disease]')->length === 0, 'ready M02 must not render all documented cards');
 $assert($readyXPath->query('//*[@data-module="M02"]//*[@data-m02-input]')->length === 0, 'ready-to-finalize M02 must not render an answer composer before consultation.');
 $assert($readyXPath->query('//*[@data-module="M02"]//*[@data-m02-resolution-action]')->length === 1, 'ready M02 must render one finalization action');
-$assert(str_contains($readyModule->textContent, 'Tus antecedentes familiares están registrados'), 'ready M02 must explain the finalization action');
+$readyHeader = $readyXPath->query('//*[@data-module="M02"]//*[@data-m02-question-message and not(@hidden)]')->item(0);
+$assert($readyHeader instanceof DOMElement && str_contains((string)$readyHeader->getAttribute('class'), 'clinical-question-header'), 'ready M02 must reuse the visible shared clinical question header.');
+$readyTitle = $readyXPath->query('//*[@data-module="M02"]//*[@data-m02-question-message]//*[@data-m02-question-text]')->item(0);
+$readyVisibleVoiceText = trim((string)$readyTitle?->textContent);
+$assert($readyVisibleVoiceText === 'Tus antecedentes familiares están registrados. ¿Deseas finalizar esta sección y continuar?', 'ready M02 must render the canonical confirmation text visibly');
+$assert($readyTitle instanceof DOMElement && str_contains((string)$readyTitle->getAttribute('class'), 'clinical-question-title')
+    && $readyTitle->getAttribute('data-m02-action-id') === 'M02:action:finalize', 'the finalization confirmation must use normal M02 title typography and the canonical action identity.');
+$assert($readyXPath->query('//*[@data-module="M02"]//*[@data-m02-question-instruction and @hidden]')->length === 1, 'finalization must hide the normal answer instruction while retaining the shared header.');
+$assert($readyXPath->query('//*[@data-module="M02"]//*[contains(concat(" ", normalize-space(@class), " "), " m02-finalization-actions ")]/*[self::div and contains(concat(" ", normalize-space(@class), " "), " patient-interview-message ")]')->length === 0,
+    'the finalization action area must not render a second confirmation message/card.');
+$assert($readyXPath->query('//*[@data-module="M02"]//*[contains(concat(" ", normalize-space(@class), " "), " m02-finalization-actions ")]//*[@data-m02-resolution-action]')->length === 1, 'the finalization action must remain inside its locally spaced wrapper');
+$assert($readyXPath->query('//*[@data-module="M02"]//*[@data-m02-dictation-status]')->length === 0, 'ready M02 must not render an input-specific dictation status without a response composer');
 $readyAction = $readyContract['modules']['M02']['conversation_state'] ?? [];
 $assert(($readyAction['action_id'] ?? '') === 'M02:action:finalize' && ($readyAction['stable_id'] ?? null) === null, 'ready M02 must expose a separate validated action id');
-$assert(($readyAction['voice_text'] ?? '') === 'Tus antecedentes familiares están registrados. Puedes finalizar esta sección y continuar.', 'ready M02 TTS must use the approved finalization narration');
+$assert(($readyAction['voice_text'] ?? '') === $readyVisibleVoiceText, 'ready M02 TTS must exactly match the visible confirmation');
+$assert(str_contains($readyHtml, "if (module?.conversation_state?.state === 'READY_TO_FINALIZE')")
+    && strpos($readyHtml, "if (module?.conversation_state?.state === 'READY_TO_FINALIZE')") < strpos($readyHtml, 'const eligibility = diagnoseM02DictationEligibility(target, input);')
+    && str_contains($readyHtml, "inlineStatus.textContent = '';"), 'canonical finalization must exit dictation diagnostics and clear its stale technical status before eligibility checks');
+$startRecognitionPosition = strpos($readyHtml, 'const startRecognition = async (button, input) => {');
+$readyDictationGuardPosition = strpos($readyHtml, "if (conversationContract.modules?.M02?.conversation_state?.state === 'READY_TO_FINALIZE')", $startRecognitionPosition ?: 0);
+$readyDictationEligibilityPosition = strpos($readyHtml, 'const eligibility = diagnoseM02DictationEligibility(target, input);', $startRecognitionPosition ?: 0);
+$assert($startRecognitionPosition !== false && $readyDictationGuardPosition !== false
+    && $readyDictationEligibilityPosition !== false && $readyDictationGuardPosition < $readyDictationEligibilityPosition,
+    'a stale microphone event must not surface internal no-input diagnostics during canonical finalization');
+$assert(str_contains($readyHtml, "conversationCoordinator.voiceEvent(action ? 'ACTION' : 'QUESTION', activeTarget, false)")
+    && str_contains($readyHtml, 'event?.action_id === activeTarget'), 'the existing repeat control must validate and replay the canonical finalization action');
+$assert(str_contains($readyHtml, "actionArea.className = 'm02-finalization-actions'")
+    && str_contains($readyHtml, 'conversationContract.modules?.M02?.conversation_state?.voice_text')
+    && str_contains($readyHtml, 'questionTitle.textContent = finalizationText')
+    && str_contains($readyHtml, "questionTitle.dataset.m02ActionId = 'M02:action:finalize'")
+    && str_contains($readyHtml, 'if (instruction) instruction.hidden = true;'), 'a dynamically exposed finalization action must reuse the shared canonical header and action identity.');
+$assert(str_contains($readyHtml, 'Antes de continuar')
+    && str_contains($readyHtml, 'Ya respondiste las preguntas de antecedentes familiares. Revisa la información y confirma cuando quieras finalizar esta sección.')
+    && str_contains($readyHtml, "m02Card.dataset.m02Consultation !== '1'"), 'contextual guidance must switch only for the active canonical M02 finalization state, not historical consultation');
+$assert(str_contains($readyHtml, '.m02-finalization-actions { display:flex; flex-direction:column; align-items:flex-start; margin:1.2rem .25rem .75rem; }'), 'M02 finalization button spacing must remain scoped below the shared question header.');
 $assert(str_contains($pendingHtml, 'body.patient-interview-page { overflow-x:clip; }') && str_contains($readyHtml, 'body.patient-interview-page { overflow-x:clip; }'), 'page-level overflow protection must remain explicit');
 $assert(!preg_match('/\.patient-interview-main\s*\{[^}]*overflow-x\s*:\s*clip/i', $pendingHtml) && !preg_match('/\.patient-interview-main\s*\{[^}]*overflow-x\s*:\s*clip/i', $readyHtml), 'responsive layout must not hide inner overflow with overflow-x:clip');
 $assert(str_contains($pendingHtml, 'max-width:1199.98px') && str_contains($pendingHtml, 'max-width:767.98px') && str_contains($pendingHtml, 'max-width:430px'), 'responsive header breakpoints must cover desktop, tablet and narrow layouts');
