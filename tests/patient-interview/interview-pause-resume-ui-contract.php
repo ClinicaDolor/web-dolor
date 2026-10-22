@@ -13,8 +13,10 @@ $assert = static function (bool $ok, string $message): void {
 
 preg_match('/<div class="d-flex flex-wrap patient-interview-header-actions"[^>]*>(.*?)<\/div>/s', $view, $navigation);
 $assert(isset($navigation[1]), 'Interview navigation action group is missing');
-$assert(substr_count($navigation[1], '<button') === 1 && substr_count($navigation[1], '<a ') === 1, 'Header navigation must contain only Previous answers and My clinical history');
-$assert(str_contains($navigation[1], 'data-chat-history') && str_contains($navigation[1], 'aria-label="Mi historia clínica"'), 'Required navigation actions must remain');
+$assert(substr_count($navigation[1], '<button') === 0 && substr_count($navigation[1], '<a ') === 2, 'Header navigation must contain only the independent Previous answers page and My clinical history links');
+$assert(str_contains($navigation[1], 'href="<?=SERVIDOR;?>historia-clinica/respuestas-previas"')
+    && str_contains($navigation[1], 'aria-label="Mi historia clínica"'), 'Required navigation links must remain');
+$assert(!preg_match('/<div\b[^>]*data-chat-history-panel/', $view), 'Previous answers must not reopen as an inline interview panel');
 $assert(!str_contains($view, 'data-interview-pause') && !str_contains($view, 'data-interview-resume'), 'Pause/resume controls must be removed from rendered UI');
 $assert(!str_contains($view, 'pauseButton') && !str_contains($view, 'resumeButton') && !str_contains($view, 'syncPauseControls'), 'Pause/resume DOM references, synchronization, and click listeners must be removed');
 $assert(str_contains($view, 'gap:.75rem !important') && str_contains($view, 'min-height:44px'), 'Header actions must have consistent spacing and touch height');

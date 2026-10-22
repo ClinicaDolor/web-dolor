@@ -83,8 +83,28 @@ $contract = new ReflectionMethod($service, 'contractM02Questions');
 $contract->setAccessible(true);
 $questions = $contract->invoke($service, ['write_enabled' => true, 'records' => [['disease' => $disease, 'status' => 'pending', 'detail' => null, 'version' => 'v1']]]);
 $help = $questions[0]['help'] ?? '';
+$assert(($questions[0]['write_enabled'] ?? false) === true, 'Editable M02 question must explicitly expose its question-level write authorization');
 $assert(str_contains($help, 'tus propias palabras') && str_contains($help, 'No, guardar y continuar') && str_contains($help, 'no se registrará como Sí ni como No'), 'Help must match current free-text, negative, and uncertainty actions');
 $assert(($questions[0]['options']['relative_description'] ?? null) === 'free_text', 'M02 contract must define family details as free text');
+$readOnlyQuestions = $contract->invoke($service, ['write_enabled' => false, 'records' => [['disease' => $disease, 'status' => 'pending', 'detail' => null, 'version' => 'v1']]]);
+$assert(($readOnlyQuestions[0]['write_enabled'] ?? true) === false, 'Read-only M02 question must remain explicitly non-writable');
+$unifiedWritable = $service->buildUnifiedContract(['M02' => [
+    'write_enabled' => true,
+    'finalized' => false,
+    'records' => [['disease' => $disease, 'status' => 'pending', 'detail' => null, 'version' => 'v1']],
+]]);
+$heartStableId = 'M02:family:enfermedades-del-coraz-n';
+$assert(($unifiedWritable['modules']['M02']['state']['write_enabled'] ?? false) === true
+    && ($unifiedWritable['question_index'][$heartStableId]['write_enabled'] ?? false) === true,
+    'Unified M02 module and active question must expose the same positive write authorization');
+$unifiedReadOnly = $service->buildUnifiedContract(['M02' => [
+    'write_enabled' => false,
+    'finalized' => false,
+    'records' => [['disease' => $disease, 'status' => 'pending', 'detail' => null, 'version' => 'v1']],
+]]);
+$assert(($unifiedReadOnly['modules']['M02']['state']['write_enabled'] ?? true) === false
+    && ($unifiedReadOnly['question_index'][$heartStableId]['write_enabled'] ?? true) === false,
+    'Unified M02 module and question must remain consistently non-writable when authorization is closed');
 
 $diabetesQuestions = $contract->invoke($service, ['write_enabled' => true, 'records' => [['disease' => 'Diabetes Mellitus', 'status' => 'pending', 'detail' => null, 'version' => 'v2']]]);
 $diabetesQuestion = $diabetesQuestions[0] ?? [];
@@ -103,11 +123,14 @@ $assert($m02Complete->invoke($finalizer, ['records' => [
 ]]) === false, 'M02 completion must still reject a positive answer without family description');
 
 $adapterSource = file_get_contents($root . '/app/Services/ConversationalM02Adapter.php');
+$captureStart = strpos($adapterSource, 'public function capture(');
+$editStart = strpos($adapterSource, 'public function editExistingResponse(');
+$captureBody = ($captureStart !== false && $editStart !== false) ? substr($adapterSource, $captureStart, $editStart - $captureStart) : '';
 $assert(str_contains($adapterSource, 'UPDATE pc_antecedentes_familiares SET detalle=:detail,tipo=:type,especificar=:description'), 'Capture must write the existing TEXT column');
 $assert(str_contains($adapterSource, 'M02_REPLACEMENT_CONFIRMATION_REQUIRED') && str_contains($adapterSource, 'confirm_replace_existing'), 'Existing data replacement must require explicit confirmation');
-$assert(str_contains($adapterSource, 'M02_STRUCTURED_HISTORY_CONFLICT') && !str_contains($adapterSource, 'DELETE FROM pc_antecedentes_familiares_parentescos'), 'Structured historical rows must never be deleted by the new text capture; unsafe negative replacement must fail closed');
+$assert(str_contains($captureBody, 'M02_STRUCTURED_HISTORY_CONFLICT') && !str_contains($captureBody, 'DELETE FROM pc_antecedentes_familiares_parentescos'), 'Ordinary text capture must preserve structured rows and fail closed on unsafe negative replacement');
 $assert(str_contains($adapterSource, 'beginTransaction()') && str_contains($adapterSource, 'rollBack()') && str_contains($adapterSource, 'readback' . "' => true"), 'Capture must remain transactional with readback and rollback');
-$assert(!str_contains($adapterSource, 'INSERT INTO pc_antecedentes_familiares_parentescos'), 'New free-text answers must not depend on structured relationship inserts');
+$assert(!str_contains($captureBody, 'INSERT INTO pc_antecedentes_familiares_parentescos'), 'Ordinary free-text capture must not classify or create structured relationship rows');
 $assert(str_contains($adapterSource, 'isAuthorizedLocalWriteDatabase') && str_contains($adapterSource, 'SELECT DATABASE()'), 'M02 persistence must remain restricted to the exact authorized local database');
 $assert(str_contains($adapterSource, 'GET_LOCK(:lock_name, 5)'), 'Same-patient/disease duplicate capture must remain serialized');
 $preserveTypeExpression = <<<'CODE'

@@ -32,11 +32,11 @@ const wait = milliseconds => new Promise(resolve => setTimeout(resolve, millisec
 (async () => {
     const startupBlock = viewSource.slice(viewSource.indexOf('const startupVoiceEvents ='), viewSource.indexOf('voiceStartButton?.addEventListener'));
     const resumeBlock = viewSource.slice(viewSource.indexOf("if (event.type === 'RESUME')"), viewSource.indexOf('if (event.action_id)', viewSource.indexOf("if (event.type === 'RESUME')")));
-    assert(startupBlock.includes('return {question};') && !startupBlock.includes("voiceEvent('WELCOME')") && !startupBlock.includes("voiceEvent('FIRST_START'") && !startupBlock.includes("voiceEvent('RESUME'"), 'Startup must resolve only the active question, with no generic preface.');
+    assert(startupBlock.includes("return {question: !blockedM07 && moduleId === 'M02'") && !startupBlock.includes("voiceEvent('WELCOME')") && !startupBlock.includes("voiceEvent('FIRST_START'") && !startupBlock.includes("voiceEvent('RESUME'"), 'Startup must resolve only the active target, with no generic preface.');
     const repeatBlock = viewSource.slice(viewSource.indexOf('const repeatActiveQuestion ='), viewSource.indexOf('const showContractHelp ='));
     assert(startupBlock.includes('activateAutomatically(question)') && repeatBlock.includes('voiceController.activate(event, null, {userGesture:true})') && repeatBlock.includes('voiceController.speakEvent(event, {force:true, userGesture:true})'), 'Automatic start and manual repeat must send only the freshly resolved active question through the voice controller.');
     assert(viewSource.includes('const repeatOrUnlockVoice = () => repeatActiveQuestion();'), 'The sidebar repeat action must share the active-question repeat path.');
-    assert(resumeBlock.includes('voiceController.handleEvent(question)') && !resumeBlock.includes('speakStartup'), 'Interview resume must replay only the current question.');
+    assert(resumeBlock.includes("voiceController.handleEvent(canonicalQuestion?.module_id === 'M02' ? {...question, module_id: 'M02'} : question)") && !resumeBlock.includes('speakStartup'), 'Interview resume must replay only the current canonical question and preserve M02 Piper routing.');
 
     const automaticSpeech = new MockSpeechSynthesis();
     const automatic = loadController(automaticSpeech);
@@ -130,7 +130,7 @@ const wait = milliseconds => new Promise(resolve => setTimeout(resolve, millisec
     console.log('QUESTION_ONLY_STARTUP: PASS');
     console.log('QUESTION_ONLY_RESUME_AND_REPEAT: PASS');
     console.log('SINGLE_NARRATION_PER_TRANSITION: PASS');
-    console.log('AUTOPLAY_BLOCKED_FALLBACK: PASS');
+    console.log('AUTOPLAY_BLOCKED_REQUIRES_GESTURE: PASS');
     console.log('ONE_TIME_UNLOCK: PASS');
     console.log('AUTO_START_QUESTION_ONLY: PASS');
     console.log('RESUME_IS_NOT_AUDIO_UNLOCK: PASS');

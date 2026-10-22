@@ -368,7 +368,7 @@ final class ConversationalInterviewService
                 // clinical question. Keep its identity separate from the
                 // question index so clients cannot invent a question target.
                 'action_id' => $moduleId . ':action:finalize',
-                'voice_text' => 'Tus antecedentes familiares están registrados. Puedes finalizar esta sección y continuar.',
+                'voice_text' => 'Tus antecedentes familiares están registrados. ¿Deseas finalizar esta sección y continuar?',
                 'write_enabled' => $writeEnabled,
                 'next_action' => 'EXPLICIT_FINALIZATION_AND_READBACK',
             ];
@@ -568,7 +568,7 @@ final class ConversationalInterviewService
             $help = $disease === 'Diabetes Mellitus'
                 ? 'Escribe qué familiar o familiares tienen diabetes. Puedes mencionar uno o varios, por ejemplo: “mi papá” o “mis padres y mi hermana”. Si conoces el tipo de diabetes, también puedes incluirlo, pero no es obligatorio.'
                 : 'Escribe qué familiar o familiares tienen esta enfermedad. Puedes responder con tus propias palabras, por ejemplo: “mi papá y mi mamá” o “mis padres y mi hermana mayor”. Si ninguno tiene esta enfermedad, selecciona “No, guardar y continuar”. Si no lo recuerdas, puedes indicarlo; no se registrará como Sí ni como No y la respuesta quedará sin guardar.';
-            $questions[] = $this->contractQuestion('M02', 'M02:family:' . $this->stableToken($disease), '¿Algún familiar tiene ' . mb_strtolower($disease, 'UTF-8') . '?', [
+            $question = $this->contractQuestion('M02', 'M02:family:' . $this->stableToken($disease), '¿Algún familiar tiene ' . mb_strtolower($disease, 'UTF-8') . '?', [
                 'question_id' => $disease,
                 'visible_text' => '¿Algún familiar tiene ' . mb_strtolower($disease, 'UTF-8') . '?',
                 'instruction' => $disease === 'Diabetes Mellitus'
@@ -590,6 +590,11 @@ final class ConversationalInterviewService
                 'write_enabled' => (bool)($state['write_enabled'] ?? false),
                 'confirmation' => $this->contractConfirmation($state),
             ]);
+            // Keep the question-level write decision explicit: both the
+            // browser dictation guard and the ticket endpoint validate it
+            // independently from the enclosing module state.
+            $question['write_enabled'] = (bool)($state['write_enabled'] ?? false);
+            $questions[] = $question;
         }
         return $questions;
     }
