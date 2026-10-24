@@ -173,11 +173,63 @@ $assert(str_contains($readyHtml, "if (module?.conversation_state?.state === 'REA
     && strpos($readyHtml, "if (module?.conversation_state?.state === 'READY_TO_FINALIZE')") < strpos($readyHtml, 'const eligibility = diagnoseM02DictationEligibility(target, input);')
     && str_contains($readyHtml, "inlineStatus.textContent = '';"), 'canonical finalization must exit dictation diagnostics and clear its stale technical status before eligibility checks');
 $startRecognitionPosition = strpos($readyHtml, 'const startRecognition = async (button, input) => {');
-$readyDictationGuardPosition = strpos($readyHtml, "if (conversationContract.modules?.M02?.conversation_state?.state === 'READY_TO_FINALIZE')", $startRecognitionPosition ?: 0);
-$readyDictationEligibilityPosition = strpos($readyHtml, 'const eligibility = diagnoseM02DictationEligibility(target, input);', $startRecognitionPosition ?: 0);
-$assert($startRecognitionPosition !== false && $readyDictationGuardPosition !== false
-    && $readyDictationEligibilityPosition !== false && $readyDictationGuardPosition < $readyDictationEligibilityPosition,
+$startRecognitionEnd = strpos($readyHtml, 'const stopRecognition =', $startRecognitionPosition ?: 0);
+$startRecognitionBody = $startRecognitionPosition !== false && $startRecognitionEnd !== false
+    ? substr($readyHtml, $startRecognitionPosition, $startRecognitionEnd - $startRecognitionPosition)
+    : '';
+$readyDictationGuardPosition = strpos($startRecognitionBody, "if (conversationContract.modules?.M02?.conversation_state?.state === 'READY_TO_FINALIZE')");
+$readyDictationGuardEnd = $readyDictationGuardPosition !== false
+    ? strpos($startRecognitionBody, '}', $readyDictationGuardPosition)
+    : false;
+$readyDictationGuard = $readyDictationGuardPosition !== false && $readyDictationGuardEnd !== false
+    ? substr($startRecognitionBody, $readyDictationGuardPosition, $readyDictationGuardEnd - $readyDictationGuardPosition + 1)
+    : '';
+$readyDictationDispatchPosition = strpos($startRecognitionBody, "const eligibility = moduleId === 'M02'");
+$sharedEligibilityDispatch = preg_match('/const eligibility = moduleId === \'M02\'\s*\?\s*diagnoseM02DictationEligibility\(target, input\)\s*:\s*moduleId === \'M03\'\s*\?\s*diagnoseM03DictationEligibility\(target, input\)\s*:\s*\{allowed: false, code: \'MODULE_NOT_AUTHORIZED\'\};/', $startRecognitionBody) === 1;
+$assert($startRecognitionBody !== '' && $readyDictationGuardPosition !== false
+    && $readyDictationDispatchPosition !== false && $readyDictationGuardPosition < $readyDictationDispatchPosition
+    && str_contains($readyDictationGuard, "setRecognitionStatus('IDLE', '');")
+    && str_contains($readyDictationGuard, 'return false;')
+    && $sharedEligibilityDispatch,
     'a stale microphone event must not surface internal no-input diagnostics during canonical finalization');
+$m02EligibilityStart = strpos($readyHtml, 'const diagnoseM02DictationEligibility = (target, input) => {');
+$m02EligibilityEnd = strpos($readyHtml, 'const diagnoseM03DictationEligibility = (target, input) => {', $m02EligibilityStart ?: 0);
+$m02EligibilityBody = $m02EligibilityStart !== false && $m02EligibilityEnd !== false
+    ? substr($readyHtml, $m02EligibilityStart, $m02EligibilityEnd - $m02EligibilityStart)
+    : '';
+$m03EligibilityEnd = $m02EligibilityEnd !== false
+    ? strpos($readyHtml, 'const syncM02DictationPermission =', $m02EligibilityEnd)
+    : false;
+$m03EligibilityBody = $m02EligibilityEnd !== false && $m03EligibilityEnd !== false
+    ? substr($readyHtml, $m02EligibilityEnd, $m03EligibilityEnd - $m02EligibilityEnd)
+    : '';
+$dictationClient = file_get_contents(dirname(__DIR__, 2) . '/public/assets/js/patient-interview-local-dictation.js');
+$assert($m02EligibilityBody !== ''
+    && str_contains($m02EligibilityBody, "target !== snapshot.currentTarget")
+    && str_contains($m02EligibilityBody, "card.hidden || card.closest('[hidden], .chat-stage-hidden')")
+    && str_contains($m02EligibilityBody, "question.module_id !== 'M02'")
+    && str_contains($m02EligibilityBody, 'question.stable_id !== target')
+    && str_contains($m02EligibilityBody, "!module || module.conversation_state?.state !== 'ANSWERABLE'")
+    && str_contains($m02EligibilityBody, 'module.state?.write_enabled !== true')
+    && str_contains($m02EligibilityBody, 'question.write_enabled !== true')
+    && str_contains($m02EligibilityBody, 'if (input.disabled)')
+    && str_contains($m02EligibilityBody, 'if (input.readOnly)')
+    && str_contains($m02EligibilityBody, 'PatientInterviewLocalDictation.isM02DictationContractEligible')
+    && str_contains($readyHtml, "if (targetModule === 'M02') return diagnoseM02DictationEligibility(target, input).allowed;")
+    && str_contains($readyHtml, "if (targetModule === 'M03') return diagnoseM03DictationEligibility(target, input).allowed;")
+    && str_contains($readyHtml, 'return false;')
+    && str_contains($m03EligibilityBody, "conversationStages[conversationStage]?.type !== 'm03'")
+    && str_contains($m03EligibilityBody, 'M03_MODULE_INACTIVE')
+    && str_contains($m03EligibilityBody, 'M03_WRITE_DISABLED'),
+    'dictation must require the active editable M02 target, server write authorization and its own eligibility contract, while M03 retains an independent module gate');
+$assert(is_string($dictationClient)
+    && str_contains($dictationClient, 'this.generation === state.generation')
+    && str_contains($dictationClient, "String(this.options.getTarget?.() || '') === state.target")
+    && str_contains($dictationClient, '!this.options.isPaused?.()')
+    && str_contains($dictationClient, '!state.input.disabled')
+    && str_contains($dictationClient, '!state.input.readOnly')
+    && str_contains($dictationClient, 'this._targetAuthorized(state.target, state.input)'),
+    'late dictation callbacks must be rejected when their generation, active question or authorization is stale');
 $assert(str_contains($readyHtml, "conversationCoordinator.voiceEvent(action ? 'ACTION' : 'QUESTION', activeTarget, false)")
     && str_contains($readyHtml, 'event?.action_id === activeTarget'), 'the existing repeat control must validate and replay the canonical finalization action');
 $assert(str_contains($readyHtml, "actionArea.className = 'm02-finalization-actions'")

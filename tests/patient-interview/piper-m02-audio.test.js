@@ -131,6 +131,35 @@ async function run() {
     assert(MockAudio.instances.length === 0 && legacyCompositeStartup.speech.calls.length === 0
         && legacyCompositeStartup.controller.getVoiceDiagnostic()?.source === 'unavailable',
         'An unmapped composite INTERVIEW_STARTUP must never narrate M02 with a different browser voice.');
+
+    for (const conflictingModuleId of ['M01', 'M03', 'M04']) {
+        MockAudio.instances.length = 0;
+        const conflictingModule = createController();
+        conflictingModule.controller.speakEvent({...question, module_id: conflictingModuleId}, {force: true});
+        assert(MockAudio.instances.length === 0,
+            `An M02 stable_id explicitly labeled ${conflictingModuleId} must not select an M02 Piper asset.`);
+        assertM02PiperUnavailable(conflictingModule,
+            `An M02 stable_id explicitly labeled ${conflictingModuleId} must fail closed without voice fallback.`);
+    }
+
+    MockAudio.instances.length = 0;
+    const foreignStableId = createController();
+    foreignStableId.controller.speakEvent({...question, stable_id: 'M04:question:1'}, {force: true});
+    assert(MockAudio.instances.length === 0,
+        'A stable_id outside M02 must not be accepted by the M02 Piper question route.');
+    assertM02PiperUnavailable(foreignStableId,
+        'A foreign stable_id declared as M02 must fail closed without voice fallback.');
+
+    MockAudio.instances.length = 0;
+    const canonicalM02Event = {...question};
+    delete canonicalM02Event.module_id;
+    const legacyM02Event = createController();
+    assert(legacyM02Event.controller.speakEvent(canonicalM02Event, {force: true}),
+        'The canonical coordinator event without a top-level module_id must remain compatible.');
+    assert(MockAudio.instances.length === 1 && MockAudio.instances[0].src === validEntry.src
+        && legacyM02Event.speech.calls.length === 0,
+        'An M02 stable_id without module_id must still select its canonical Piper asset.');
+
     MockAudio.instances.length = 0;
     const {controller, speech} = createController();
     controller.activate(question, null, {automatic: true});
