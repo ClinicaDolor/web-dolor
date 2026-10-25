@@ -10,8 +10,8 @@ use App\Services\ConversationalProvider;
 /**
  * M03 unknown/not-remembered regression.
  *
- * This test uses the approved catalog and local doubles only. It does not open
- * PDO, HTTP, Apache, Gemini or any clinical persistence path.
+ * This test uses the approved catalog and an in-memory SQLite fixture only.
+ * It does not connect to MySQL or execute HTTP, Apache, Gemini or external writes.
  */
 $root = dirname(__DIR__, 2);
 require $root . '/vendor/autoload.php';
@@ -125,6 +125,8 @@ $assert($provider->calls === 0, 'Unknown M03 input must not be sent to the provi
 
 $sqlite = new PDO('sqlite::memory:');
 $sqlite->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$sqlite->exec('CREATE TABLE pc_paciente (id INTEGER PRIMARY KEY)');
+$sqlite->exec('INSERT INTO pc_paciente (id) VALUES (9301)');
 $sqlite->exec('CREATE TABLE pac_temas_modulo_3 (id INTEGER PRIMARY KEY, tema TEXT NOT NULL)');
 $sqlite->exec('CREATE TABLE pac_preguntas_modulo_3 (id INTEGER PRIMARY KEY, id_tema INTEGER NOT NULL, pregunta TEXT NOT NULL, tipo TEXT NOT NULL)');
 $sqlite->exec('CREATE TABLE pac_respuestas_paciente_modulo_3 (id INTEGER PRIMARY KEY AUTOINCREMENT, id_pregunta INTEGER NOT NULL, id_paciente INTEGER NOT NULL, respuesta TEXT NOT NULL)');
@@ -146,6 +148,15 @@ $assert(($adapterUnknown['kind'] ?? '') === 'm03_proposal' && ($adapterUnknown['
 $assert(($adapterUnknown['structured_value'] ?? '') === 'No lo sé' && ($adapterUnknown['direct_save'] ?? false) === true, 'Adapter did not normalize UNKNOWN to its canonical text');
 $assert(($adapterUnknown['unknown_response']['storage'] ?? '') === 'respuesta_text' && ($adapterUnknown['unknown_response']['never_infer_negative'] ?? false) === true, 'Textual UNKNOWN storage contract is incomplete');
 $beforeRows = (int)$sqlite->query('SELECT COUNT(*) FROM pac_respuestas_paciente_modulo_3')->fetchColumn();
+$blockedNegative = $adapter->capture(9301, [
+    'kind' => 'm03_proposal',
+    'question_id' => 27,
+    'theme_id' => 7,
+    'structured_value' => 'No',
+], null);
+$assert(($blockedNegative['code'] ?? '') === 'M03_BLOOD_RH_NEGATIVE_INVALID', 'Blood group No capture was not rejected');
+$assert($beforeRows === (int)$sqlite->query('SELECT COUNT(*) FROM pac_respuestas_paciente_modulo_3')->fetchColumn(), 'Invalid blood/Rh negative capture modified the local fixture');
+$beforeRows = (int)$sqlite->query('SELECT COUNT(*) FROM pac_respuestas_paciente_modulo_3')->fetchColumn();
 $textualSaved = $adapter->capture(9301, $adapterUnknown, null);
 $afterRows = (int)$sqlite->query('SELECT COUNT(*) FROM pac_respuestas_paciente_modulo_3')->fetchColumn();
 $assert((int)($textualSaved['resultado'] ?? 0) === 200 && ($textualSaved['readback'] ?? false) === true, 'Textual UNKNOWN capture/readback failed');
@@ -157,14 +168,6 @@ $textualQuestion = array_values(array_filter($textualRead['questions'], static f
 $assert(($textualQuestion['semanticState'] ?? '') === 'UNKNOWN', 'Textual UNKNOWN readback was not projected semantically');
 $variant = $adapter->interpret(9301, 28, 'No recuerdo exactamente');
 $assert(($variant['semantic_state'] ?? '') === 'NOT_REMEMBERED' && ($variant['structured_value'] ?? '') === 'No recuerdo', 'NOT_REMEMBERED variant was not normalized canonically');
-$blockedNegative = $adapter->capture(9301, [
-    'kind' => 'm03_proposal',
-    'question_id' => 27,
-    'theme_id' => 7,
-    'structured_value' => 'No',
-], null);
-$assert(($blockedNegative['code'] ?? '') === 'M03_BLOOD_RH_NEGATIVE_INVALID', 'Blood group No capture was not rejected');
-$assert($afterRows === (int)$sqlite->query('SELECT COUNT(*) FROM pac_respuestas_paciente_modulo_3')->fetchColumn(), 'Invalid blood/Rh negative capture modified the local fixture');
 
 $sqlite->exec('ALTER TABLE pac_respuestas_paciente_modulo_3 ADD COLUMN estado_respuesta VARCHAR(24) NULL');
 $sqlite->exec('ALTER TABLE pac_respuestas_paciente_modulo_3 ADD COLUMN origen_respuesta VARCHAR(32) NULL');

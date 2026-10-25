@@ -25,10 +25,41 @@ $assert(str_contains($adapter, '1 => 1') && str_contains($adapter, 'PARENT_BY_TH
 $assert(str_contains($model, 'if ($idTema > 0)') && str_contains($service, 'obtenerPreguntasEntrevista($patientId, 0)'), 'M03 interpretation must read the complete catalog');
 $assert(str_contains($service, "'requires_question' => 'M03:question:'"), 'M03 dependency contract is missing');
 $assert(str_contains($view, "question.dataset.eligible === '1'"), 'Client navigation does not consult eligibility');
-$assert(str_contains($view, 'showNextM03Question(question, null, data.finalized === true)'), 'M03 save paths do not require finalized server readback before leaving the module');
+$assert(str_contains($view, 'data.readback !== true')
+    && str_contains($view, 'applyM03ServerEligibility(data, Number(question.dataset.questionId))')
+    && str_contains($view, 'showNextM03Question(question, data.next_question_id, data.finalized === true)')
+    && str_contains($adapter, 'nextPendingQuestionId'),
+    'M03 navigation must wait for readback and use the server-selected eligible question');
 $assert(!str_contains($view, 'if (active < questions.length - 1) showQuestion(active + 1)'), 'M03 still advances by raw array position');
-$assert(str_contains($view, 'data-interview-zone="response"') && str_contains($view, 'responseZone.hidden = !canEditQuestion'), 'Returning to a saved question must restore its hidden response zone');
-$assert(str_contains($view, 'showQuestion(previousIndex)') && str_contains($view, 'input.value = previous.dataset.savedValue'), 'Previous navigation must rehydrate the prior answer control');
+$assert(str_contains($view, 'data-interview-zone="response"') && str_contains($view, 'responseZone.hidden = reviewOnly || !canEditQuestion'), 'Only consultation mode may hide a saved previous response form');
+$assert(str_contains($view, "showQuestion(previousIndex, {mode: previousEditAllowed ? 'direct-edit' : 'review', returnIndex: active, discardDraft: true, narrateQuestion: true, userGesture: true})")
+    && str_contains($view, "candidateContract?.response?.status !== 'documented'")
+    && str_contains($view, "candidateContract?.response?.persisted !== true"),
+    'Previous navigation must require persisted readback and enter a fail-closed consultation state');
+$assert(str_contains($view, 'data-m03-next')
+    && str_contains($view, 'const navigateM03Next = button =>')
+    && str_contains($view, "conversationCoordinator.invalidate('history_next_question')")
+    && str_contains($view, "conversationCoordinator.invalidate('history_return_to_pending')")
+    && str_contains($view, 'isPersistedEligibleM03Question(candidate)')
+    && str_contains($view, "showQuestion(index, {mode, returnIndex, discardDraft: true, narrateQuestion: true, userGesture: true})")
+    && str_contains($view, "return showQuestion(returnIndex, {discardDraft: true, narrateQuestion: true, userGesture: true, allowCurrentPending: true})"),
+    'History navigation must step across persisted eligible questions and return to the pending server target');
+$assert(str_contains($view, "control.disabled = true") && str_contains($view, "confirmed.hidden = !reviewOnly")
+    && str_contains($view, "input.value = String(question.dataset.savedValue || '')")
+    && str_contains($view, 'options.discardDraft === true')
+    && str_contains($view, "responseZone.hidden = reviewOnly || !canEditQuestion"),
+    'Read-only review stays disabled while authorized previous-edit mode restores the saved answer into the original input');
+$assert(str_contains($view, 'idRespuesta: Number(question.dataset.responseId || 0)')
+    && str_contains($view, 'editingPreviousAnswer')
+    && str_contains($view, 'Number(data.response_id) !== Number(question.dataset.responseId || 0)')
+    && str_contains($view, 'question.dataset.savedValue = String(data.readback_value ?? value)'),
+    'Previous edit must submit the existing response identity and require same-row readback');
+$assert(str_contains($adapter, 'serverAuthorizesHistoricalEdit')
+    && str_contains($adapter, 'historicalEditableQuestionIds')
+    && str_contains($service, '\'editable\' => (bool)($row[\'historicalEditable\'] ?? false)')
+    && str_contains($adapter, '$expectedResponseId !== (int)$question[\'idRespuesta\']')
+    && str_contains($model, 'M03_RESPONSE_ID_CONFLICT'),
+    'The server must authorize eligible persisted history with version and response identity checks');
 $catalogQuestions = $catalog['questions'] ?? [];
 $sleep = array_values(array_filter($catalogQuestions, static fn(array $question): bool => (int)($question['id'] ?? 0) === 21))[0] ?? null;
 $blood = array_values(array_filter($catalogQuestions, static fn(array $question): bool => (int)($question['id'] ?? 0) === 27))[0] ?? null;

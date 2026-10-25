@@ -175,6 +175,7 @@ $r->addRoute('POST', '/login', ['LoginController', 'loginPaciente']);
 $r->addRoute('GET', '/entrevista', ['PatientInterviewController', 'index']);
 $r->addRoute('GET', '/respuestas-previas', ['PatientInterviewController', 'previousResponses']);
 $r->addRoute('POST', '/respuestas-previas/m02', ['PatientInterviewController', 'updatePreviousM02']);
+$r->addRoute('POST', '/respuestas-previas/m03', ['PatientInterviewController', 'updatePreviousM03']);
 $r->addRoute('GET', '/diagnostico-voz', ['LocalVoiceDiagnosticController', 'index']);
 $r->addRoute('POST', '/diagnostico-voz/ticket', ['LocalVoiceDiagnosticController', 'issueTicket']);
 $r->addRoute('POST', '/entrevista/dictation-ticket', ['PatientInterviewController', 'issueDictationTicket']);

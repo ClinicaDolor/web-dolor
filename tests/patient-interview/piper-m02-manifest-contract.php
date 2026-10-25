@@ -158,7 +158,37 @@ $assert(str_contains($view, "\$requestHost === 'clinica.test'") && str_contains(
 $assert(str_contains($view, "\$_GET['m02_voice'] ?? '') !== 'web'"), 'A local-only Web Speech opt-out must remain available.');
 $assert(str_contains($view, "\$m02PiperManifestSha256 = '" . hash('sha256', $manifestRaw) . "'") , 'The application must pin the current manifest digest.');
 $assert(str_contains($view, "\$canonicalQuestion['module_id'] ?? null) !== 'M02'") && str_contains($view, "\$canonicalText !== \$manifestText"), 'Server must require the matching canonical M02 question text.');
-$assert(str_contains($voice, "!['QUESTION', 'HELP'].includes(event?.type)") && str_contains($voice, "event.type === 'HELP' ? mappedEntry?.help : mappedEntry") && str_contains($voice, "event?.stable_id || ''))"), 'Piper routing must require a canonical M02 event and select a distinct help asset only for HELP.');
+$routerStart = strpos($voice, 'piperAudioEntryFor(event) {');
+$routerEnd = $routerStart === false ? false : strpos($voice, "\n        requiresM02PiperAudio(event) {", $routerStart);
+$piperRouter = $routerStart !== false && $routerEnd !== false
+    ? substr($voice, $routerStart, $routerEnd - $routerStart)
+    : '';
+$assert($piperRouter !== '', 'The shared Piper question router must be present and bounded before the M02 audio requirement helper.');
+$questionHelpStart = strpos($piperRouter, "if (!['QUESTION', 'HELP'].includes(event?.type)) return null;");
+$questionHelpRouter = $questionHelpStart === false ? '' : substr($piperRouter, $questionHelpStart);
+$assert($questionHelpRouter !== '', 'The canonical QUESTION/HELP route must exist inside the shared Piper router.');
+$routerChecks = [
+    "if (!['QUESTION', 'HELP'].includes(event?.type)) return null;",
+    "const stableId = String(event?.stable_id || '');",
+    "if (!isM03Question && !/^M02:family:/.test(stableId)) return null;",
+    ': this.piperAudio.entries;',
+    'const mappedEntry = entries?.[stableId];',
+    "const entry = event.type === 'HELP' ? mappedEntry?.help : mappedEntry;",
+    'entry.module_id !== moduleId || entry.stable_id !== stableId',
+    "entry.text !== String(event.text || '')",
+    "!/^[a-f0-9]{64}$/.test(String(entry.text_sha256 || ''))",
+    "!/^[a-f0-9]{64}$/.test(String(entry.audio_sha256 || ''))",
+    'source.origin !== global.location.origin',
+];
+$routerPositions = array_map(static fn (string $check): int|false => strpos($questionHelpRouter, $check), $routerChecks);
+$routerChecksPresent = $questionHelpRouter !== '' && !in_array(false, $routerPositions, true);
+$routerChecksOrdered = $routerChecksPresent && $routerPositions === array_values($routerPositions)
+    && $routerPositions === (static function (array $positions): array {
+        $sorted = $positions;
+        sort($sorted);
+        return $sorted;
+    })($routerPositions);
+$assert($routerChecksOrdered, 'M02 Piper routing must validate QUESTION/HELP, canonical M02 stable_id, map by stable_id, use a separate help asset only for HELP, and validate entry identity, exact text, hashes and same-origin source within the actual shared router.');
 $assert(str_contains($view, "\$m02PiperManifest['action_audio'] ?? null")
     && str_contains($view, "\$canonicalFinalizeText !== '' && \$actionText === \$canonicalFinalizeText")
     && str_contains($view, "\$m02PiperAudioConfig['actions'][\$finalizeActionId]"),
@@ -192,14 +222,33 @@ $assert(str_contains($view, "if (!utterance) { announceEmptyResponse(question, '
     && str_contains($view, "m02ErrorMessages.EMPTY_RESPONSE")
     && str_contains($view, "question.module_id !== moduleId")
     && str_contains($view, "voiceController?.cancel();"), 'M03 empty input must emit one active-question-scoped shared error and cancel stale narration before replay.');
-$m03InterpretStart = strpos($view, 'const interpret = async question =>');
-$m03InterpretEnd = strpos($view, 'const captureSafeM03No =', $m03InterpretStart ?: 0);
+$m03InterpretStart = strpos($view, 'const interpret = async question => {');
+$m03InterpretEnd = $m03InterpretStart === false ? false : strpos($view, 'const captureM03ContextualAction = async (question, button) => {', $m03InterpretStart);
 $m03InterpretBody = $m03InterpretStart !== false && $m03InterpretEnd !== false
     ? substr($view, $m03InterpretStart, $m03InterpretEnd - $m03InterpretStart) : '';
-$emptyBranchPosition = strpos($m03InterpretBody, "if (!utterance) { announceEmptyResponse(question, 'M03'); return; }");
+$m03UtterancePosition = strpos($m03InterpretBody, 'const utterance = valueFor(question);');
+$emptyGuard = "if (!utterance) { announceEmptyResponse(question, 'M03'); return; }";
+$emptyBranchPosition = strpos($m03InterpretBody, $emptyGuard);
+$directSavePosition = strpos($m03InterpretBody, 'const directMode = directModeForM03(question);');
 $fetchPosition = strpos($m03InterpretBody, 'fetch(');
-$assert($emptyBranchPosition !== false && $fetchPosition !== false && $emptyBranchPosition < $fetchPosition,
-    'An empty M03 submission must stop locally before any request or persistence attempt.');
+$confirmSavePosition = strpos($m03InterpretBody, 'await confirmAndSave(question');
+$m03HandlerConfirmed = $m03InterpretBody !== ''
+    && $m03UtterancePosition !== false
+    && $directSavePosition !== false
+    && str_contains($m03InterpretBody, 'm03QuestionViewRevision')
+    && str_contains($m03InterpretBody, "modulo:'M03'");
+$emptyBranchReturns = $emptyBranchPosition !== false && str_contains($emptyGuard, 'return;');
+$emptyBranchPrecedesEffects = $emptyBranchPosition !== false
+    && $directSavePosition !== false && $fetchPosition !== false && $confirmSavePosition !== false
+    && $emptyBranchPosition < $directSavePosition
+    && $emptyBranchPosition < $fetchPosition
+    && $emptyBranchPosition < $confirmSavePosition;
+$beforeEmptyGuard = $emptyBranchPosition !== false ? substr($m03InterpretBody, 0, $emptyBranchPosition) : '';
+$noEarlierEffects = !str_contains($beforeEmptyGuard, 'fetch(')
+    && !str_contains($beforeEmptyGuard, 'saveAndAdvanceM03Direct(')
+    && !str_contains($beforeEmptyGuard, 'confirmAndSave(');
+$assert($m03HandlerConfirmed && $emptyBranchReturns && $emptyBranchPrecedesEffects && $noEarlierEffects,
+    'The bounded M03 interpret handler must reject empty input and return before direct-save dispatch, confirmation-save dispatch, or fetch.');
 $assert(str_contains($view, "'EMPTY_RESPONSE' => 'Escribe una respuesta para revisarla.'")
     && str_contains($view, "EMPTY_RESPONSE: 'Escribe una respuesta para revisarla.'"), 'The visible message must exactly match the signed Piper clip text.');
 $assert(str_contains($voice, "if (event?.type === 'ERROR')")

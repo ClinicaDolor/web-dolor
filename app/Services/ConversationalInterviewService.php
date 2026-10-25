@@ -480,6 +480,7 @@ final class ConversationalInterviewService
             'required' => ($data['required'] ?? true) !== false,
             'source' => $data['source'] ?? 'conversational_adapter',
         ];
+        if (array_key_exists('actions', $data)) $question['actions'] = $data['actions'];
         if (array_key_exists('active', $data)) $question['active'] = $data['active'] === true;
         if (array_key_exists('active_field', $data)) $question['active_field'] = $data['active_field'];
         return $question;
@@ -521,6 +522,50 @@ final class ConversationalInterviewService
 
     private function m03QuestionHelp(array $row, string $instruction, array $options): string
     {
+        $questionId = (int)($row['idPregunta'] ?? 0);
+        $themeId = (int)($row['idTema'] ?? 0);
+        if ($themeId === 1) {
+            $tobaccoHelp = [
+                1 => 'Indica si actualmente fumas cigarros. Puedes responder con tus propias palabras y agregar detalles. Si no fumas, utiliza el botón No, guardar y continuar.',
+                2 => 'Indica la edad a la que comenzaste a fumar. Si no recuerdas la edad exacta, puedes escribir una aproximada si la conoces. Si no la recuerdas, selecciona No recuerdo.',
+                3 => 'Indica durante cuánto tiempo has fumado. Puedes responder con tus propias palabras. Si no lo recuerdas, selecciona No recuerdo.',
+                4 => 'Indica cuántos cigarrillos consumes, en promedio, al día. Puedes expresarlo con tus propias palabras. Si no lo recuerdas, selecciona No recuerdo.',
+                5 => 'Si ya dejaste de fumar, indica hace cuánto tiempo lo suspendiste. Puedes responder con tus propias palabras.',
+            ];
+            if (isset($tobaccoHelp[$questionId])) return $tobaccoHelp[$questionId];
+        }
+
+        // Keep M03 guidance specific to the catalog question. These messages
+        // explain what the patient may report; they do not classify severity,
+        // infer missing facts, or add answer choices to the clinical schema.
+        $sharedM03Help = [
+            6 => 'Indica si actualmente consumes bebidas alcohólicas. Responde según tu situación actual; no se supondrá que nunca consumiste alcohol.',
+            8 => 'Indica con qué frecuencia consumes alcohol. Puedes expresarlo con tus propias palabras; si no recuerdas la frecuencia, selecciona No recuerdo.',
+            9 => 'Indica durante cuánto tiempo has consumido alcohol. No necesitas convertirlo a una fecha exacta; si no recuerdas el tiempo, selecciona No recuerdo.',
+            10 => 'Indica qué tipo de bebida alcohólica consumes con mayor frecuencia. Si no conoces o no recuerdas el tipo, selecciona No lo sé.',
+            // Q11 remains dependent on Q6 in the existing catalog contract.
+            // The current schema cannot separately represent past-only use
+            // after a current-use answer of No; do not imply that No means
+            // never consumed or invent a historical-use flag here.
+            11 => 'Si ya suspendiste el consumo de alcohol, indica hace cuánto tiempo. No inventes un tiempo; si no lo recuerdas, puedes escribirlo expresamente.',
+            12 => 'Indica si actualmente practicas ejercicio. Responde según tu situación, sin agregar una actividad que no realices.',
+            13 => 'Indica con qué frecuencia practicas ejercicio. Puedes mencionar los días o la frecuencia que corresponda; si no lo recuerdas, selecciona No recuerdo.',
+            14 => 'Indica hace cuánto tiempo comenzaste a ejercitarte regularmente. Puedes dar un periodo aproximado si lo conoces; si no lo recuerdas, selecciona No recuerdo.',
+            15 => 'Indica qué tipo de ejercicio practicas principalmente. Si no conoces o no recuerdas el tipo, selecciona No lo sé.',
+            16 => 'Indica si actualmente experimentas estrés. Responde desde tu propia percepción, sin que el sistema determine tu nivel.',
+            17 => 'Describe cómo percibes tu nivel de estrés. Leve, moderado y severo son referencias para ayudarte; puedes responder con tus propias palabras. Si no lo sabes, selecciona No lo sé.',
+            18 => 'Indica si consumes algún tipo de droga. Responde con tus propias palabras; no se supondrá una sustancia ni una frecuencia.',
+            19 => 'Indica con qué frecuencia consumes. No se inferirá una frecuencia distinta de la que reportes; si no la recuerdas, selecciona No recuerdo.',
+            20 => 'Indica qué tipo de droga consumes con mayor frecuencia, si corresponde. No se supondrá ninguna sustancia; si no lo sabes, selecciona No lo sé.',
+            21 => 'Indica si actualmente consumes algún medicamento para dormir. No se supondrá el nombre, la dosis ni la frecuencia.',
+            23 => 'Indica con qué frecuencia utilizas el medicamento para dormir. Si no recuerdas la frecuencia, selecciona No recuerdo.',
+            24 => 'Indica el nombre del medicamento para dormir que utilizas. Si no conoces o no recuerdas el nombre, selecciona No lo sé.',
+            26 => 'Indica la dosis que utilizas y conserva las unidades que conozcas. No agregues una unidad que no recuerdes; si no recuerdas la dosis, selecciona No recuerdo.',
+            27 => 'Indica tu grupo sanguíneo si lo conoces. El grupo y el factor Rh se registran por separado; no se inferirá uno a partir del otro.',
+            28 => 'Indica tu factor Rh si lo conoces. No se inferirá a partir del grupo sanguíneo; si no lo sabes, selecciona No lo sé.',
+        ];
+        if (($sharedM03Help[$questionId] ?? null) !== null) return $sharedM03Help[$questionId];
+
         $question = trim((string)($row['pregunta'] ?? ''));
         $theme = trim((string)($row['tema'] ?? ''));
         $parts = [];
@@ -612,7 +657,22 @@ final class ConversationalInterviewService
             $persisted = (int)($row['idRespuesta'] ?? 0) > 0 && ($value !== '' || in_array($semanticState, ['UNKNOWN', 'NOT_REMEMBERED'], true));
             $instruction = (string)($row['tipo'] ?? '') === 'select' ? 'Responde Sí o No de forma clara.' : 'Escribe o dicta la respuesta completa antes de enviarla.';
             $options = (string)($row['tipo'] ?? '') === 'select' ? ['Si', 'No'] : [];
-            $questions[] = $this->contractQuestion('M03', 'M03:question:' . $questionId, (string)($row['pregunta'] ?? ''), [
+            $dependencies = !empty($row['parentQuestionId'])
+                ? [[
+                    'requires_question' => 'M03:question:' . (int)$row['parentQuestionId'],
+                    'when' => (int)$row['parentQuestionId'] === M03TobaccoResponsePolicy::QUESTION_ID ? 'navigation_decision=AFFIRMATIVE' : 'respuesta=Si',
+                ]]
+                : [];
+            $responseMetadata = [
+                'semantic_state' => $semanticState,
+                'origin' => $row['origenRespuesta'] ?? null,
+                'state_at' => $row['estadoRespuestaAt'] ?? null,
+                'eligible' => (bool)($row['eligible'] ?? true),
+                'editable' => (bool)($row['historicalEditable'] ?? false),
+                'version' => $state['version'] ?? null,
+            ];
+            if (array_key_exists('navigationDecision', $row)) $responseMetadata['navigation_decision'] = $row['navigationDecision'];
+            $question = $this->contractQuestion('M03', 'M03:question:' . $questionId, (string)($row['pregunta'] ?? ''), [
                 'question_id' => $questionId,
                 'theme_id' => (int)($row['idTema'] ?? 0),
                 'theme' => (string)($row['tema'] ?? ''),
@@ -620,19 +680,19 @@ final class ConversationalInterviewService
                 'instruction' => $instruction,
                 'help' => $this->m03QuestionHelp($row, $instruction, $options),
                 'options' => $options,
-                'dependencies' => !empty($row['parentQuestionId']) ? [['requires_question' => 'M03:question:' . (int)$row['parentQuestionId'], 'when' => 'respuesta=Si']] : [],
+                'dependencies' => $dependencies,
                 'clarification_conditions' => ['ambiguous', 'incomplete', 'unknown', 'dependency_pending'],
-                'response' => $this->contractResponse($value !== '' ? $value : null, $persisted ? 'documented' : 'pending', $persisted, [
-                    'semantic_state' => $semanticState,
-                    'origin' => $row['origenRespuesta'] ?? null,
-                    'state_at' => $row['estadoRespuestaAt'] ?? null,
-                    'eligible' => (bool)($row['eligible'] ?? true),
-                    'version' => $state['version'] ?? null,
-                ]),
+                'response' => $this->contractResponse($value !== '' ? $value : null, $persisted ? 'documented' : 'pending', $persisted, $responseMetadata),
                 'write_enabled' => (bool)($state['write_enabled'] ?? false),
                 'confirmation' => $this->contractConfirmation($state),
                 'completion' => ['required' => true, 'status' => $persisted ? 'complete' : 'pending'],
             ]);
+            // contractQuestion() uses this policy to derive related defaults,
+            // but deliberately does not project the property itself. Expose
+            // the same module policy on M03 questions so client and ticket
+            // guards can evaluate the per-question contract explicitly.
+            $question['write_enabled'] = (bool)($state['write_enabled'] ?? false);
+            $questions[] = $question;
         }
         return $questions;
     }
@@ -1018,6 +1078,48 @@ final class ConversationalInterviewService
         }
 
         $started = microtime(true);
+        if (M03TobaccoResponsePolicy::isQuestion($question)) {
+            $decision = M03TobaccoResponsePolicy::classify($utterance);
+            $this->emitTrace('M03', 'tobacco_classification', strtolower($decision), $decision === M03TobaccoResponsePolicy::AMBIGUOUS, $started);
+            if ($decision === M03TobaccoResponsePolicy::AMBIGUOUS) {
+                return [
+                    'mode' => 'deterministic',
+                    'kind' => 'clarification',
+                    'question_id' => $questionId,
+                    'theme_id' => (int)$question['idTema'],
+                    'needs_clarification' => true,
+                    'error_code' => 'M03_TOBACCO_ANSWER_AMBIGUOUS',
+                    'clarification' => 'No pude identificar tu respuesta. Para continuar, dime claramente si fumas cigarros de nicotina. Puedes responder: sí, fumo; no, no fumo; no lo sé o no lo recuerdo. Tu respuesta no se guardó. Puedes intentarlo nuevamente.',
+                    'can_confirm' => false,
+                    'direct_save' => false,
+                ];
+            }
+            $semanticState = M03TobaccoResponsePolicy::semanticState($decision);
+            if ($semanticState === null) {
+                return ['mode' => 'deterministic', 'kind' => 'clarification', 'question_id' => $questionId, 'needs_clarification' => true, 'can_confirm' => false, 'direct_save' => false];
+            }
+            $unknown = in_array($decision, [M03TobaccoResponsePolicy::UNKNOWN, M03TobaccoResponsePolicy::NOT_REMEMBERED], true);
+            $semanticColumns = $m03Model->m03SemanticStateAvailable();
+            $value = $unknown && $semanticColumns
+                ? null
+                : M03TobaccoResponsePolicy::storedValue($utterance);
+            return [
+                'mode' => 'deterministic',
+                'kind' => 'm03_proposal',
+                'target' => 'm03',
+                'question_id' => $questionId,
+                'theme_id' => (int)$question['idTema'],
+                'question' => (string)$question['pregunta'],
+                'structured_value' => $value,
+                'semantic_state' => $semanticState,
+                'interpretation' => $decision === M03TobaccoResponsePolicy::AFFIRMATIVE ? (string)($value ?? 'Sí') : (string)($value ?? 'Dato pendiente'),
+                'navigation_decision' => $decision,
+                'needs_clarification' => false,
+                'requires_confirmation' => false,
+                'can_confirm' => true,
+                'direct_save' => true,
+            ];
+        }
         $unknownState = self::classifyM03Unknown($utterance);
         if ($unknownState !== null) {
             $this->emitTrace('M03', 'semantic_classification', 'unknown_or_not_remembered', false, $started, $unknownState);

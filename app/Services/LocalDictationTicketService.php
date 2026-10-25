@@ -10,7 +10,7 @@ final class LocalDictationTicketService
     public const DIAGNOSTIC_PURPOSE = 'local_voice_diagnostic';
     public const DIAGNOSTIC_ORIGIN = 'https://clinica.test:8443';
     public const TTL_SECONDS = 30;
-    private const STABLE_ID_PATTERN = '/^M02(?::[A-Za-z0-9_-]+){1,4}$/D';
+    private const STABLE_ID_PATTERN = '/^(?:M02(?::[A-Za-z0-9_-]+){1,4}|M03:question:[1-9][0-9]*)$/D';
     private const ALLOWED_ORIGINS = ['https://clinica.test', 'https://clinica.test:8443'];
 
     public function __construct(private readonly string $secret)
@@ -18,6 +18,34 @@ final class LocalDictationTicketService
         if (strlen($secret) !== 32) {
             throw new \InvalidArgumentException('DICTATION_TICKET_KEY_INVALID');
         }
+    }
+
+    /** M03 clinical tickets may target only an eligible, writable question from the shared read contract. */
+    public static function isEligibleM03QuestionTarget(string $stableId, ?array $question, ?array $module): bool
+    {
+        if (!preg_match('/^M03:question:([1-9][0-9]*)$/D', $stableId, $matches)
+            || !is_array($question)
+            || !is_array($module)
+            || ($question['module_id'] ?? null) !== 'M03'
+            || ($question['stable_id'] ?? null) !== $stableId
+            || !is_scalar($question['question_id'] ?? null)
+            || (string)(int)$question['question_id'] !== $matches[1]
+            || ($question['write_enabled'] ?? false) !== true
+            || ($question['response']['eligible'] ?? false) !== true
+            || ($module['state']['write_enabled'] ?? false) !== true
+            || ($module['state']['finalized'] ?? true) === true
+            || ($module['conversation_state']['state'] ?? null) !== 'ANSWERABLE') {
+            return false;
+        }
+
+        $response = $question['response'] ?? [];
+        $pendingAndActive = ($response['status'] ?? null) === 'pending';
+        $savedAnswerEditable = ($response['status'] ?? null) === 'documented'
+            && ($response['persisted'] ?? false) === true
+            && ($response['editable'] ?? false) === true;
+        $isCurrentTarget = ($module['conversation_state']['stable_id'] ?? null) === $stableId;
+        return ($pendingAndActive && $isCurrentTarget)
+            || $savedAnswerEditable;
     }
 
     public function issue(int $patientId, string $jwt, string $stableId, string $origin, ?int $now = null): array

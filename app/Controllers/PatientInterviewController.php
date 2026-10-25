@@ -16,6 +16,8 @@ use App\Services\ConversationalM06Adapter;
 use App\Services\ConversationalM07Adapter;
 use App\Services\ConversationalM09Adapter;
 use App\Services\ConversationalM03Adapter;
+use App\Services\M03TobaccoResponsePolicy;
+use App\Services\PreviousResponsesStatusClassifier;
 use App\Services\ConversationalM09MapAdapter;
 use App\Services\ConversationalM08TreatmentAdapter;
 use App\Services\LocalDictationTicketService;
@@ -103,6 +105,8 @@ final class PatientInterviewController extends BaseController
 
         $m02Adapter = new ConversationalM02Adapter();
         $m02State = $m02Adapter->read($patientId);
+        $m03Adapter = new ConversationalM03Adapter();
+        $m03State = $m03Adapter->read($patientId);
         $contract = $this->conversationService()->buildUnifiedContract(['M02' => $m02State]);
         $questions = $contract['modules']['M02']['questions'] ?? [];
         $recordsByDisease = [];
@@ -111,13 +115,26 @@ final class PatientInterviewController extends BaseController
         }
 
         $entries = [];
+        $m02StatusItems = [];
+        $m02QuestionNumber = 0;
         foreach ($questions as $question) {
+            $m02QuestionNumber++;
             $disease = (string)($question['question_id'] ?? '');
             $record = $recordsByDisease[$disease] ?? null;
-            if (($question['module_id'] ?? null) !== 'M02'
-                || ($question['response']['persisted'] ?? false) !== true
-                || !is_array($record)
-                || (int)($record['id'] ?? 0) < 1) {
+            if (($question['module_id'] ?? null) !== 'M02') {
+                continue;
+            }
+            $responsePersisted = ($question['response']['persisted'] ?? false) === true;
+            $recordId = is_array($record) ? (int)($record['id'] ?? 0) : 0;
+            $classification = PreviousResponsesStatusClassifier::m02($question, is_array($record) ? $record : null, $m02State);
+            if (!$responsePersisted || !is_array($record) || $recordId < 1) {
+                $m02StatusItems[] = [
+                    'number' => $m02QuestionNumber,
+                    'stable_id' => (string)($question['stable_id'] ?? ''),
+                    'question_id' => $disease,
+                    'question' => (string)($question['original_question'] ?? $question['visible_text'] ?? ''),
+                    ...$classification,
+                ];
                 continue;
             }
             $structured = ($record['relatives'] ?? []) !== [] || ($record['invalid_relatives'] ?? []) !== [];
@@ -135,9 +152,12 @@ final class PatientInterviewController extends BaseController
                 'abuela' => 'Abuela', 'abuelo' => 'Abuelo', 'hija' => 'Hija', 'hijo' => 'Hijo', 'familia' => 'Otro familiar',
             ];
             $entries[] = [
+                'number' => $m02QuestionNumber,
                 'stable_id' => (string)$question['stable_id'],
                 'question' => (string)($question['original_question'] ?? $question['visible_text'] ?? ''),
                 'disease' => $disease,
+                'review_status' => $classification['status'],
+                'review_pending' => $classification['pending'],
                 'answer' => $this->formatM02CurrentAnswer($record),
                 'answer_input' => $answerInput,
                 'relatives' => array_values(array_filter($record['relatives'] ?? [], 'is_string')),
@@ -160,12 +180,127 @@ final class PatientInterviewController extends BaseController
             ];
         }
 
+        $m03ThemeGroups = [];
+        $m03QuestionGroupsById = [];
+        foreach (($m03State['questions'] ?? []) as $question) {
+            if (!is_array($question)) continue;
+            $themeId = (int)($question['idTema'] ?? 0);
+            $questionId = (int)($question['idPregunta'] ?? 0);
+            if ($themeId < 1 || $questionId < 1) continue;
+            if (!isset($m03ThemeGroups[$themeId])) {
+                $m03ThemeGroups[$themeId] = ['theme_id' => $themeId, 'theme' => (string)($question['tema'] ?? ''), 'questions' => []];
+            }
+            $m03ThemeGroups[$themeId]['questions'][$questionId][] = $question;
+            $m03QuestionGroupsById[$questionId][] = $question;
+        }
+        ksort($m03ThemeGroups, SORT_NUMERIC);
+        $m03Themes = [];
+        $m03QuestionNumber = 0;
+        foreach ($m03ThemeGroups as $themeGroup) {
+            $themeEntries = [];
+            $themeConflicts = [];
+            $themeStatusItems = [];
+            foreach ($themeGroup['questions'] as $questionId => $questionRows) {
+                $m03QuestionNumber++;
+                if (count($questionRows) !== 1) {
+                    $themeConflicts[] = [
+                        'number' => $m03QuestionNumber,
+                        'question_id' => (int)$questionId,
+                        'stable_id' => 'M03:question:' . (int)$questionId,
+                        'question' => (string)($questionRows[0]['pregunta'] ?? ''),
+                        'status' => 'REQUIERE_REVISION',
+                        'pending' => true,
+                        'reason' => 'Se detectaron varias respuestas registradas para esta pregunta. No se muestra una como vigente ni se permite editar hasta aclarar la duplicidad.',
+                    ];
+                    continue;
+                }
+                $question = $questionRows[0];
+                $semanticState = strtoupper(trim((string)($question['semanticState'] ?? '')));
+                $answer = trim((string)($question['respuesta'] ?? ''));
+                $classification = PreviousResponsesStatusClassifier::m03(
+                    $questionRows,
+                    $m03QuestionGroupsById,
+                    !empty($m03State['semantic_state_available']),
+                    !empty($m03State['finalized'])
+                );
+                $persisted = (int)($question['idRespuesta'] ?? 0) > 0
+                    && ($answer !== '' || in_array($semanticState, ['KNOWN', 'NEGATIVE', 'UNKNOWN', 'NOT_REMEMBERED'], true));
+                if (!$persisted) {
+                    $themeStatusItems[] = [
+                        'number' => $m03QuestionNumber,
+                        'question_id' => (int)$questionId,
+                        'stable_id' => 'M03:question:' . (int)$questionId,
+                        'question' => (string)($question['pregunta'] ?? ''),
+                        ...$classification,
+                    ];
+                    continue;
+                }
+
+                $blockerCode = $m03Adapter->previousResponseEditBlockerCode($m03State, $question);
+                if (in_array($blockerCode, ['M03_PREVIOUS_STATE_UNVERIFIED', 'M03_PREVIOUS_STATE_INCONSISTENT', 'M03_PREVIOUS_SELECT_INCONSISTENT'], true)) {
+                    $themeConflicts[] = [
+                        'number' => $m03QuestionNumber,
+                        'question_id' => (int)$question['idPregunta'],
+                        'stable_id' => 'M03:question:' . (int)$question['idPregunta'],
+                        'question' => (string)$question['pregunta'],
+                        'status' => 'REQUIERE_REVISION',
+                        'pending' => true,
+                        'reason' => 'El registro tiene un estado y un valor incompatibles. No se muestra ni se modifica hasta aclararlo.',
+                    ];
+                    continue;
+                }
+                $editorState = in_array($semanticState, ['KNOWN', 'NEGATIVE', 'UNKNOWN', 'NOT_REMEMBERED'], true)
+                    ? $semanticState
+                    : (((string)($question['tipo'] ?? '') === 'select' && $answer === 'No')
+                        || ((int)$questionId === 5 && (int)$themeId === 1 && $answer === AntecedentesNoPatologicosModel::M03_Q5_NOT_STOPPED_DETAIL)
+                            ? 'NEGATIVE'
+                            : 'KNOWN');
+                $detailedTobaccoAffirmative = (int)$questionId === 1 && (int)$themeId === 1
+                    && $editorState === 'KNOWN' && !in_array($answer, ['Si', 'Sí'], true);
+                $themeEntries[] = [
+                    'number' => $m03QuestionNumber,
+                    'question_id' => (int)$question['idPregunta'],
+                    'stable_id' => 'M03:question:' . (int)$question['idPregunta'],
+                    'question' => (string)$question['pregunta'],
+                    'review_status' => $classification['status'],
+                    'review_pending' => $classification['pending'],
+                    'type' => (string)$question['tipo'],
+                    'editor_control' => ((string)$question['tipo'] === 'input' || $detailedTobaccoAffirmative) ? 'text' : 'select',
+                    'answer' => ConversationalM03Adapter::formatPreviousResponse($question),
+                    'answer_input' => in_array($editorState, ['UNKNOWN', 'NOT_REMEMBERED'], true) ? '' : $answer,
+                    'semantic_state' => $editorState,
+                    'response_id' => (int)$question['idRespuesta'],
+                    'version' => ConversationalM03Adapter::previousResponseVersion($patientId, $question),
+                    'editable' => $blockerCode === null,
+                    'edit_blocker' => match ($blockerCode) {
+                        'M03_PREVIOUS_DATABASE_NOT_AUTHORIZED' => 'La edición no está autorizada en este entorno local.',
+                        'M03_PREVIOUS_DUPLICATE_ROWS' => 'Hay respuestas duplicadas para esta pregunta; no se modificará ninguna hasta identificar la vigente.',
+                        'M03_PREVIOUS_DEPENDENCY_INELIGIBLE' => 'La dependencia de esta pregunta no está vigente; la respuesta se conserva en solo lectura.',
+                        'M03_PREVIOUS_STATE_UNVERIFIED', 'M03_PREVIOUS_STATE_INCONSISTENT', 'M03_PREVIOUS_SELECT_INCONSISTENT' => 'El estado guardado requiere revisión antes de editarse.',
+                        'M03_PREVIOUS_QUESTION_TYPE_UNSUPPORTED' => 'El tipo de esta pregunta no tiene un editor compatible.',
+                        default => '',
+                    },
+                ];
+            }
+            $m03Themes[] = [
+                'theme_id' => (int)$themeGroup['theme_id'],
+                'theme' => (string)$themeGroup['theme'],
+                'entries' => $themeEntries,
+                'conflicts' => $themeConflicts,
+                'status_items' => $themeStatusItems,
+            ];
+        }
+
         $this->view('/paciente/respuestas-previas.php', [
             'title' => 'Respuestas previas',
             'datos' => $auth,
             'idPaciente' => $patientId,
             'm02Finalized' => (bool)($m02State['finalized'] ?? false),
             'entries' => $entries,
+            'm02StatusItems' => $m02StatusItems,
+            'm03Finalized' => (bool)($m03State['finalized'] ?? false),
+            'm03Themes' => $m03Themes,
+            'm03EditUrl' => SERVIDOR . 'historia-clinica/respuestas-previas/m03',
             'csrf' => ClinicalSummarySecurity::captureCsrfToken($patientId),
             'sidebar' => $sidebar->render(),
         ]);
@@ -314,6 +449,121 @@ final class PatientInterviewController extends BaseController
         echo HttpMethod::jsonResponse($status, $ok, (string)($result['mensaje'] ?? 'No fue posible actualizar la respuesta M02.'), '', $extra);
     }
 
+    /** Update one existing M03 answer without reopening or finalizing the module. */
+    public function updatePreviousM03(): void
+    {
+        header('Content-Type: application/json; charset=UTF-8');
+        header('Cache-Control: no-store, private');
+        header('Pragma: no-cache');
+        if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? '')) !== 'POST') {
+            echo HttpMethod::jsonResponse(405, false, 'Método no permitido.');
+            return;
+        }
+        $contentType = strtolower(trim(explode(';', (string)($_SERVER['CONTENT_TYPE'] ?? ''), 2)[0]));
+        $contentLength = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
+        if ($contentType !== 'application/json' || $contentLength < 1 || $contentLength > 8192) {
+            echo HttpMethod::jsonResponse(400, false, 'Solicitud de edición no válida.');
+            return;
+        }
+        $raw = file_get_contents('php://input', false, null, 0, 8193);
+        if (!is_string($raw) || strlen($raw) > 8192) {
+            echo HttpMethod::jsonResponse(413, false, 'La solicitud excede el tamaño permitido.');
+            return;
+        }
+        try {
+            $data = json_decode($raw, true, 16, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            echo HttpMethod::jsonResponse(400, false, 'Solicitud de edición no válida.');
+            return;
+        }
+        $allowedKeys = ['stable_id', 'response_id', 'expected_version', 'answer', 'semantic_state'];
+        if (!is_array($data) || array_diff(array_keys($data), $allowedKeys) !== []) {
+            echo HttpMethod::jsonResponse(422, false, 'Solicitud de edición no válida.');
+            return;
+        }
+
+        $authGuard = new AuthMiddleware('historia-clinica');
+        $auth = $authGuard->authPermisos();
+        $patientId = (int)($auth['id_usuario'] ?? 0);
+        $authGuard->assertPatientAccess($patientId, $auth);
+        $csrf = $_SERVER['HTTP_X_M03_CSRF'] ?? null;
+        if (!ClinicalSummarySecurity::validCaptureCsrf($patientId, is_string($csrf) ? $csrf : null)) {
+            echo HttpMethod::jsonResponse(403, false, 'Token de seguridad inválido o ausente.');
+            return;
+        }
+
+        $stableId = is_string($data['stable_id'] ?? null) ? trim($data['stable_id']) : '';
+        $responseId = filter_var($data['response_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $expectedVersion = is_string($data['expected_version'] ?? null) ? $data['expected_version'] : '';
+        $answer = is_string($data['answer'] ?? null) ? trim($data['answer']) : '';
+        $semanticState = strtoupper(trim(is_string($data['semantic_state'] ?? null) ? $data['semantic_state'] : ''));
+        if (!preg_match('/^M03:question:([1-9][0-9]*)$/', $stableId, $match)
+            || $responseId === false || !preg_match('/^[a-f0-9]{64}$/', $expectedVersion)
+            || !in_array($semanticState, ['KNOWN', 'NEGATIVE', 'UNKNOWN', 'NOT_REMEMBERED'], true)
+            || mb_strlen($answer, 'UTF-8') > 2000) {
+            echo HttpMethod::jsonResponse(422, false, 'La pregunta o respuesta M03 no es válida.');
+            return;
+        }
+        $questionId = (int)$match[1];
+        $adapter = new ConversationalM03Adapter();
+        $state = $adapter->read($patientId);
+        $questionRows = array_values(array_filter($state['questions'], static fn(array $row): bool => (int)($row['idPregunta'] ?? 0) === $questionId));
+        if (count($questionRows) !== 1 || (int)($questionRows[0]['idRespuesta'] ?? 0) !== (int)$responseId) {
+            echo HttpMethod::jsonResponse(409, false, 'La respuesta ya no está disponible para edición. Recarga la pantalla.');
+            return;
+        }
+        $question = $questionRows[0];
+        $type = (string)($question['tipo'] ?? '');
+        if ($type === 'select') {
+            if ($questionId === M03TobaccoResponsePolicy::QUESTION_ID && $semanticState === 'KNOWN' && $answer !== '') {
+                $utterance = $answer;
+            } elseif ($answer !== '') {
+                echo HttpMethod::jsonResponse(422, false, 'Selecciona una sola opción de respuesta.');
+                return;
+            } else {
+                $utterance = match ($semanticState) {
+                    'KNOWN' => 'Sí', 'NEGATIVE' => 'No', 'UNKNOWN' => 'No lo sé', 'NOT_REMEMBERED' => 'No recuerdo',
+                };
+            }
+        } elseif ($type === 'input') {
+            if (in_array($semanticState, ['UNKNOWN', 'NOT_REMEMBERED'], true)) {
+                if ($answer !== '') {
+                    echo HttpMethod::jsonResponse(422, false, 'Para conservar un estado desconocido no agregues un valor clínico.');
+                    return;
+                }
+                $utterance = $semanticState === 'UNKNOWN' ? 'No lo sé' : 'No recuerdo';
+            } elseif ($semanticState === 'NEGATIVE') {
+                if ($questionId !== 5 || (int)($question['idTema'] ?? 0) !== 1 || $answer !== AntecedentesNoPatologicosModel::M03_Q5_NOT_STOPPED_DETAIL) {
+                    echo HttpMethod::jsonResponse(422, false, 'La respuesta negativa no corresponde a esta pregunta.');
+                    return;
+                }
+                $utterance = $answer;
+            } else {
+                if ($answer === '') {
+                    echo HttpMethod::jsonResponse(422, false, 'Completa la respuesta antes de guardar.');
+                    return;
+                }
+                $utterance = $answer;
+            }
+        } else {
+            echo HttpMethod::jsonResponse(422, false, 'El tipo de pregunta M03 no admite edición aquí.');
+            return;
+        }
+
+        $result = $adapter->editExistingResponse($patientId, $questionId, (int)$responseId, $expectedVersion, $utterance, $semanticState);
+        $status = (int)($result['resultado'] ?? 500);
+        if (!in_array($status, [200, 403, 404, 409, 422, 500], true)) $status = 500;
+        $ok = $status === 200 && ($result['readback'] ?? false) === true;
+        echo HttpMethod::jsonResponse($status, $ok, (string)($result['mensaje'] ?? 'No fue posible actualizar la respuesta M03.'), '', [
+            'readback' => $result['readback'] ?? false,
+            'answer' => $result['answer'] ?? null,
+            'semantic_state' => $result['semantic_state'] ?? null,
+            'version' => $result['version'] ?? null,
+            'response_id' => $result['response_id'] ?? null,
+            'code' => $result['code'] ?? null,
+        ]);
+    }
+
     private function formatM02CurrentAnswer(array $record): string
     {
         $detail = (string)($record['detail'] ?? '');
@@ -398,6 +648,9 @@ final class PatientInterviewController extends BaseController
             $module = $contract['modules'][$moduleId] ?? null;
             $responseStatus = is_array($question['response'] ?? null) ? (string)($question['response']['status'] ?? 'pending') : 'pending';
             $activeQuestion = is_array($module['conversation_state'] ?? null) ? ($module['conversation_state']['stable_id'] ?? null) : null;
+            $expectedDictationVersion = $moduleId === 'M03'
+                ? (is_scalar($question['response']['version'] ?? null) ? (string)$question['response']['version'] : '')
+                : (string)($contract['version'] ?? '');
             $pendingQuestionAuthorized = $responseStatus === 'pending'
                 && is_string($activeQuestion)
                 && hash_equals($activeQuestion, $stableId);
@@ -407,14 +660,18 @@ final class PatientInterviewController extends BaseController
                 && is_array($question['response'] ?? null)
                 && ($question['response']['persisted'] ?? false) === true
                 && $this->isEditableM02SavedQuestion((int)$patientId, $question, $module);
+            $m03QuestionAuthorized = $moduleId === 'M03'
+                && LocalDictationTicketService::isEligibleM03QuestionTarget($stableId, $question, $module);
+            $m02QuestionAuthorized = $moduleId === 'M02'
+                && ($pendingQuestionAuthorized || $savedQuestionAuthorized);
             if (!is_array($question)
                 || !is_array($module)
-                || $moduleId !== 'M02'
+                || (!$m02QuestionAuthorized && !$m03QuestionAuthorized)
                 || ($module['conversation_state']['state'] ?? '') !== 'ANSWERABLE'
                 || ($module['state']['write_enabled'] ?? false) !== true
                 || ($question['write_enabled'] ?? false) !== true
-                || (!$pendingQuestionAuthorized && !$savedQuestionAuthorized)
-                || !hash_equals((string)$contract['version'], $contractVersion)) {
+                || $expectedDictationVersion === ''
+                || !hash_equals($expectedDictationVersion, $contractVersion)) {
                 echo HttpMethod::jsonResponse(409, false, 'La pregunta ya no está disponible para dictado; revisa la entrevista.');
                 return;
             }
@@ -508,11 +765,19 @@ final class PatientInterviewController extends BaseController
 
         $data['idPaciente'] = (int)$patientId;
         $data['idTema'] = filter_var($data['idTema'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: 1;
-        $result = (new ConversationalM03Adapter())->capture((int)$patientId, [
-            'kind' => 'm03_proposal', 'question_id' => (int)($data['idPregunta'] ?? 0), 'theme_id' => (int)$data['idTema'],
-            'structured_value' => is_scalar($data['detalle'] ?? null) ? (string)$data['detalle'] : '',
-            'semantic_state' => is_scalar($data['estadoRespuesta'] ?? null) ? (string)$data['estadoRespuesta'] : '',
-        ], is_scalar($data['expectedVersion'] ?? null) ? (string)$data['expectedVersion'] : null);
+        $adapter = new ConversationalM03Adapter();
+        $questionId = (int)($data['idPregunta'] ?? 0);
+        $expectedVersion = is_scalar($data['expectedVersion'] ?? null) ? (string)$data['expectedVersion'] : null;
+        $expectedResponseId = filter_var($data['idRespuesta'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $expectedResponseId = $expectedResponseId === false ? null : (int)$expectedResponseId;
+        $contextualActionKey = is_scalar($data['contextualActionKey'] ?? null) ? trim((string)$data['contextualActionKey']) : '';
+        $result = $contextualActionKey !== ''
+            ? $adapter->captureContextualAction((int)$patientId, $questionId, (int)$data['idTema'], $contextualActionKey, $expectedVersion)
+            : $adapter->capture((int)$patientId, [
+                'kind' => 'm03_proposal', 'question_id' => $questionId, 'theme_id' => (int)$data['idTema'],
+                'structured_value' => is_scalar($data['detalle'] ?? null) ? (string)$data['detalle'] : '',
+                'semantic_state' => is_scalar($data['estadoRespuesta'] ?? null) ? (string)$data['estadoRespuesta'] : '',
+            ], $expectedVersion, $expectedResponseId);
         $result = $this->finalizeAfterCapture((int)$patientId, 3, $result);
         $status = (int)($result['resultado'] ?? 422);
         if (!in_array($status, [200, 400, 403, 404, 409, 422, 500], true)) {
@@ -521,7 +786,13 @@ final class PatientInterviewController extends BaseController
         echo HttpMethod::jsonResponse($status, $status === 200, $result['mensaje'] ?? 'No fue posible guardar la respuesta.', '', [
             'version' => $result['version'] ?? null,
             'readback' => $result['readback'] ?? false,
+            'readback_value' => $result['readback_value'] ?? null,
+            'response_id' => $result['response_id'] ?? null,
             'semantic_state' => $result['semantic_state'] ?? null,
+            'navigation_decision' => $result['navigation_decision'] ?? null,
+            'eligible_question_ids' => $result['eligible_question_ids'] ?? null,
+            'editable_question_ids' => $result['editable_question_ids'] ?? null,
+            'next_question_id' => $result['next_question_id'] ?? null,
             'code' => $result['code'] ?? null,
             'finalized' => $result['finalized'] ?? false,
         ]);
@@ -553,9 +824,11 @@ final class PatientInterviewController extends BaseController
         $directMode = strtolower(is_scalar($data['directMode'] ?? null) ? (string)$data['directMode'] : 'numeric');
         $adapter = new ConversationalM03Adapter();
         $expectedVersion = is_scalar($data['expectedVersion'] ?? null) ? (string)$data['expectedVersion'] : null;
+        $expectedResponseId = filter_var($data['idRespuesta'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $expectedResponseId = $expectedResponseId === false ? null : (int)$expectedResponseId;
         $result = $directMode === 'literal'
-            ? $adapter->captureDirectText((int)$patientId, (int)$questionId, $value, $expectedVersion)
-            : $adapter->captureDirectNumeric((int)$patientId, (int)$questionId, $value, $expectedVersion);
+            ? $adapter->captureDirectText((int)$patientId, (int)$questionId, $value, $expectedVersion, false, $expectedResponseId)
+            : $adapter->captureDirectNumeric((int)$patientId, (int)$questionId, $value, $expectedVersion, false, $expectedResponseId);
         $result = $this->finalizeAfterCapture((int)$patientId, 3, $result);
         $status = (int)($result['resultado'] ?? 422);
         if (!in_array($status, [200, 403, 404, 409, 422, 500], true)) $status = 422;
@@ -563,6 +836,10 @@ final class PatientInterviewController extends BaseController
             'mode' => $result['mode'] ?? null,
             'code' => $result['code'] ?? null,
             'readback' => $result['readback'] ?? false,
+            'readback_value' => $result['readback_value'] ?? null,
+            'response_id' => $result['response_id'] ?? null,
+            'editable_question_ids' => $result['editable_question_ids'] ?? null,
+            'eligible_question_ids' => $result['eligible_question_ids'] ?? null,
             'next_question_id' => $result['next_question_id'] ?? null,
             'version' => $result['version'] ?? null,
             'finalized' => $result['finalized'] ?? false,

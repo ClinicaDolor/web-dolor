@@ -2,12 +2,25 @@
 namespace App\Models;
 use App\Config\Database;
 use App\Services\ConversationalInterviewService;
+use App\Services\M03TobaccoResponsePolicy;
 
 class AntecedentesNoPatologicosModel{
 private $bd;
+private ?\Closure $diagnostic = null;
+private bool $diagnosticFailure = false;
 private ?array $m03SemanticColumns = null;
 
+public const M03_Q5_NOT_STOPPED_DETAIL = 'No he dejado de fumar';
+
 private const M03_SEMANTIC_STATES = ['KNOWN', 'NEGATIVE', 'UNKNOWN', 'NOT_REMEMBERED'];
+
+    private static function isM03Q5NotStoppedResponse(int $questionId, int $themeId, string $detail, string $state): bool
+    {
+        return $questionId === 5
+            && $themeId === 1
+            && $detail === self::M03_Q5_NOT_STOPPED_DETAIL
+            && strtoupper(trim($state)) === 'NEGATIVE';
+    }
 
     /**
      * Canonical textual fallback for installations that only have the legacy
@@ -37,13 +50,26 @@ private const M03_SEMANTIC_STATES = ['KNOWN', 'NEGATIVE', 'UNKNOWN', 'NOT_REMEMB
     };
     }
 
-public function __construct(?\PDO $db = null){
+public function __construct(?\PDO $db = null, ?callable $diagnostic = null){
 $this->bd = $db ?: Database::getInstance();
+$this->diagnostic = $diagnostic === null ? null : \Closure::fromCallable($diagnostic);
+}
+
+/** Optional stage tracing for a guarded synthetic service diagnostic. */
+private function traceM03(string $event): void
+{
+    if ($this->diagnostic === null) return;
+    try {
+        ($this->diagnostic)($event);
+    } catch (\Throwable) {
+        // Diagnostic output must never change the clinical persistence result.
+        $this->diagnosticFailure = true;
+    }
 }
 
     private function obtenerContextoRespuesta($idPaciente, $idRespuesta, $idTema): ?array
     {
-    $sql = "SELECT r.id, r.respuesta, p.tipo
+    $sql = "SELECT r.id, r.id_pregunta, r.respuesta, p.tipo
             FROM pac_respuestas_paciente_modulo_3 r
             INNER JOIN pac_preguntas_modulo_3 p ON p.id = r.id_pregunta
             WHERE r.id = :id_respuesta
@@ -95,6 +121,160 @@ $this->bd = $db ?: Database::getInstance();
     {
     $columns = $this->m03SemanticColumns();
     return isset($columns['estado_respuesta'], $columns['origen_respuesta'], $columns['estado_respuesta_at']);
+    }
+
+    /** Returns a safe capacity error code, or null when q1 detail fits the active schema. */
+    private function m03TobaccoDetailStorageError(string $detail): ?string
+    {
+    if (mb_strlen($detail, 'UTF-8') > M03TobaccoResponsePolicy::MAX_RESPONSE_LENGTH) return 'M03_TOBACCO_DETAIL_TOO_LONG';
+    try {
+        $driver = (string)$this->bd->getAttribute(\PDO::ATTR_DRIVER_NAME);
+        if ($driver === 'mysql') {
+            $stmt = $this->bd->prepare("SELECT DATA_TYPE AS data_type, CHARACTER_MAXIMUM_LENGTH AS max_length FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'pac_respuestas_paciente_modulo_3' AND column_name = 'respuesta' LIMIT 1");
+            $stmt->execute();
+            $column = $stmt->fetch(\PDO::FETCH_ASSOC);
+            $type = strtolower((string)($column['data_type'] ?? ''));
+            $capacity = isset($column['max_length']) ? (int)$column['max_length'] : 0;
+            if (!in_array($type, ['char', 'varchar', 'tinytext', 'text', 'mediumtext', 'longtext'], true) || $capacity < 1) {
+                return 'M03_TOBACCO_DETAIL_SCHEMA_UNVERIFIED';
+            }
+        } elseif ($driver === 'sqlite') {
+            $stmt = $this->bd->query('PRAGMA table_info(pac_respuestas_paciente_modulo_3)');
+            $column = null;
+            foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $candidate) {
+                if ((string)($candidate['name'] ?? '') === 'respuesta') { $column = $candidate; break; }
+            }
+            if (!is_array($column)) return 'M03_TOBACCO_DETAIL_SCHEMA_UNVERIFIED';
+            $type = strtolower(trim((string)($column['type'] ?? '')));
+            if (preg_match('/^(?:text|tinytext|mediumtext|longtext)$/', $type) === 1) {
+                $capacity = M03TobaccoResponsePolicy::MAX_RESPONSE_LENGTH;
+            } elseif (preg_match('/^(?:varchar|char)\s*\(\s*(\d+)\s*\)$/', $type, $match) === 1) {
+                $capacity = (int)$match[1];
+            } else {
+                return 'M03_TOBACCO_DETAIL_SCHEMA_UNVERIFIED';
+            }
+        } else {
+            return 'M03_TOBACCO_DETAIL_SCHEMA_UNVERIFIED';
+        }
+        return mb_strlen($detail, 'UTF-8') <= $capacity ? null : 'M03_TOBACCO_DETAIL_COLUMN_TOO_SMALL';
+    } catch (\Throwable) {
+        return 'M03_TOBACCO_DETAIL_SCHEMA_UNVERIFIED';
+    }
+    }
+
+    /** q1 uses an atomic, patient-scoped upsert and never clears dependent rows. */
+    private function persistM03TobaccoResponse(int $patientId, int $questionId, int $themeId, string $detail, string $state, string $origin, ?string $expected, ?int $expectedResponseId, bool $semanticColumns): array
+    {
+    $this->traceM03('model.persist.begin');
+    $driver = (string)$this->bd->getAttribute(\PDO::ATTR_DRIVER_NAME);
+    $lock = $driver === 'mysql' ? ' FOR UPDATE' : '';
+    try {
+        $this->traceM03('model.persist.transaction.begin');
+        $this->bd->beginTransaction();
+        $this->traceM03('model.persist.transaction.started');
+        $patientSql = 'SELECT id FROM pc_paciente WHERE id = :patient LIMIT 1' . $lock;
+        $this->traceM03('model.persist.patient_lock.begin');
+        $patient = $this->bd->prepare($patientSql);
+        $patient->execute([':patient' => $patientId]);
+        $this->traceM03('model.persist.patient_lock.end');
+        if ($patient->fetchColumn() === false) {
+            $this->bd->rollBack();
+            return ['resultado' => 404, 'mensaje' => 'El paciente autorizado no está disponible.', 'code' => 'M03_PATIENT_NOT_FOUND', 'persist' => false];
+        }
+
+        $this->traceM03('model.persist.question_lookup.begin');
+        $question = $this->bd->prepare('SELECT id, id_tema, tipo FROM pac_preguntas_modulo_3 WHERE id = :question AND id_tema = :theme LIMIT 1');
+        $question->execute([':question' => $questionId, ':theme' => $themeId]);
+        $questionData = $question->fetch(\PDO::FETCH_ASSOC);
+        $this->traceM03('model.persist.question_lookup.end');
+        if (!$questionData || !M03TobaccoResponsePolicy::isQuestion($questionData)) {
+            $this->bd->rollBack();
+            return ['resultado' => 404, 'mensaje' => 'La pregunta no pertenece al tema autorizado.', 'code' => 'M03_TOBACCO_QUESTION_INVALID', 'persist' => false];
+        }
+
+        $this->traceM03('model.persist.response_lock.begin');
+        $lookup = $this->bd->prepare('SELECT id, respuesta FROM pac_respuestas_paciente_modulo_3 WHERE id_paciente = :patient AND id_pregunta = :question ORDER BY id ASC LIMIT 2' . $lock);
+        $lookup->execute([':patient' => $patientId, ':question' => $questionId]);
+        $rows = $lookup->fetchAll(\PDO::FETCH_ASSOC);
+        $this->traceM03('model.persist.response_lock.end');
+        if (count($rows) > 1) {
+            $this->bd->rollBack();
+            return ['resultado' => 409, 'mensaje' => 'Existen respuestas duplicadas; se requiere revisión autorizada.', 'code' => 'M03_DUPLICATE_RESPONSE_ROWS', 'persist' => false];
+        }
+        $current = $rows[0] ?? null;
+        $currentValue = (string)($current['respuesta'] ?? '');
+        if ($expectedResponseId !== null
+            && ($current === null || (int)($current['id'] ?? 0) !== $expectedResponseId)) {
+            $this->bd->rollBack();
+            return ['resultado' => 409, 'mensaje' => 'La respuesta cambió mientras se editaba. Recarga la pregunta antes de continuar.', 'code' => 'M03_RESPONSE_ID_CONFLICT', 'persist' => false];
+        }
+        if ($expected !== null && $currentValue !== $expected) {
+            $this->bd->rollBack();
+            return ['resultado' => 409, 'mensaje' => 'La respuesta cambió mientras se capturaba. Recarga la pregunta antes de continuar.', 'code' => 'M03_VERSION_CONFLICT', 'persist' => false];
+        }
+        if ($state === 'NEGATIVE') {
+            $dependent = $this->bd->prepare("SELECT COUNT(*) FROM pac_respuestas_paciente_modulo_3 WHERE id_paciente = :patient AND id_pregunta IN (SELECT id FROM pac_preguntas_modulo_3 WHERE id_tema = :theme AND id <> :question) AND TRIM(COALESCE(respuesta, '')) <> ''");
+            $dependent->execute([':patient' => $patientId, ':theme' => $themeId, ':question' => $questionId]);
+            if ((int)$dependent->fetchColumn() > 0) {
+                $this->bd->rollBack();
+                return ['resultado' => 409, 'mensaje' => 'Hay respuestas dependientes que deben conservarse; la negativa no se guardó.', 'code' => 'M03_DEPENDENCY_REVIEW_REQUIRED', 'persist' => false];
+            }
+        }
+
+        $storedDetail = $semanticColumns && in_array($state, ['UNKNOWN', 'NOT_REMEMBERED'], true) ? '' : $detail;
+        if ($current === null) {
+            if ($expected !== null && $expected !== '') {
+                $this->bd->rollBack();
+                return ['resultado' => 409, 'mensaje' => 'La respuesta cambió mientras se capturaba. Recarga la pregunta antes de continuar.', 'code' => 'M03_VERSION_CONFLICT', 'persist' => false];
+            }
+            $this->traceM03('model.persist.insert.begin');
+            if ($semanticColumns) {
+                $stmt = $this->bd->prepare('INSERT INTO pac_respuestas_paciente_modulo_3 (id_pregunta, id_paciente, respuesta, estado_respuesta, origen_respuesta, estado_respuesta_at) VALUES (:question, :patient, :detail, :state, :origin, :state_at)');
+                $stmt->execute([':question' => $questionId, ':patient' => $patientId, ':detail' => $storedDetail, ':state' => $state, ':origin' => $origin, ':state_at' => gmdate('Y-m-d H:i:s')]);
+            } else {
+                $stmt = $this->bd->prepare('INSERT INTO pac_respuestas_paciente_modulo_3 (id_pregunta, id_paciente, respuesta) VALUES (:question, :patient, :detail)');
+                $stmt->execute([':question' => $questionId, ':patient' => $patientId, ':detail' => $storedDetail]);
+            }
+            $responseId = (int)$this->bd->lastInsertId();
+            $this->traceM03('model.persist.insert.end');
+        } else {
+            $responseId = (int)$current['id'];
+            $this->traceM03('model.persist.update.begin');
+            if ($semanticColumns) {
+                $stmt = $this->bd->prepare('UPDATE pac_respuestas_paciente_modulo_3 SET respuesta = :detail, estado_respuesta = :state, origen_respuesta = :origin, estado_respuesta_at = :state_at WHERE id = :id AND id_paciente = :patient AND id_pregunta = :question');
+                $stmt->execute([':detail' => $storedDetail, ':state' => $state, ':origin' => $origin, ':state_at' => gmdate('Y-m-d H:i:s'), ':id' => $responseId, ':patient' => $patientId, ':question' => $questionId]);
+            } else {
+                $stmt = $this->bd->prepare('UPDATE pac_respuestas_paciente_modulo_3 SET respuesta = :detail WHERE id = :id AND id_paciente = :patient AND id_pregunta = :question');
+                $stmt->execute([':detail' => $storedDetail, ':id' => $responseId, ':patient' => $patientId, ':question' => $questionId]);
+            }
+            if ($stmt->rowCount() > 1) {
+                $this->bd->rollBack();
+                return ['resultado' => 409, 'mensaje' => 'La respuesta no pudo actualizarse de forma inequívoca.', 'code' => 'M03_TOBACCO_UPDATE_AMBIGUOUS', 'persist' => false];
+            }
+            $this->traceM03('model.persist.update.end');
+        }
+
+        $this->traceM03('model.persist.readback.begin');
+        $readbackSql = 'SELECT respuesta' . ($semanticColumns ? ', estado_respuesta, origen_respuesta' : '') . ' FROM pac_respuestas_paciente_modulo_3 WHERE id = :id AND id_paciente = :patient AND id_pregunta = :question LIMIT 1';
+        $readbackStmt = $this->bd->prepare($readbackSql);
+        $readbackStmt->execute([':id' => $responseId, ':patient' => $patientId, ':question' => $questionId]);
+        $readback = $readbackStmt->fetch(\PDO::FETCH_ASSOC);
+        $this->traceM03('model.persist.readback.end');
+        if (!is_array($readback)
+            || (string)$readback['respuesta'] !== $storedDetail
+            || ($semanticColumns && ((string)$readback['estado_respuesta'] !== $state || (string)$readback['origen_respuesta'] !== $origin))) {
+            $this->bd->rollBack();
+            return ['resultado' => 500, 'mensaje' => 'No fue posible verificar la respuesta guardada.', 'code' => 'M03_READBACK_FAILED', 'persist' => false];
+        }
+        $this->traceM03('model.persist.commit.begin');
+        $this->bd->commit();
+        $this->traceM03('model.persist.commit.end');
+        return ['resultado' => 200, 'mensaje' => 'Respuesta de tabaquismo guardada.', 'persist' => true, 'semantic_state' => $state, 'readback' => false];
+    } catch (\Throwable) {
+        $this->traceM03('model.persist.exception');
+        if ($this->bd->inTransaction()) $this->bd->rollBack();
+        return ['resultado' => 500, 'mensaje' => 'No fue posible guardar la respuesta de tabaquismo.', 'code' => 'M03_TOBACCO_PERSISTENCE_FAILED', 'persist' => false];
+    }
     }
 
     //---------- OBTENER DATOS DEL MODULO ----------//
@@ -154,6 +334,7 @@ $this->bd = $db ?: Database::getInstance();
      */
     public function capturarRespuestaEntrevista(array $data): array
     {
+    $this->traceM03('model.capture.begin');
     $idPaciente = (int)($data['idPaciente'] ?? 0);
     $idPregunta = (int)($data['idPregunta'] ?? 0);
     $idTema = (int)($data['idTema'] ?? 0);
@@ -163,26 +344,58 @@ $this->bd = $db ?: Database::getInstance();
     $expected = array_key_exists('expectedRespuesta', $data) && is_scalar($data['expectedRespuesta'])
         ? (string)$data['expectedRespuesta']
         : null;
+    $expectedResponseId = filter_var($data['expectedResponseId'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    $expectedResponseId = $expectedResponseId === false ? null : (int)$expectedResponseId;
 
     if ($idPaciente < 1 || $idPregunta < 1 || $idTema < 1) {
         return ['resultado' => 400, 'mensaje' => 'Datos de respuesta no válidos.'];
     }
 
+    $this->traceM03('model.capture.question_lookup.begin');
     $question = $this->bd->prepare(
         'SELECT id, id_tema, tipo FROM pac_preguntas_modulo_3 WHERE id = :id AND id_tema = :tema LIMIT 1'
     );
     $question->execute([':id' => $idPregunta, ':tema' => $idTema]);
     $questionData = $question->fetch(\PDO::FETCH_ASSOC);
+    $this->traceM03('model.capture.question_lookup.end');
     if (!$questionData) {
         return ['resultado' => 404, 'mensaje' => 'La pregunta no pertenece al tema autorizado.'];
     }
+    $this->traceM03('model.capture.semantic_schema.begin');
     $semanticStateAvailable = $this->m03SemanticStateAvailable();
-    $detectedUnknownState = ConversationalInterviewService::classifyM03Unknown($detalle);
-    if ($semanticState === '' && $detectedUnknownState !== null) {
+    $this->traceM03('model.capture.semantic_schema.end');
+    $isTobaccoQuestion = M03TobaccoResponsePolicy::isQuestion($questionData + ['idPregunta' => $idPregunta, 'idTema' => $idTema]);
+    $tobaccoDecision = null;
+    if ($isTobaccoQuestion) {
+        $tobaccoDecision = $detalle === '' && in_array($semanticState, ['UNKNOWN', 'NOT_REMEMBERED'], true)
+            ? $semanticState
+            : M03TobaccoResponsePolicy::classify($detalle);
+        $decisionState = M03TobaccoResponsePolicy::semanticState($tobaccoDecision);
+        if ($decisionState === null) {
+            return ['resultado' => 422, 'mensaje' => 'Necesito una respuesta clara de sí, no, no lo sé o no lo recuerdo. No se guardó ningún cambio.', 'code' => 'M03_TOBACCO_CLARIFICATION_REQUIRED', 'persist' => false];
+        }
+        if ($semanticState !== '' && $semanticState !== $decisionState) {
+            return ['resultado' => 422, 'mensaje' => 'La respuesta no coincide con su estado semántico. No se guardó ningún cambio.', 'code' => 'M03_TOBACCO_STATE_MISMATCH', 'persist' => false];
+        }
+        $semanticState = $decisionState;
+        if (in_array($tobaccoDecision, [M03TobaccoResponsePolicy::UNKNOWN, M03TobaccoResponsePolicy::NOT_REMEMBERED], true)) {
+            $detalle = $semanticStateAvailable ? '' : M03TobaccoResponsePolicy::storedValue($detalle);
+        } else {
+            $detalle = M03TobaccoResponsePolicy::storedValue($detalle);
+            if ($tobaccoDecision === M03TobaccoResponsePolicy::AFFIRMATIVE && !M03TobaccoResponsePolicy::isSimpleAffirmative($detalle)) {
+                $storageError = $this->m03TobaccoDetailStorageError($detalle);
+                if ($storageError !== null) return ['resultado' => 409, 'mensaje' => 'El almacenamiento actual no permite verificar que los detalles de la respuesta caben con seguridad. No se guardó ningún cambio.', 'code' => $storageError, 'persist' => false];
+            }
+        }
+    }
+    $detectedUnknownState = $isTobaccoQuestion
+        ? (in_array($tobaccoDecision, [M03TobaccoResponsePolicy::UNKNOWN, M03TobaccoResponsePolicy::NOT_REMEMBERED], true) ? $tobaccoDecision : null)
+        : ConversationalInterviewService::classifyM03Unknown($detalle);
+    if (!$isTobaccoQuestion && $semanticState === '' && $detectedUnknownState !== null) {
         $semanticState = $detectedUnknownState;
     }
     if ($questionData['tipo'] === 'select' && !in_array($detalle, ['Si', 'No'], true)) {
-        if ($semanticState !== 'UNKNOWN' && $semanticState !== 'NOT_REMEMBERED') {
+        if (!$isTobaccoQuestion && $semanticState !== 'UNKNOWN' && $semanticState !== 'NOT_REMEMBERED') {
             return ['resultado' => 400, 'mensaje' => 'La opción seleccionada no es válida.'];
         }
     }
@@ -201,15 +414,23 @@ $this->bd = $db ?: Database::getInstance();
     if (in_array($semanticState, ['KNOWN', 'NEGATIVE'], true) && $detalle === '') {
         return ['resultado' => 422, 'mensaje' => 'La respuesta requiere un valor clínico.'];
     }
-    if ($semanticState === 'NEGATIVE' && ($questionData['tipo'] !== 'select' || $detalle !== 'No')) {
+    $q5NotStopped = $questionData['tipo'] === 'input'
+        && self::isM03Q5NotStoppedResponse($idPregunta, $idTema, $detalle, $semanticState);
+    if ($semanticState === 'NEGATIVE'
+        && !$q5NotStopped
+        && ($questionData['tipo'] !== 'select' || $detalle !== 'No')) {
         return ['resultado' => 422, 'mensaje' => 'La respuesta negativa no corresponde a esta pregunta.'];
     }
     if (in_array($semanticState, ['UNKNOWN', 'NOT_REMEMBERED'], true) && !$semanticStateAvailable && $detalle === '') {
         return ['resultado' => 409, 'mensaje' => 'La respuesta desconocida requiere su valor textual canónico.', 'code' => 'M03_TEXTUAL_UNKNOWN_VALUE_REQUIRED', 'persist' => false];
     }
+    if ($isTobaccoQuestion) {
+        $this->traceM03('model.capture.tobacco_persist.dispatch');
+        return $this->persistM03TobaccoResponse($idPaciente, $idPregunta, $idTema, $detalle, $semanticState, $origin, $expected, $expectedResponseId, $semanticStateAvailable);
+    }
     if ($semanticStateAvailable) {
         $semanticDetail = in_array($semanticState, ['UNKNOWN', 'NOT_REMEMBERED'], true) ? '' : $detalle;
-        return $this->persistSemanticResponse($idPaciente, $idPregunta, $idTema, $semanticDetail, $semanticState, $origin, $expected);
+        return $this->persistSemanticResponse($idPaciente, $idPregunta, $idTema, $semanticDetail, $semanticState, $origin, $expected, $expectedResponseId);
     }
     if ($detalle === '') {
         return ['resultado' => 409, 'mensaje' => 'La instalación aún no admite respuestas sin valor clínico.', 'code' => 'M03_SEMANTIC_STATE_SCHEMA_REQUIRED', 'persist' => false];
@@ -219,56 +440,175 @@ $this->bd = $db ?: Database::getInstance();
         return ['resultado' => 400, 'mensaje' => 'La opción seleccionada no es válida.'];
     }
 
-    $context = $this->bd->prepare(
-        'SELECT id, respuesta FROM pac_respuestas_paciente_modulo_3
-         WHERE id_paciente = :paciente AND id_pregunta = :pregunta LIMIT 1'
-    );
-    $context->execute([':paciente' => $idPaciente, ':pregunta' => $idPregunta]);
-    $current = $context->fetch(\PDO::FETCH_ASSOC);
+    return $this->persistLegacyM03Response($idPaciente, $idPregunta, $idTema, $detalle, $semanticState, $expected, $expectedResponseId);
+    }
 
-    if (!$current) {
-        if ($expected !== null && $expected !== '') {
-            return ['resultado' => 409, 'mensaje' => 'La respuesta cambió mientras se capturaba. Recarga la pregunta antes de continuar.'];
+    /**
+     * Updates one already-persisted M03 answer for the separate previous-responses
+     * screen. This is deliberately update-only: it never inserts a missing row,
+     * changes module finalization, or clears dependent answers.
+     */
+    public function actualizarRespuestaM03Existente(array $data): array
+    {
+        $patientId = (int)($data['idPaciente'] ?? 0);
+        $questionId = (int)($data['idPregunta'] ?? 0);
+        $themeId = (int)($data['idTema'] ?? 0);
+        $responseId = (int)($data['idRespuesta'] ?? 0);
+        $detail = is_string($data['detalle'] ?? null) ? trim($data['detalle']) : '';
+        $state = strtoupper(trim((string)($data['estadoRespuesta'] ?? '')));
+        $origin = strtoupper(trim((string)($data['origenRespuesta'] ?? '')));
+        $expectedValue = is_string($data['expectedRespuesta'] ?? null) ? $data['expectedRespuesta'] : null;
+        $expectedState = strtoupper(trim((string)($data['expectedEstadoRespuesta'] ?? '')));
+        $expectedOrigin = is_string($data['expectedOrigenRespuesta'] ?? null) ? $data['expectedOrigenRespuesta'] : null;
+        $expectedStateAt = is_string($data['expectedEstadoRespuestaAt'] ?? null) ? $data['expectedEstadoRespuestaAt'] : null;
+
+        if ($patientId < 1 || $questionId < 1 || $themeId < 1 || $responseId < 1
+            || $expectedValue === null || !in_array($state, self::M03_SEMANTIC_STATES, true)
+            || $origin !== 'PATIENT_DECLARATION' || mb_strlen($detail, 'UTF-8') > 2000) {
+            return ['resultado' => 422, 'mensaje' => 'La solicitud de edición M03 no es válida.', 'code' => 'M03_PREVIOUS_EDIT_INVALID'];
         }
-        $this->antecedentesNoPatologicos($idPaciente, $idPregunta);
-        $context->execute([':paciente' => $idPaciente, ':pregunta' => $idPregunta]);
-        $current = $context->fetch(\PDO::FETCH_ASSOC);
-    }
-    if (!$current) {
-        return ['resultado' => 500, 'mensaje' => 'No fue posible preparar la respuesta clínica.'];
-    }
 
-    $currentValue = (string)$current['respuesta'];
-    if ($expected !== null && $currentValue !== $expected) {
-        return ['resultado' => 409, 'mensaje' => 'La respuesta cambió mientras se capturaba. Recarga la pregunta antes de continuar.'];
-    }
-
-    if ($questionData['tipo'] === 'select' && $detalle === 'No') {
-        $dependent = $this->bd->prepare(
-            "SELECT COUNT(*) FROM pac_respuestas_paciente_modulo_3
-             WHERE id_paciente = :paciente AND id != :respuesta
-               AND id_pregunta IN (SELECT id FROM pac_preguntas_modulo_3 WHERE id_tema = :tema)
-               AND TRIM(COALESCE(respuesta, '')) <> ''"
-        );
-        $dependent->execute([
-            ':paciente' => $idPaciente,
-            ':respuesta' => (int)$current['id'],
-            ':tema' => $idTema,
-        ]);
-        if ((int)$dependent->fetchColumn() > 0) {
-            return ['resultado' => 409, 'mensaje' => 'Este cambio puede limpiar respuestas dependientes. Continúa en el formulario tradicional para revisarlo.'];
+        $columns = $this->m03SemanticColumns();
+        $semanticColumnNames = ['estado_respuesta', 'origen_respuesta', 'estado_respuesta_at'];
+        $semanticColumnCount = count(array_intersect($semanticColumnNames, array_keys($columns)));
+        if ($semanticColumnCount !== 0 && $semanticColumnCount !== count($semanticColumnNames)) {
+            return ['resultado' => 409, 'mensaje' => 'El estado semántico M03 no puede verificarse con el esquema actual. No se modificó la respuesta.', 'code' => 'M03_SEMANTIC_SCHEMA_INCOMPLETE', 'persist' => false];
         }
-    }
+        $semanticAvailable = $semanticColumnCount === count($semanticColumnNames);
+        $driver = (string)$this->bd->getAttribute(\PDO::ATTR_DRIVER_NAME);
+        $lock = $driver === 'mysql' ? ' FOR UPDATE' : '';
 
-    return $this->editarCuestionarioModulo([
-        'idPaciente' => $idPaciente,
-        'idRespuesta' => (int)$current['id'],
-        'idPregunta' => $idPregunta,
-        'idTema' => $idTema,
-        'idTipo' => (string)$questionData['tipo'],
-        'detalle' => $detalle,
-        'expectedRespuesta' => $currentValue,
-    ]);
+        try {
+            $this->bd->beginTransaction();
+            $patient = $this->bd->prepare('SELECT id FROM pc_paciente WHERE id=:patient LIMIT 1' . $lock);
+            $patient->execute([':patient' => $patientId]);
+            if ($patient->fetchColumn() === false) {
+                $this->bd->rollBack();
+                return ['resultado' => 404, 'mensaje' => 'El paciente autorizado no está disponible.', 'code' => 'M03_PATIENT_NOT_FOUND', 'persist' => false];
+            }
+
+            $questionStmt = $this->bd->prepare('SELECT id,id_tema,tipo,pregunta FROM pac_preguntas_modulo_3 WHERE id=:question AND id_tema=:theme LIMIT 1');
+            $questionStmt->execute([':question' => $questionId, ':theme' => $themeId]);
+            $question = $questionStmt->fetch(\PDO::FETCH_ASSOC);
+            if (!is_array($question) || !in_array((string)$question['tipo'], ['select', 'input'], true)) {
+                $this->bd->rollBack();
+                return ['resultado' => 404, 'mensaje' => 'La pregunta no pertenece al tema M03 autorizado.', 'code' => 'M03_PREVIOUS_QUESTION_MISMATCH', 'persist' => false];
+            }
+
+            $stateSelect = $semanticAvailable ? ',estado_respuesta,origen_respuesta,estado_respuesta_at' : '';
+            $rows = $this->bd->prepare('SELECT id,id_pregunta,id_paciente,respuesta' . $stateSelect . ' FROM pac_respuestas_paciente_modulo_3 WHERE id_paciente=:patient AND id_pregunta=:question ORDER BY id ASC LIMIT 2' . $lock);
+            $rows->execute([':patient' => $patientId, ':question' => $questionId]);
+            $matches = $rows->fetchAll(\PDO::FETCH_ASSOC);
+            if (count($matches) !== 1 || (int)$matches[0]['id'] !== $responseId) {
+                $this->bd->rollBack();
+                return ['resultado' => 409, 'mensaje' => 'La respuesta dejó de ser única o cambió. Recarga antes de editar.', 'code' => count($matches) > 1 ? 'M03_DUPLICATE_RESPONSE_ROWS' : 'M03_RESPONSE_ID_CONFLICT', 'persist' => false];
+            }
+            $current = $matches[0];
+            $currentValue = (string)($current['respuesta'] ?? '');
+            $currentStoredState = $semanticAvailable ? strtoupper(trim((string)($current['estado_respuesta'] ?? ''))) : '';
+            $currentOrigin = $semanticAvailable && isset($current['origen_respuesta']) ? (string)$current['origen_respuesta'] : null;
+            $currentStateAt = $semanticAvailable && isset($current['estado_respuesta_at']) ? (string)$current['estado_respuesta_at'] : null;
+            $projectedState = $semanticAvailable
+                ? $currentStoredState
+                : (self::canonicalM03UnknownState($currentValue) ?? (trim($currentValue) === '' ? 'UNANSWERED' : 'LEGACY_UNCLASSIFIED'));
+            if ($currentValue !== $expectedValue || $projectedState !== $expectedState
+                || $currentOrigin !== $expectedOrigin || $currentStateAt !== $expectedStateAt) {
+                $this->bd->rollBack();
+                return ['resultado' => 409, 'mensaje' => 'La respuesta cambió mientras se editaba. No se sobrescribieron cambios concurrentes.', 'code' => 'M03_PREVIOUS_VERSION_CONFLICT', 'persist' => false];
+            }
+            if ($semanticAvailable && !in_array($currentStoredState, self::M03_SEMANTIC_STATES, true)) {
+                $this->bd->rollBack();
+                return ['resultado' => 409, 'mensaje' => 'El estado semántico registrado requiere revisión antes de editar.', 'code' => 'M03_PREVIOUS_STATE_INCONSISTENT', 'persist' => false];
+            }
+
+            $type = (string)$question['tipo'];
+            $q5NotStopped = self::isM03Q5NotStoppedResponse($questionId, $themeId, $detail, $state);
+            if ($state === 'UNKNOWN' || $state === 'NOT_REMEMBERED') {
+                $canonical = self::canonicalM03UnknownValue($state);
+                if (($semanticAvailable && $detail !== '') || (!$semanticAvailable && $detail !== $canonical)) {
+                    $this->bd->rollBack();
+                    return ['resultado' => 422, 'mensaje' => 'El estado desconocido no puede incluir un valor clínico inventado.', 'code' => 'M03_PREVIOUS_UNKNOWN_VALUE_INVALID', 'persist' => false];
+                }
+            } elseif ($state === 'NEGATIVE') {
+                if (!$q5NotStopped && ($type !== 'select' || $detail !== 'No')) {
+                    $this->bd->rollBack();
+                    return ['resultado' => 422, 'mensaje' => 'La respuesta negativa no corresponde a esta pregunta.', 'code' => 'M03_PREVIOUS_NEGATIVE_INVALID', 'persist' => false];
+                }
+            } elseif ($detail === '' || ConversationalInterviewService::classifyM03Unknown($detail) !== null) {
+                $this->bd->rollBack();
+                return ['resultado' => 422, 'mensaje' => 'La respuesta requiere un dato conocido o un estado explícito de incertidumbre.', 'code' => 'M03_PREVIOUS_KNOWN_VALUE_INVALID', 'persist' => false];
+            }
+            $detailedTobaccoAffirmative = M03TobaccoResponsePolicy::isQuestion($question + ['idPregunta' => $questionId, 'idTema' => $themeId])
+                && $state === 'KNOWN'
+                && M03TobaccoResponsePolicy::classify($detail) === M03TobaccoResponsePolicy::AFFIRMATIVE;
+            if ($type === 'select' && !in_array($state, ['UNKNOWN', 'NOT_REMEMBERED'], true)
+                && !(($state === 'KNOWN' && $detail === 'Si') || ($state === 'NEGATIVE' && $detail === 'No') || $detailedTobaccoAffirmative)) {
+                $this->bd->rollBack();
+                return ['resultado' => 422, 'mensaje' => 'Selecciona una opción válida para esta pregunta.', 'code' => 'M03_PREVIOUS_SELECT_INVALID', 'persist' => false];
+            }
+            if (M03TobaccoResponsePolicy::isQuestion($question + ['idPregunta' => $questionId, 'idTema' => $themeId])) {
+                $decision = $detail === '' && in_array($state, ['UNKNOWN', 'NOT_REMEMBERED'], true)
+                    ? $state
+                    : M03TobaccoResponsePolicy::classify($detail);
+                if (M03TobaccoResponsePolicy::semanticState($decision) !== $state) {
+                    $this->bd->rollBack();
+                    return ['resultado' => 422, 'mensaje' => 'La respuesta no coincide con su estado semántico.', 'code' => 'M03_PREVIOUS_TOBACCO_STATE_INVALID', 'persist' => false];
+                }
+            }
+            if (ConversationalInterviewService::isM03BloodRhQuestion($question + ['idTema' => $themeId])
+                && preg_match('/^\s*(?:no|nunca)\s*[.!?]*\s*$/iu', $detail) === 1) {
+                $this->bd->rollBack();
+                return ['resultado' => 422, 'mensaje' => '“No” no es un valor válido para grupo sanguíneo o factor Rh.', 'code' => 'M03_PREVIOUS_BLOOD_RH_INVALID', 'persist' => false];
+            }
+
+            if ($state === 'NEGATIVE' && \App\Services\ConversationalM03Adapter::isThemeParentQuestion($themeId, $questionId)) {
+                $dependentStateSelect = $semanticAvailable ? ',r.estado_respuesta' : '';
+                $dependent = $this->bd->prepare('SELECT r.id,r.respuesta' . $dependentStateSelect . ' FROM pac_respuestas_paciente_modulo_3 r INNER JOIN pac_preguntas_modulo_3 p ON p.id=r.id_pregunta WHERE r.id_paciente=:patient AND p.id_tema=:theme AND p.id<>:question ORDER BY r.id ASC' . $lock);
+                $dependent->execute([':patient' => $patientId, ':theme' => $themeId, ':question' => $questionId]);
+                foreach ($dependent->fetchAll(\PDO::FETCH_ASSOC) as $dependentRow) {
+                    $dependentValue = trim((string)($dependentRow['respuesta'] ?? ''));
+                    $dependentState = $semanticAvailable ? strtoupper(trim((string)($dependentRow['estado_respuesta'] ?? ''))) : '';
+                    if ($dependentValue !== '' || in_array($dependentState, self::M03_SEMANTIC_STATES, true)) {
+                        $this->bd->rollBack();
+                        return ['resultado' => 409, 'mensaje' => 'No se puede cambiar a No porque hay respuestas dependientes que deben conservarse.', 'code' => 'M03_DEPENDENCY_REVIEW_REQUIRED', 'persist' => false];
+                    }
+                }
+            }
+
+            $storedDetail = $semanticAvailable && in_array($state, ['UNKNOWN', 'NOT_REMEMBERED'], true) ? '' : $detail;
+            if ($currentValue === $storedDetail
+                && (!$semanticAvailable || ($currentStoredState === $state && $currentOrigin === $origin))) {
+                $this->bd->commit();
+                return ['resultado' => 200, 'mensaje' => 'La respuesta ya contiene ese valor.', 'persist' => false, 'no_op' => true, 'response_id' => $responseId, 'readback' => true, 'semantic_state' => $state, 'readback_value' => $storedDetail];
+            }
+
+            if ($semanticAvailable) {
+                $update = $this->bd->prepare('UPDATE pac_respuestas_paciente_modulo_3 SET respuesta=:detail,estado_respuesta=:state,origen_respuesta=:origin,estado_respuesta_at=:state_at WHERE id=:response AND id_paciente=:patient AND id_pregunta=:question');
+                $update->execute([':detail' => $storedDetail, ':state' => $state, ':origin' => $origin, ':state_at' => gmdate('Y-m-d H:i:s'), ':response' => $responseId, ':patient' => $patientId, ':question' => $questionId]);
+            } else {
+                $update = $this->bd->prepare('UPDATE pac_respuestas_paciente_modulo_3 SET respuesta=:detail WHERE id=:response AND id_paciente=:patient AND id_pregunta=:question');
+                $update->execute([':detail' => $storedDetail, ':response' => $responseId, ':patient' => $patientId, ':question' => $questionId]);
+            }
+            if ($update->rowCount() !== 1) {
+                $this->bd->rollBack();
+                return ['resultado' => 409, 'mensaje' => 'No fue posible actualizar exclusivamente el registro seleccionado.', 'code' => 'M03_PREVIOUS_UPDATE_CONFLICT', 'persist' => false];
+            }
+
+            $readbackSelect = 'SELECT id,respuesta' . ($semanticAvailable ? ',estado_respuesta,origen_respuesta,estado_respuesta_at' : '') . ' FROM pac_respuestas_paciente_modulo_3 WHERE id=:response AND id_paciente=:patient AND id_pregunta=:question LIMIT 1';
+            $readbackStmt = $this->bd->prepare($readbackSelect);
+            $readbackStmt->execute([':response' => $responseId, ':patient' => $patientId, ':question' => $questionId]);
+            $saved = $readbackStmt->fetch(\PDO::FETCH_ASSOC);
+            if (!is_array($saved) || (int)$saved['id'] !== $responseId || (string)$saved['respuesta'] !== $storedDetail
+                || ($semanticAvailable && ((string)$saved['estado_respuesta'] !== $state || (string)$saved['origen_respuesta'] !== $origin))) {
+                $this->bd->rollBack();
+                return ['resultado' => 500, 'mensaje' => 'La lectura posterior no confirmó la respuesta actualizada.', 'code' => 'M03_PREVIOUS_READBACK_FAILED', 'persist' => false];
+            }
+            $this->bd->commit();
+            return ['resultado' => 200, 'mensaje' => 'Respuesta M03 actualizada.', 'persist' => true, 'response_id' => $responseId, 'readback' => true, 'readback_value' => (string)$saved['respuesta'], 'semantic_state' => $state];
+        } catch (\Throwable) {
+            if ($this->bd->inTransaction()) $this->bd->rollBack();
+            return ['resultado' => 500, 'mensaje' => 'No fue posible actualizar la respuesta M03.', 'code' => 'M03_PREVIOUS_UPDATE_FAILED', 'persist' => false];
+        }
     }
 
     /**
@@ -276,12 +616,12 @@ $this->bd = $db ?: Database::getInstance();
      * present. Unknown states intentionally keep respuesta empty; the state
      * column, origin and timestamp carry the patient's declaration.
      */
-    private function persistSemanticResponse(int $patientId, int $questionId, int $themeId, string $detail, string $state, string $origin, ?string $expected): array
+    private function persistSemanticResponse(int $patientId, int $questionId, int $themeId, string $detail, string $state, string $origin, ?string $expected, ?int $expectedResponseId): array
     {
     try {
     $this->bd->beginTransaction();
     $lock = $this->bd->getAttribute(\PDO::ATTR_DRIVER_NAME) === 'mysql' ? ' FOR UPDATE' : '';
-    $lookup = $this->bd->prepare('SELECT id, respuesta FROM pac_respuestas_paciente_modulo_3 WHERE id_paciente = :patient AND id_pregunta = :question ORDER BY id ASC LIMIT 2' . $lock);
+    $lookup = $this->bd->prepare('SELECT id, respuesta, estado_respuesta, origen_respuesta FROM pac_respuestas_paciente_modulo_3 WHERE id_paciente = :patient AND id_pregunta = :question ORDER BY id ASC LIMIT 2' . $lock);
     $lookup->execute([':patient' => $patientId, ':question' => $questionId]);
     $rows = $lookup->fetchAll(\PDO::FETCH_ASSOC);
     if (count($rows) > 1) {
@@ -290,11 +630,17 @@ $this->bd = $db ?: Database::getInstance();
     }
     $current = $rows[0] ?? null;
     $currentValue = (string)($current['respuesta'] ?? '');
+    if (($current === null && $expectedResponseId !== null)
+        || ($current !== null && $expectedResponseId !== null && (int)$current['id'] !== $expectedResponseId)
+        || ($current !== null && $expectedResponseId === null)) {
+        $this->bd->rollBack();
+        return ['resultado' => 409, 'mensaje' => 'La respuesta cambió mientras se editaba. Actualiza la pregunta antes de continuar.', 'code' => 'M03_RESPONSE_ID_CONFLICT', 'persist' => false];
+    }
     if ($expected !== null && $currentValue !== $expected) {
         $this->bd->rollBack();
         return ['resultado' => 409, 'mensaje' => 'La respuesta cambió mientras se capturaba. Recarga la pregunta antes de continuar.', 'code' => 'M03_VERSION_CONFLICT', 'persist' => false];
     }
-    if ($state === 'NEGATIVE') {
+    if ($state === 'NEGATIVE' && !self::isM03Q5NotStoppedResponse($questionId, $themeId, $detail, $state)) {
         $dependent = $this->bd->prepare(
             "SELECT COUNT(*) FROM pac_respuestas_paciente_modulo_3
              WHERE id_paciente = :patient AND id <> :response
@@ -307,13 +653,29 @@ $this->bd = $db ?: Database::getInstance();
             return ['resultado' => 409, 'mensaje' => 'Este cambio puede limpiar respuestas dependientes. Continúa en el formulario tradicional para revisarlo.', 'code' => 'M03_DEPENDENCY_REVIEW_REQUIRED', 'persist' => false];
         }
     }
+    if ($current !== null
+        && $currentValue === $detail
+        && strtoupper(trim((string)($current['estado_respuesta'] ?? ''))) === $state
+        && (string)($current['origen_respuesta'] ?? '') === $origin) {
+        $responseId = (int)$current['id'];
+        $this->bd->commit();
+        return ['resultado' => 200, 'mensaje' => 'La respuesta ya estaba guardada; no se realizaron cambios.', 'persist' => false, 'no_op' => true, 'semantic_state' => $state, 'response_id' => $responseId];
+    }
     $timestamp = gmdate('Y-m-d H:i:s');
     if ($current === null) {
+        if ($expectedResponseId !== null) {
+            $this->bd->rollBack();
+            return ['resultado' => 409, 'mensaje' => 'La respuesta cambió mientras se editaba.', 'code' => 'M03_RESPONSE_ID_CONFLICT', 'persist' => false];
+        }
         $insert = $this->bd->prepare('INSERT INTO pac_respuestas_paciente_modulo_3 (id_pregunta, id_paciente, respuesta, estado_respuesta, origen_respuesta, estado_respuesta_at) VALUES (:question, :patient, :detail, :state, :origin, :state_at)');
         $insert->execute([':question' => $questionId, ':patient' => $patientId, ':detail' => $detail, ':state' => $state, ':origin' => $origin, ':state_at' => $timestamp]);
     } else {
-        $update = $this->bd->prepare('UPDATE pac_respuestas_paciente_modulo_3 SET respuesta = :detail, estado_respuesta = :state, origen_respuesta = :origin, estado_respuesta_at = :state_at WHERE id = :id AND id_paciente = :patient AND id_pregunta = :question');
-        $update->execute([':detail' => $detail, ':state' => $state, ':origin' => $origin, ':state_at' => $timestamp, ':id' => (int)$current['id'], ':patient' => $patientId, ':question' => $questionId]);
+        $update = $this->bd->prepare('UPDATE pac_respuestas_paciente_modulo_3 SET respuesta = :detail, estado_respuesta = :state, origen_respuesta = :origin, estado_respuesta_at = :state_at WHERE id = :id AND id_paciente = :patient AND id_pregunta = :question AND respuesta = :expected');
+        $update->execute([':detail' => $detail, ':state' => $state, ':origin' => $origin, ':state_at' => $timestamp, ':id' => (int)$current['id'], ':patient' => $patientId, ':question' => $questionId, ':expected' => $currentValue]);
+        if ($update->rowCount() !== 1) {
+            $this->bd->rollBack();
+            return ['resultado' => 409, 'mensaje' => 'La respuesta cambió mientras se editaba. No se sobrescribieron cambios concurrentes.', 'code' => 'M03_VERSION_CONFLICT', 'persist' => false];
+        }
     }
     $this->bd->commit();
     return ['resultado' => 200, 'mensaje' => 'Respuesta M03 guardada.', 'persist' => true, 'semantic_state' => $state, 'readback' => false];
@@ -321,6 +683,71 @@ $this->bd = $db ?: Database::getInstance();
     if ($this->bd->inTransaction()) $this->bd->rollBack();
     return ['resultado' => 500, 'mensaje' => 'No fue posible guardar la respuesta M03.', 'code' => 'M03_SEMANTIC_PERSISTENCE_FAILED', 'persist' => false];
     }
+    }
+
+    /** Patient-scoped, version-checked persistence for installations without semantic columns. */
+    private function persistLegacyM03Response(int $patientId, int $questionId, int $themeId, string $detail, string $state, ?string $expected, ?int $expectedResponseId): array
+    {
+        try {
+            $this->bd->beginTransaction();
+            $lock = $this->bd->getAttribute(\PDO::ATTR_DRIVER_NAME) === 'mysql' ? ' FOR UPDATE' : '';
+            $patient = $this->bd->prepare('SELECT id FROM pc_paciente WHERE id = :patient LIMIT 1' . $lock);
+            $patient->execute([':patient' => $patientId]);
+            if ($patient->fetchColumn() === false) {
+                $this->bd->rollBack();
+                return ['resultado' => 404, 'mensaje' => 'El paciente autorizado no está disponible.', 'code' => 'M03_PATIENT_NOT_FOUND', 'persist' => false];
+            }
+
+            $lookup = $this->bd->prepare('SELECT id, respuesta FROM pac_respuestas_paciente_modulo_3 WHERE id_paciente = :patient AND id_pregunta = :question ORDER BY id ASC LIMIT 2' . $lock);
+            $lookup->execute([':patient' => $patientId, ':question' => $questionId]);
+            $rows = $lookup->fetchAll(\PDO::FETCH_ASSOC);
+            if (count($rows) > 1) {
+                $this->bd->rollBack();
+                return ['resultado' => 409, 'mensaje' => 'Existen respuestas M03 duplicadas; se requiere revisión autorizada.', 'code' => 'M03_DUPLICATE_RESPONSE_ROWS', 'persist' => false];
+            }
+            $current = $rows[0] ?? null;
+            $currentValue = (string)($current['respuesta'] ?? '');
+            if (($current === null && $expectedResponseId !== null)
+                || ($current !== null && $expectedResponseId !== null && (int)$current['id'] !== $expectedResponseId)
+                || ($current !== null && $expectedResponseId === null)) {
+                $this->bd->rollBack();
+                return ['resultado' => 409, 'mensaje' => 'La respuesta cambió mientras se editaba. Actualiza la pregunta antes de continuar.', 'code' => 'M03_RESPONSE_ID_CONFLICT', 'persist' => false];
+            }
+            if ($expected !== null && $currentValue !== $expected) {
+                $this->bd->rollBack();
+                return ['resultado' => 409, 'mensaje' => 'La respuesta cambió mientras se capturaba. Actualiza la pregunta antes de continuar.', 'code' => 'M03_VERSION_CONFLICT', 'persist' => false];
+            }
+            if ($state === 'NEGATIVE' && !self::isM03Q5NotStoppedResponse($questionId, $themeId, $detail, $state)) {
+                $dependent = $this->bd->prepare("SELECT COUNT(*) FROM pac_respuestas_paciente_modulo_3 WHERE id_paciente = :patient AND id <> :response AND id_pregunta IN (SELECT id FROM pac_preguntas_modulo_3 WHERE id_tema = :theme) AND TRIM(COALESCE(respuesta, '')) <> ''");
+                $dependent->execute([':patient' => $patientId, ':response' => (int)($current['id'] ?? 0), ':theme' => $themeId]);
+                if ((int)$dependent->fetchColumn() > 0) {
+                    $this->bd->rollBack();
+                    return ['resultado' => 409, 'mensaje' => 'Este cambio puede afectar respuestas dependientes. No se guardó ningún cambio.', 'code' => 'M03_DEPENDENCY_REVIEW_REQUIRED', 'persist' => false];
+                }
+            }
+            if ($current !== null && $currentValue === $detail) {
+                $this->bd->commit();
+                return ['resultado' => 200, 'mensaje' => 'La respuesta ya estaba guardada; no se realizaron cambios.', 'persist' => false, 'no_op' => true, 'response_id' => (int)$current['id']];
+            }
+            if ($current === null) {
+                $insert = $this->bd->prepare('INSERT INTO pac_respuestas_paciente_modulo_3 (id_pregunta, id_paciente, respuesta) VALUES (:question, :patient, :detail)');
+                $insert->execute([':question' => $questionId, ':patient' => $patientId, ':detail' => $detail]);
+                $responseId = (int)$this->bd->lastInsertId();
+            } else {
+                $update = $this->bd->prepare('UPDATE pac_respuestas_paciente_modulo_3 SET respuesta = :detail WHERE id = :id AND id_paciente = :patient AND id_pregunta = :question AND respuesta = :expected');
+                $update->execute([':detail' => $detail, ':id' => (int)$current['id'], ':patient' => $patientId, ':question' => $questionId, ':expected' => $currentValue]);
+                if ($update->rowCount() !== 1) {
+                    $this->bd->rollBack();
+                    return ['resultado' => 409, 'mensaje' => 'La respuesta cambió mientras se editaba. No se sobrescribieron cambios concurrentes.', 'code' => 'M03_VERSION_CONFLICT', 'persist' => false];
+                }
+                $responseId = (int)$current['id'];
+            }
+            $this->bd->commit();
+            return ['resultado' => 200, 'mensaje' => 'Respuesta M03 guardada.', 'persist' => true, 'response_id' => $responseId];
+        } catch (\Throwable) {
+            if ($this->bd->inTransaction()) $this->bd->rollBack();
+            return ['resultado' => 500, 'mensaje' => 'No fue posible guardar la respuesta M03.', 'code' => 'M03_LEGACY_PERSISTENCE_FAILED', 'persist' => false];
+        }
     }
 
     //---------- OBTENER DATOS DEL MODULO ----------//
@@ -437,6 +864,9 @@ $this->bd = $db ?: Database::getInstance();
     $respuesta = $pregunta['respuesta'];
     $tipo = $pregunta['tipo'];
     $respuestaGuardada = $respuesta == 0 ? '' : (string)$respuesta;
+    $affirmativeSelected = $idPregunta === M03TobaccoResponsePolicy::QUESTION_ID && (int)$idTema === M03TobaccoResponsePolicy::THEME_ID
+        ? M03TobaccoResponsePolicy::isAffirmative($respuestaGuardada)
+        : $respuestaGuardada === 'Si';
 
                     
     // La primera pregunta se muestra activa
@@ -459,7 +889,7 @@ $this->bd = $db ?: Database::getInstance();
     <div class="text-center d-flex flex-column align-items-center">
     <input id="p05-respuesta-si-'.$domKey.'" type="radio" name="p05_respuesta_'.$domKey.'" data-value="Si" class="form-check-input custom-checkbox mb-2" aria-label="Sí"
     data-p05-control="true" data-p05-patient="'.$escapeAttribute($idPaciente).'" data-p05-response="'.$escapeAttribute($idRespuesta).'" data-p05-question-id="'.$idPregunta.'" data-p05-theme="'.$escapeAttribute($idTema).'" data-p05-type="'.$escapeAttribute($tipo).'" data-p05-role="'.$escapeAttribute($idRol).'" data-p05-saved-value="'.$escapeAttribute($respuestaGuardada).'"
-    value="Si" '.($respuesta == 'Si' ? 'checked' : '').'>
+    value="Si" '.($affirmativeSelected ? 'checked' : '').'>
     <label for="p05-respuesta-si-'.$domKey.'"><h5 class="text-secondary">Sí</h5></label>
     </div>
         
@@ -737,6 +1167,18 @@ $this->bd = $db ?: Database::getInstance();
     if (array_key_exists('expectedRespuesta', $data)
         && (string)$contexto['respuesta'] !== (string)$data['expectedRespuesta']) {
     return array('resultado' => 409, 'mensaje' => 'La respuesta cambió mientras se capturaba. Recarga la pregunta antes de continuar.');
+    }
+
+    // The traditional binary control has no field for q1's conversational
+    // details. A repeated affirmative choice must not collapse that detail to
+    // the legacy literal "Si".
+    if ($data['idTipo'] === 'select'
+        && (int)($contexto['id_pregunta'] ?? 0) === M03TobaccoResponsePolicy::QUESTION_ID
+        && $idTema === M03TobaccoResponsePolicy::THEME_ID
+        && (string)$data['detalle'] === 'Si'
+        && M03TobaccoResponsePolicy::isAffirmative((string)$contexto['respuesta'])
+        && !M03TobaccoResponsePolicy::isSimpleAffirmative((string)$contexto['respuesta'])) {
+        return ['resultado' => 200, 'mensaje' => 'La respuesta afirmativa y sus detalles se conservaron.'];
     }
     
     //---------- Verificamos si el tipo es "input" ----------
