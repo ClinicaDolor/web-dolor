@@ -101,9 +101,30 @@
             return pendingAndActive || savedAnswerEditable;
         }
 
+        static isM03DictationContractEligible(target, question, module) {
+            if (!/^M03:question:[1-9]\d*$/.test(String(target || ''))
+                || question?.module_id !== 'M03'
+                || question?.stable_id !== target
+                || question?.write_enabled !== true
+                || question?.response?.eligible !== true
+                || module?.state?.write_enabled !== true
+                || module?.state?.finalized === true
+                || module?.conversation_state?.state !== 'ANSWERABLE') return false;
+
+            const response = question.response || {};
+            const isCurrentTarget = module.conversation_state.stable_id === target;
+            const pendingAndActive = response.status === 'pending' && isCurrentTarget;
+            const savedAnswerEditable = response.status === 'documented'
+                && response.persisted === true
+                && response.editable === true;
+            return pendingAndActive || savedAnswerEditable;
+        }
+
         _targetAuthorized(target, input) {
             if (this.options.mode === 'diagnostic') return true;
-            if (!/^M02:/.test(String(target || ''))) return false;
+            const clinicalTarget = /^M02:/.test(String(target || ''))
+                || /^M03:question:[1-9]\d*$/.test(String(target || ''));
+            if (!clinicalTarget) return false;
             try {
                 return typeof this.options.isTargetAuthorized === 'function'
                     && this.options.isTargetAuthorized(target, input) === true;
@@ -210,7 +231,15 @@
                 this.generation += 1;
                 await this._release(state, true);
                 this._resetButton(button);
-                const message = error?.name === 'NotAllowedError'
+                const m03ClinicalTarget = this.options.mode !== 'diagnostic' && /^M03:question:[1-9]\d*$/.test(state.target);
+                const ticketRejected = m03ClinicalTarget && error?.message === 'DICTATION_TICKET_REJECTED';
+                const message = ticketRejected
+                    ? error.status === 409
+                        ? 'La pregunta dejó de estar activa o editable. Actualiza la entrevista y vuelve a intentarlo.'
+                        : error.status === 401 || error.status === 403
+                            ? 'El servidor no autorizó el dictado para esta pregunta. Puedes responder por escrito.'
+                            : 'El servidor no pudo autorizar el dictado. Puedes responder por escrito.'
+                    : error?.name === 'NotAllowedError'
                     ? (this.options.mode === 'diagnostic' ? 'Permiso del micrófono denegado por Chrome.' : 'Permiso de micrófono denegado. Puedes responder por escrito.')
                     : error?.name === 'NotFoundError'
                         ? (this.options.mode === 'diagnostic' ? 'Chrome no encontró un micrófono disponible.' : 'No se encontró un micrófono. Puedes responder por escrito.')

@@ -4,6 +4,8 @@ $escape = static fn($value) => htmlspecialchars((string)$value, ENT_QUOTES, 'UTF
 $questionsJson = json_encode($data['questions'] ?? [], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 $conversationContractJson = json_encode($data['conversationContract'] ?? [], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?: '{}';
 $m02PiperAudioConfig = ['enabled' => false, 'entries' => [], 'errors' => [], 'actions' => []];
+$m03PiperAudioConfig = ['enabled' => false, 'entries' => []];
+$m03TobaccoPiperAudioConfig = ['enabled' => false, 'entries' => [], 'errors' => []];
 $m02FinalizeHelpText = 'Ya respondiste las preguntas de antecedentes familiares. Puedes revisar tus respuestas en Respuestas previas antes de finalizar. Si toda la información es correcta y deseas continuar, pulsa el botón Finalizar antecedentes familiares y continuar.';
 $requestHost = strtolower(trim(explode(':', (string)($_SERVER['HTTP_HOST'] ?? ''))[0]));
 $remoteAddress = (string)($_SERVER['REMOTE_ADDR'] ?? '');
@@ -245,23 +247,348 @@ if ($localM02PiperPilot && $m02PiperManifestPath !== false && is_file($m02PiperM
         }
     }
 }
+$localM03TobaccoPiperPilot = $requestHost === 'clinica.test'
+    && in_array($remoteAddress, ['127.0.0.1', '::1'], true)
+    && in_array($serverAddress, ['127.0.0.1', '::1'], true);
+$m03TobaccoAudioUrlDirectory = 'audio/patient-interview/m03/piper-claude';
+$m03TobaccoManifestPath = realpath(dirname(__DIR__, 3) . '/public/assets/' . $m03TobaccoAudioUrlDirectory . '/manifest.json');
+$m03TobaccoManifestSha256 = 'b9378a5d1b95b0df42c38441d917e30e0e44a8fe5b96d0fc4b8f190fc65261ea';
+$m03TobaccoInvalidErrorCode = 'M03_TOBACCO_ANSWER_AMBIGUOUS';
+$m03TobaccoInvalidErrorText = 'No pude identificar tu respuesta. Para continuar, dime claramente si fumas cigarros de nicotina. Puedes responder: sí, fumo; no, no fumo; no lo sé o no lo recuerdo. Tu respuesta no se guardó. Puedes intentarlo nuevamente.';
+$m03TobaccoStableIds = array_map(static fn(int $id): string => 'M03:question:' . $id, range(1, 5));
+if ($localM03TobaccoPiperPilot && $m03TobaccoManifestPath !== false && is_file($m03TobaccoManifestPath)
+    && hash_equals($m03TobaccoManifestSha256, (string)hash_file('sha256', $m03TobaccoManifestPath))) {
+    $m03Manifest = json_decode((string)file_get_contents($m03TobaccoManifestPath), true);
+    $questionIndex = $data['conversationContract']['question_index'] ?? [];
+    if (is_array($m03Manifest)
+        && ($m03Manifest['schema_version'] ?? null) === 1
+        && ($m03Manifest['module_id'] ?? null) === 'M03'
+        && ($m03Manifest['theme_id'] ?? null) === 1
+        && ($m03Manifest['voice'] ?? null) === 'es_MX-claude-high'
+        && is_array($m03Manifest['entries'] ?? null)
+        && is_array($m03Manifest['help_audio'] ?? null)
+        && is_array($m03Manifest['error_audio'] ?? null)) {
+        $allowedPrefix = rtrim(dirname($m03TobaccoManifestPath), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+        $resolvedEntries = [];
+        $usedFiles = [];
+        foreach ($m03Manifest['entries'] as $manifestEntry) {
+            $stableId = (string)($manifestEntry['stable_id'] ?? '');
+            $canonicalQuestion = $questionIndex[$stableId] ?? null;
+            $audioFile = (string)($manifestEntry['audio_file'] ?? '');
+            $audioPath = $audioFile !== '' && basename($audioFile) === $audioFile
+                ? realpath(dirname($m03TobaccoManifestPath) . DIRECTORY_SEPARATOR . $audioFile)
+                : false;
+            $canonicalText = is_array($canonicalQuestion) ? (string)($canonicalQuestion['voice']['QUESTION'] ?? '') : '';
+            $text = (string)($manifestEntry['text'] ?? '');
+            $textHash = (string)($manifestEntry['text_sha256'] ?? '');
+            $audioHash = (string)($manifestEntry['audio_sha256'] ?? '');
+            if (!in_array($stableId, $m03TobaccoStableIds, true)
+                || isset($resolvedEntries[$stableId])
+                || !is_array($canonicalQuestion)
+                || ($canonicalQuestion['module_id'] ?? null) !== 'M03'
+                || (int)($canonicalQuestion['theme_id'] ?? 0) !== 1
+                || (int)($canonicalQuestion['question_id'] ?? 0) !== (int)substr($stableId, strlen('M03:question:'))
+                || $text === '' || $text !== $canonicalText
+                || preg_match('/^[a-f0-9]{64}$/', $textHash) !== 1 || !hash_equals($textHash, hash('sha256', $text))
+                || $audioFile === '' || strtolower(pathinfo($audioFile, PATHINFO_EXTENSION)) !== 'mp3'
+                || preg_match('/^[a-f0-9]{64}$/', $audioHash) !== 1
+                || $audioPath === false || !is_file($audioPath) || !str_starts_with($audioPath, $allowedPrefix)
+                || !hash_equals($audioHash, (string)hash_file('sha256', $audioPath))
+                || isset($usedFiles[$audioFile])) {
+                continue;
+            }
+            $usedFiles[$audioFile] = true;
+            $resolvedEntries[$stableId] = [
+                'module_id' => 'M03', 'stable_id' => $stableId, 'text' => $text,
+                'text_sha256' => $textHash, 'audio_sha256' => $audioHash,
+                'src' => RUTA_PUBLIC . $m03TobaccoAudioUrlDirectory . '/' . rawurlencode($audioFile) . '?v=' . (int)filemtime($audioPath),
+            ];
+        }
+        $resolvedHelp = [];
+        foreach ($m03Manifest['help_audio'] as $helpEntry) {
+            $stableId = (string)($helpEntry['stable_id'] ?? '');
+            $canonicalQuestion = $questionIndex[$stableId] ?? null;
+            $audioFile = (string)($helpEntry['audio_file'] ?? '');
+            $audioPath = $audioFile !== '' && basename($audioFile) === $audioFile
+                ? realpath(dirname($m03TobaccoManifestPath) . DIRECTORY_SEPARATOR . $audioFile)
+                : false;
+            $canonicalText = is_array($canonicalQuestion) ? (string)($canonicalQuestion['voice']['HELP'] ?? '') : '';
+            $text = (string)($helpEntry['text'] ?? '');
+            $textHash = (string)($helpEntry['text_sha256'] ?? '');
+            $audioHash = (string)($helpEntry['audio_sha256'] ?? '');
+            if (($helpEntry['module_id'] ?? null) !== 'M03'
+                || !in_array($stableId, $m03TobaccoStableIds, true)
+                || isset($resolvedHelp[$stableId])
+                || !isset($resolvedEntries[$stableId])
+                || !is_array($canonicalQuestion)
+                || $text === '' || $text !== $canonicalText
+                || preg_match('/^[a-f0-9]{64}$/', $textHash) !== 1 || !hash_equals($textHash, hash('sha256', $text))
+                || $audioFile === '' || strtolower(pathinfo($audioFile, PATHINFO_EXTENSION)) !== 'mp3'
+                || preg_match('/^[a-f0-9]{64}$/', $audioHash) !== 1
+                || $audioPath === false || !is_file($audioPath) || !str_starts_with($audioPath, $allowedPrefix)
+                || !hash_equals($audioHash, (string)hash_file('sha256', $audioPath))
+                || isset($usedFiles[$audioFile])) {
+                continue;
+            }
+            $usedFiles[$audioFile] = true;
+            $resolvedHelp[$stableId] = [
+                'module_id' => 'M03', 'stable_id' => $stableId, 'text' => $text,
+                'text_sha256' => $textHash, 'audio_sha256' => $audioHash,
+                'src' => RUTA_PUBLIC . $m03TobaccoAudioUrlDirectory . '/' . rawurlencode($audioFile) . '?v=' . (int)filemtime($audioPath),
+            ];
+        }
+        $resolvedErrors = [];
+        foreach ($m03Manifest['error_audio'] as $errorEntry) {
+            $errorCode = (string)($errorEntry['error_code'] ?? '');
+            $stableId = (string)($errorEntry['stable_id'] ?? '');
+            $questionStableId = (string)($errorEntry['question_stable_id'] ?? '');
+            $audioFile = (string)($errorEntry['audio_file'] ?? '');
+            $audioPath = $audioFile !== '' && basename($audioFile) === $audioFile
+                ? realpath(dirname($m03TobaccoManifestPath) . DIRECTORY_SEPARATOR . $audioFile)
+                : false;
+            $text = (string)($errorEntry['text'] ?? '');
+            $textHash = (string)($errorEntry['text_sha256'] ?? '');
+            $audioHash = (string)($errorEntry['audio_sha256'] ?? '');
+            if (($errorEntry['module_id'] ?? null) !== 'M03'
+                || $errorCode !== $m03TobaccoInvalidErrorCode
+                || $stableId !== 'M03:error:tobacco-answer-ambiguous'
+                || $questionStableId !== 'M03:question:1'
+                || isset($resolvedErrors[$errorCode])
+                || !isset($resolvedEntries[$questionStableId])
+                || $text !== $m03TobaccoInvalidErrorText
+                || preg_match('/^[a-f0-9]{64}$/', $textHash) !== 1 || !hash_equals($textHash, hash('sha256', $text))
+                || $audioFile === '' || strtolower(pathinfo($audioFile, PATHINFO_EXTENSION)) !== 'mp3'
+                || isset($usedFiles[$audioFile]) || preg_match('/^[a-f0-9]{64}$/', $audioHash) !== 1
+                || $audioPath === false || !is_file($audioPath) || !str_starts_with($audioPath, $allowedPrefix)
+                || !hash_equals($audioHash, (string)hash_file('sha256', $audioPath))) {
+                continue;
+            }
+            $usedFiles[$audioFile] = true;
+            $resolvedErrors[$errorCode] = [
+                'module_id' => 'M03', 'error_code' => $errorCode, 'stable_id' => $stableId,
+                'question_stable_id' => $questionStableId, 'text' => $text,
+                'text_sha256' => $textHash, 'audio_sha256' => $audioHash,
+                'src' => RUTA_PUBLIC . $m03TobaccoAudioUrlDirectory . '/' . rawurlencode($audioFile) . '?v=' . (int)filemtime($audioPath),
+            ];
+        }
+        if (array_keys($resolvedEntries) !== [] && count($resolvedEntries) === 5 && count($resolvedHelp) === 5
+            && array_diff($m03TobaccoStableIds, array_keys($resolvedEntries)) === []
+            && array_diff($m03TobaccoStableIds, array_keys($resolvedHelp)) === []
+            && count($resolvedErrors) === 1 && isset($resolvedErrors[$m03TobaccoInvalidErrorCode])) {
+            foreach ($m03TobaccoStableIds as $stableId) {
+                $resolvedEntries[$stableId]['help'] = $resolvedHelp[$stableId];
+            }
+            $m03TobaccoPiperAudioConfig = ['enabled' => true, 'entries' => $resolvedEntries, 'errors' => $resolvedErrors];
+        }
+    }
+}
+$m03PiperManifestSha256 = 'b9378a5d1b95b0df42c38441d917e30e0e44a8fe5b96d0fc4b8f190fc65261ea';
+if ($localM03TobaccoPiperPilot && $m03TobaccoManifestPath !== false && is_file($m03TobaccoManifestPath)
+    && preg_match('/^[a-f0-9]{64}$/', $m03PiperManifestSha256) === 1
+    && hash_equals($m03PiperManifestSha256, (string)hash_file('sha256', $m03TobaccoManifestPath))) {
+    $manifestForAllThemes = json_decode((string)file_get_contents($m03TobaccoManifestPath), true);
+    $questionIndex = $data['conversationContract']['question_index'] ?? [];
+    if (is_array($manifestForAllThemes)
+        && ($manifestForAllThemes['schema_version'] ?? null) === 1
+        && ($manifestForAllThemes['module_id'] ?? null) === 'M03'
+        && ($manifestForAllThemes['theme_id'] ?? null) === 1
+        && ($manifestForAllThemes['voice'] ?? null) === 'es_MX-claude-high'
+        && is_array($manifestForAllThemes['entries'] ?? null)
+        && is_array($manifestForAllThemes['help_audio'] ?? null)) {
+        $allowedPrefix = rtrim(dirname($m03TobaccoManifestPath), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+        $resolvedQuestions = [];
+        $usedQuestionFiles = [];
+        foreach ($manifestForAllThemes['entries'] as $entry) {
+            $stableId = (string)($entry['stable_id'] ?? '');
+            $canonical = $questionIndex[$stableId] ?? null;
+            $audioFile = (string)($entry['audio_file'] ?? '');
+            $audioPath = $audioFile !== '' && basename($audioFile) === $audioFile
+                ? realpath(dirname($m03TobaccoManifestPath) . DIRECTORY_SEPARATOR . $audioFile)
+                : false;
+            $canonicalText = is_array($canonical) ? (string)($canonical['voice']['QUESTION'] ?? '') : '';
+            $text = (string)($entry['text'] ?? '');
+            $textHash = (string)($entry['text_sha256'] ?? '');
+            $audioHash = (string)($entry['audio_sha256'] ?? '');
+            $questionId = is_array($canonical) ? (int)($canonical['question_id'] ?? 0) : 0;
+            $themeId = is_array($canonical) ? (int)($canonical['theme_id'] ?? 0) : 0;
+            if (preg_match('/^M03:question:([1-9][0-9]*)$/', $stableId, $match) !== 1
+                || !is_array($canonical) || ($canonical['module_id'] ?? null) !== 'M03'
+                || $questionId !== (int)$match[1] || $themeId < 1 || $themeId > 7
+                || (isset($entry['question_id']) && (int)$entry['question_id'] !== $questionId)
+                || (isset($entry['theme_id']) && (int)$entry['theme_id'] !== $themeId)
+                || isset($resolvedQuestions[$stableId]) || $text === '' || $text !== $canonicalText
+                || preg_match('/^[a-f0-9]{64}$/', $textHash) !== 1 || !hash_equals($textHash, hash('sha256', $text))
+                || $audioFile === '' || strtolower(pathinfo($audioFile, PATHINFO_EXTENSION)) !== 'mp3'
+                || preg_match('/^[a-f0-9]{64}$/', $audioHash) !== 1
+                || $audioPath === false || !is_file($audioPath) || !str_starts_with($audioPath, $allowedPrefix)
+                || !hash_equals($audioHash, (string)hash_file('sha256', $audioPath))) {
+                continue;
+            }
+            $sharedFile = $usedQuestionFiles[$audioFile] ?? null;
+            if (is_array($sharedFile)
+                && ($sharedFile['audio_sha256'] !== $audioHash || trim($sharedFile['spoken_text']) !== trim($text))) {
+                continue;
+            }
+            $usedQuestionFiles[$audioFile] = ['audio_sha256' => $audioHash, 'spoken_text' => $text];
+            $resolvedQuestions[$stableId] = [
+                'module_id' => 'M03', 'stable_id' => $stableId, 'text' => $text,
+                'text_sha256' => $textHash, 'audio_sha256' => $audioHash,
+                'src' => RUTA_PUBLIC . $m03TobaccoAudioUrlDirectory . '/' . rawurlencode($audioFile) . '?v=' . (int)filemtime($audioPath),
+            ];
+        }
+        $resolvedHelp = [];
+        $usedHelpFiles = [];
+        foreach ($manifestForAllThemes['help_audio'] as $entry) {
+            $stableId = (string)($entry['stable_id'] ?? '');
+            $canonical = $questionIndex[$stableId] ?? null;
+            $audioFile = (string)($entry['audio_file'] ?? '');
+            $audioPath = $audioFile !== '' && basename($audioFile) === $audioFile
+                ? realpath(dirname($m03TobaccoManifestPath) . DIRECTORY_SEPARATOR . $audioFile)
+                : false;
+            $canonicalText = is_array($canonical) ? (string)($canonical['voice']['HELP'] ?? '') : '';
+            $text = (string)($entry['text'] ?? '');
+            $textHash = (string)($entry['text_sha256'] ?? '');
+            $audioHash = (string)($entry['audio_sha256'] ?? '');
+            if (($entry['module_id'] ?? null) !== 'M03' || !isset($resolvedQuestions[$stableId])
+                || isset($resolvedHelp[$stableId]) || !is_array($canonical) || $text === '' || $text !== $canonicalText
+                || (isset($entry['theme_id']) && (int)$entry['theme_id'] !== (int)($canonical['theme_id'] ?? 0))
+                || preg_match('/^[a-f0-9]{64}$/', $textHash) !== 1 || !hash_equals($textHash, hash('sha256', $text))
+                || $audioFile === '' || strtolower(pathinfo($audioFile, PATHINFO_EXTENSION)) !== 'mp3'
+                || preg_match('/^[a-f0-9]{64}$/', $audioHash) !== 1
+                || isset($usedHelpFiles[$audioFile]) || isset($usedQuestionFiles[$audioFile])
+                || $audioPath === false || !is_file($audioPath) || !str_starts_with($audioPath, $allowedPrefix)
+                || !hash_equals($audioHash, (string)hash_file('sha256', $audioPath))) {
+                continue;
+            }
+            $usedHelpFiles[$audioFile] = true;
+            $resolvedHelp[$stableId] = [
+                'module_id' => 'M03', 'stable_id' => $stableId, 'text' => $text,
+                'text_sha256' => $textHash, 'audio_sha256' => $audioHash,
+                'src' => RUTA_PUBLIC . $m03TobaccoAudioUrlDirectory . '/' . rawurlencode($audioFile) . '?v=' . (int)filemtime($audioPath),
+            ];
+        }
+        $expectedM03Targets = [];
+        foreach ($questionIndex as $stableId => $question) {
+            if (is_array($question) && ($question['module_id'] ?? null) === 'M03') $expectedM03Targets[] = (string)$stableId;
+        }
+        if (count($expectedM03Targets) === 25 && count($resolvedQuestions) === 25 && count($resolvedHelp) === 25
+            && array_diff($expectedM03Targets, array_keys($resolvedQuestions)) === []
+            && array_diff($expectedM03Targets, array_keys($resolvedHelp)) === []) {
+            foreach ($expectedM03Targets as $stableId) $resolvedQuestions[$stableId]['help'] = $resolvedHelp[$stableId];
+            $m03PiperAudioConfig = ['enabled' => true, 'entries' => $resolvedQuestions];
+        }
+    }
+}
+$m04PiperAudioConfig = ['enabled' => false, 'entries' => [], 'help_audio' => []];
+$m04PiperAssetUrlDirectory = 'audio/patient-interview/m04/piper-claude';
+$m04PiperManifestPath = realpath(dirname(__DIR__, 3) . '/public/assets/' . $m04PiperAssetUrlDirectory . '/manifest.json');
+$m04PiperManifestSha256 = '00c341473ece2f63002eb90d500a2a1aff7960508c0e2517ccb6acc50683c5bb';
+$m04QuestionIds = [
+    'M04:record:new',
+    'M04:record:new:name',
+    'M04:record:new:observations',
+    'M04:record:new:add-another',
+];
+$m04HelpTexts = [
+    'M04:help:1' => ['M04:record:new', 'Si nunca le han realizado una cirugía, seleccione No, guardar y continuar.'],
+    'M04:help:2' => ['M04:record:new:name', 'Escriba el nombre de la cirugía que le realizaron.'],
+    'M04:help:3' => ['M04:record:new:observations', 'Puede indicar el año, la fecha aproximada o los detalles que recuerde.'],
+    'M04:help:4' => ['M04:record:new:observations', 'Si no recuerda una respuesta, puede seleccionar No recuerdo.'],
+    'M04:help:5' => ['M04:record:new:add-another', 'Si tuvo otra cirugía, puede agregarla antes de terminar el módulo.'],
+];
+if ($localM02PiperPilot && $m04PiperManifestPath !== false && is_file($m04PiperManifestPath)
+    && preg_match('/^[a-f0-9]{64}$/', $m04PiperManifestSha256) === 1
+    && hash_equals($m04PiperManifestSha256, (string)hash_file('sha256', $m04PiperManifestPath))) {
+    $manifest = json_decode((string)file_get_contents($m04PiperManifestPath), true);
+    $questionIndex = $data['conversationContract']['question_index'] ?? [];
+    $assetPrefix = rtrim(dirname($m04PiperManifestPath), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+    $usedFiles = [];
+    $resolvedQuestions = [];
+    $resolvedHelp = [];
+    if (is_array($manifest) && ($manifest['schema_version'] ?? null) === 1
+        && ($manifest['module_id'] ?? null) === 'M04'
+        && ($manifest['voice'] ?? null) === 'es_MX-claude-high'
+        && ($manifest['audio_format'] ?? null) === 'mp3'
+        && is_array($manifest['entries'] ?? null) && is_array($manifest['help_audio'] ?? null)) {
+        foreach ($manifest['entries'] as $stableId => $entry) {
+            if (!in_array((string)$stableId, $m04QuestionIds, true) || !is_array($entry)) continue;
+            $canonical = $questionIndex[$stableId] ?? null;
+            $audioFile = (string)($entry['audio_file'] ?? '');
+            $audioPath = $audioFile !== '' && basename($audioFile) === $audioFile
+                ? realpath(dirname($m04PiperManifestPath) . DIRECTORY_SEPARATOR . $audioFile) : false;
+            $text = (string)($entry['text'] ?? '');
+            $textHash = (string)($entry['text_sha256'] ?? '');
+            $audioHash = (string)($entry['audio_sha256'] ?? '');
+            $canonicalText = is_array($canonical) ? (string)($canonical['voice']['QUESTION'] ?? '') : '';
+            if (!is_array($canonical) || ($canonical['module_id'] ?? null) !== 'M04' || $text === '' || $text !== $canonicalText
+                || preg_match('/^[a-f0-9]{64}$/', $textHash) !== 1 || !hash_equals($textHash, hash('sha256', $text))
+                || strtolower(pathinfo($audioFile, PATHINFO_EXTENSION)) !== 'mp3'
+                || preg_match('/^[a-f0-9]{64}$/', $audioHash) !== 1 || isset($usedFiles[$audioFile])
+                || $audioPath === false || !str_starts_with($audioPath, $assetPrefix)
+                || !hash_equals($audioHash, (string)hash_file('sha256', $audioPath))) continue;
+            $usedFiles[$audioFile] = true;
+            $resolvedQuestions[$stableId] = ['module_id' => 'M04', 'stable_id' => $stableId, 'text' => $text,
+                'text_sha256' => $textHash, 'audio_sha256' => $audioHash,
+                'src' => RUTA_PUBLIC . $m04PiperAssetUrlDirectory . '/' . rawurlencode($audioFile) . '?v=' . (int)filemtime($audioPath)];
+        }
+        foreach ($manifest['help_audio'] as $entry) {
+            if (!is_array($entry)) continue;
+            $helpId = (string)($entry['help_id'] ?? '');
+            [$stableId, $expectedText] = $m04HelpTexts[$helpId] ?? [null, null];
+            $audioFile = (string)($entry['audio_file'] ?? '');
+            $audioPath = $audioFile !== '' && basename($audioFile) === $audioFile
+                ? realpath(dirname($m04PiperManifestPath) . DIRECTORY_SEPARATOR . $audioFile) : false;
+            $text = (string)($entry['text'] ?? '');
+            $textHash = (string)($entry['text_sha256'] ?? '');
+            $audioHash = (string)($entry['audio_sha256'] ?? '');
+            if ($stableId === null || ($entry['stable_id'] ?? null) !== $stableId || $text !== $expectedText
+                || preg_match('/^[a-f0-9]{64}$/', $textHash) !== 1 || !hash_equals($textHash, hash('sha256', $text))
+                || strtolower(pathinfo($audioFile, PATHINFO_EXTENSION)) !== 'mp3'
+                || preg_match('/^[a-f0-9]{64}$/', $audioHash) !== 1 || isset($usedFiles[$audioFile])
+                || $audioPath === false || !str_starts_with($audioPath, $assetPrefix)
+                || !hash_equals($audioHash, (string)hash_file('sha256', $audioPath))) continue;
+            $usedFiles[$audioFile] = true;
+            $resolvedHelp[$helpId] = ['module_id' => 'M04', 'stable_id' => $stableId, 'help_id' => $helpId, 'text' => $text,
+                'text_sha256' => $textHash, 'audio_sha256' => $audioHash,
+                'src' => RUTA_PUBLIC . $m04PiperAssetUrlDirectory . '/' . rawurlencode($audioFile) . '?v=' . (int)filemtime($audioPath)];
+        }
+        if (count($resolvedQuestions) === count($m04QuestionIds) && count($resolvedHelp) === count($m04HelpTexts)) {
+            foreach ($resolvedHelp as $helpId => $entry) {
+                if ($helpId === 'M04:help:4') continue;
+                $resolvedQuestions[$entry['stable_id']]['help'] = $entry;
+            }
+            $m04PiperAudioConfig = ['enabled' => true, 'entries' => $resolvedQuestions, 'help_audio' => $resolvedHelp];
+        }
+    }
+}
+$m02PiperAudioConfig['m03_tobacco'] = $m03TobaccoPiperAudioConfig;
+$m02PiperAudioConfig['m03'] = $m03PiperAudioConfig;
+$m02PiperAudioConfig['m04'] = $m04PiperAudioConfig;
 $m02PiperAudioConfig['enabled'] = $m02PiperAudioConfig['entries'] !== [] || $m02PiperAudioConfig['errors'] !== [] || $m02PiperAudioConfig['actions'] !== [];
+$m02PiperAudioConfig['enabled'] = $m02PiperAudioConfig['enabled'] || $m03TobaccoPiperAudioConfig['enabled'] || $m03PiperAudioConfig['enabled'] || $m04PiperAudioConfig['enabled'];
 $m02PiperAudioConfigJson = json_encode($m02PiperAudioConfig, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?: '{"enabled":false,"entries":[],"errors":[],"actions":[]}';
 $m02FinalizeHelpTextJson = json_encode($m02FinalizeHelpText, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?: '""';
 $questionList = $data['questions'] ?? [];
-$versionedAsset = static function (string $baseUrl, string $assetPath, string $publicPath): string {
+$versionedAsset = static function (string $baseUrl, string $assetPath, string $publicPath, bool $contentFingerprint = false): string {
     $filesystemPath = realpath(dirname(__DIR__, 3) . '/public/' . ltrim($publicPath, '/'));
-    $version = $filesystemPath !== false && is_file($filesystemPath) ? filemtime($filesystemPath) : false;
+    $version = false;
+    if ($filesystemPath !== false && is_file($filesystemPath)) {
+        $version = $contentFingerprint
+            ? substr((string)(hash_file('sha256', $filesystemPath) ?: ''), 0, 16)
+            : filemtime($filesystemPath);
+    }
 
-    return $baseUrl . $assetPath . ($version === false ? '' : '?v=' . (int)$version);
+    return $baseUrl . $assetPath . ($version === false || $version === '' ? '' : '?v=' . rawurlencode((string)$version));
 };
 $bootstrapCssUrl = $versionedAsset(RUTA_CSS, 'bootstrap.css', 'assets/css/bootstrap.css');
 $perfectScrollbarCssUrl = $versionedAsset(RUTA_PUBLIC, 'libs/perfect-scrollbar/perfect-scrollbar.css', 'assets/libs/perfect-scrollbar/perfect-scrollbar.css');
 $appCssUrl = $versionedAsset(RUTA_CSS, 'app.css', 'assets/css/app.css');
 $coordinatorJsUrl = $versionedAsset(RUTA_JS, 'patient-interview-coordinator.js', 'assets/js/patient-interview-coordinator.js');
 $voiceJsUrl = $versionedAsset(RUTA_JS, 'patient-interview-voice.js', 'assets/js/patient-interview-voice.js');
-$localDictationJsUrl = $versionedAsset(RUTA_JS, 'patient-interview-local-dictation.js', 'assets/js/patient-interview-local-dictation.js');
+$localDictationJsUrl = $versionedAsset(RUTA_JS, 'patient-interview-local-dictation.js', 'assets/js/patient-interview-local-dictation.js', true);
+$m03DictationUiJsUrl = $versionedAsset(RUTA_JS, 'patient-interview-m03-dictation-ui.js', 'assets/js/patient-interview-m03-dictation-ui.js', true);
 $logoUrl = $versionedAsset(RUTA_IMAGES, 'logo-clinica.png', 'assets/images/logo-clinica.png');
+$doctorAvatarUrl = $versionedAsset(RUTA_IMAGES, 'doctora-virtual-entrevista-v2.png', 'assets/images/doctora-virtual-entrevista-v2.png');
 $firstPending = count($questionList);
 foreach ($questionList as $questionIndex => $questionItem) {
     $eligible = ($questionItem['eligible'] ?? true) === true;
@@ -299,11 +626,12 @@ if ($firstPending >= count($questionList) && $questionList) {
         .patient-interview-header-copy h1 { margin-bottom:.2rem; font-size:clamp(1.6rem,2vw,1.85rem); line-height:1.1; font-weight:600; }
         .patient-interview-header-side { display:grid; gap:.45rem; min-width:0; }
         .patient-interview-header-context { display:flex; justify-content:flex-end; align-items:center; gap:.4rem; flex-wrap:wrap; }
-        .patient-interview-header-progress { padding:.5rem .7rem; border:1px solid #ebe3f8; border-radius:.75rem; background:#fcfbff; }
-        .patient-interview-header-progress .interview-progress-layout { align-items:center; }
-        .patient-interview-header-progress .interview-progress-layout strong, .patient-interview-header-progress #interview-progress { font-size:.84rem; }
-        .patient-interview-header-progress .progress { height:.4rem; background:#e8e0f8; }
-        .patient-interview-header-progress .progress-bar { background:linear-gradient(90deg,#5b16c8,#1b8f7a); }
+        .patient-interview-progress { width:100%; min-width:0; padding:0; border:0; background:transparent; box-shadow:none; }
+        .patient-interview-progress .interview-progress-layout { align-items:baseline; gap:.25rem .75rem; }
+        .patient-interview-progress #interview-progress-percentage { min-width:0; color:var(--interview-purple); font-size:.95rem; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+        .patient-interview-progress #interview-progress { min-width:0; margin-left:auto; color:var(--interview-ink); font-size:.84rem; text-align:right; }
+        body.patient-interview-page .patient-interview-progress .progress { height:.45rem !important; border:0; border-radius:999px; background:#ede7f7 !important; }
+        body.patient-interview-page .patient-interview-progress .progress .progress-bar { border-radius:inherit; background:var(--interview-purple) !important; }
         .patient-interview-header-actions { justify-content:flex-end; flex-wrap:nowrap; gap:.75rem !important; }
         .patient-interview-header-actions > * { display:inline-flex; align-items:center; justify-content:center; gap:.45rem; min-height:44px; padding:.45rem .75rem; font-size:.875rem; }
         .patient-interview-header-actions [data-feather] { width:1rem; height:1rem; vertical-align:-.15em; }
@@ -316,7 +644,7 @@ if ($firstPending >= count($questionList) && $questionList) {
         .portal-status-dot { width:.7rem; height:.7rem; border-radius:50%; background:#1baa78; box-shadow:0 0 0 .22rem rgba(27,170,120,.14); }
         .patient-interview-header h1, #interview-chat h2 { color:#27154e; }
         .patient-interview-conversation-card > .card-body { padding:1.35rem; }
-        .patient-interview-conversation-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(16rem,19rem); gap:1.35rem; align-items:start; }
+        .patient-interview-conversation-layout { display:grid; grid-template-columns:1fr; gap:1.35rem; align-items:start; max-width:min(1090px,calc(100% - 260px)); }
         #interview-chat { display:flex; flex-direction:column; gap:1rem; border:0; background:transparent; border-radius:0; box-shadow:none; }
         .patient-interview-conversation-card { min-width:0; overflow:visible; }
         .patient-interview-context-panel { display:grid; gap:.9rem; }
@@ -346,6 +674,7 @@ if ($firstPending >= count($questionList) && $questionList) {
         .interview-composer-shell { margin-top:.8rem; padding:1rem; border:1px solid #e2d9f4; border-radius:1rem; background:#fff; box-shadow:0 .2rem .7rem rgba(72,45,120,.05); }
         .interview-composer-help { display:flex; gap:.45rem; align-items:flex-start; margin:.7rem 0 0; color:#52627a; font-size:.95rem; line-height:1.4; }
         .interview-composer-footer { display:flex; align-items:flex-start; justify-content:space-between; gap:.75rem; }
+        .m03-dictation-note { display:block; margin:.35rem 0 0; color:#74658d; font-size:.82rem; line-height:1.35; }
         .interview-answer-count { flex:0 0 auto; color:#587080; font-size:.82rem; white-space:nowrap; }
         .patient-interview-answer { display:flex; gap:.75rem; flex-wrap:wrap; align-items:center; margin-top:1rem; }
         .patient-interview-answer input { min-width:min(100%, 25rem); }
@@ -399,6 +728,7 @@ if ($firstPending >= count($questionList) && $questionList) {
         .interview-composer-input > input:focus, .interview-composer-input > textarea:focus { outline:0; box-shadow:none; }
         .interview-composer .chat-send-button { grid-column:2; grid-row:1; width:auto; min-width:8rem; flex:0 0 auto; min-height:3.9rem; padding:.25rem .95rem; border-radius:.8rem; font-size:1.15rem; line-height:1; white-space:nowrap; word-break:normal; overflow-wrap:normal; color:#fff; background:#5b16c8; border-color:#5b16c8; }
         .interview-quick-actions, .m03-quick-actions { grid-column:1 / -1; grid-row:2; display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
+        .m03-quick-actions[hidden] { display:none; }
         .m04-quick-actions { grid-column:1 / -1; grid-row:2; display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
         .interview-quick-actions button, .m03-quick-actions button { min-height:2.75rem; white-space:nowrap; word-break:normal; overflow-wrap:normal; }
         .m06-quick-actions { margin-top:1.25rem; gap:.85rem 1rem; padding:.25rem 0; }
@@ -472,9 +802,9 @@ if ($firstPending >= count($questionList) && $questionList) {
         #interview-chat .chat-help-button:hover:not(:disabled), #interview-chat .chat-help-button:active:not(:disabled), #interview-chat .chat-help-button:focus-visible:not(:disabled) { color:#202b42; background:#f5f6f9; border-color:#98a4b8; }
         #interview-chat .m02-active-question .m02-finalization-actions { display:flex; flex-direction:column; align-items:flex-start; margin:1.2rem .25rem .75rem; }
         #interview-chat .m02-active-question .m02-finalization-actions > [data-m02-resolution-action] { min-height:44px; margin:0; }
-        #interview-chat .m02-active-question .m02-safe-no-button { min-height:44px; color:#4c3380; background:#fff; border:1px solid #b9a3df; box-shadow:none; }
-        #interview-chat .m02-active-question .m02-safe-no-button:hover:not(:disabled), #interview-chat .m02-active-question .m02-safe-no-button:focus-visible:not(:disabled) { color:#3e286c; background:#f4efff; border-color:#8b6bc9; }
-        .interview-contextual-help { margin:.65rem 0 0; padding:.65rem .8rem; color:#33415f; background:#f7f8fc; border:1px solid #e3e7f2; border-radius:.65rem; line-height:1.5; }
+        #interview-chat .m02-active-question .m02-safe-no-button, #interview-chat .m03-composer .m02-safe-no-button { min-height:44px; color:#4c3380; background:#fff; border:1px solid #b9a3df; box-shadow:none; }
+        #interview-chat .m02-active-question .m02-safe-no-button:hover:not(:disabled), #interview-chat .m02-active-question .m02-safe-no-button:focus-visible:not(:disabled), #interview-chat .m03-composer .m02-safe-no-button:hover:not(:disabled), #interview-chat .m03-composer .m02-safe-no-button:focus-visible:not(:disabled) { color:#3e286c; background:#f4efff; border-color:#8b6bc9; }
+        .interview-contextual-help { position:absolute !important; width:1px !important; height:1px !important; padding:0 !important; margin:-1px !important; overflow:hidden !important; clip:rect(0,0,0,0) !important; white-space:nowrap !important; border:0 !important; }
         .interview-contextual-help[hidden] { display:none !important; }
         @media (max-width:1199.98px) { .patient-interview-shell { max-width:1100px; } }
         @media (max-width:1024px) { .patient-interview-shell { max-width:920px; } .patient-interview-header, .patient-interview-conversation-card > .card-body { padding:1rem; } .patient-interview-header { grid-template-columns:1fr; gap:.8rem; } .patient-interview-header-context, .patient-interview-header-actions { justify-content:flex-start; } }
@@ -515,18 +845,15 @@ if ($firstPending >= count($questionList) && $questionList) {
             align-items:center;
         }
         .patient-interview-header-context { justify-content:flex-start; }
-        .patient-interview-header-progress { padding:.45rem .65rem; border-color:var(--interview-border); background:#fff; }
-        .patient-interview-header-progress .interview-progress-layout { gap:.5rem; }
-        .patient-interview-header-progress .interview-progress-layout strong,
-        .patient-interview-header-progress #interview-progress { color:var(--interview-ink); font-size:.78rem; }
         .patient-interview-header-actions { justify-content:flex-end; gap:.35rem; }
         .patient-interview-header-actions > * { min-height:2.15rem; padding:.3rem .55rem; font-size:.8rem; }
         .patient-interview-header-actions .btn-outline-primary,
         .patient-interview-header-actions .btn-outline-secondary { border-color:#b6abd3; color:var(--interview-purple); background:#fff; }
         .patient-interview-conversation-layout {
-            grid-template-columns:minmax(0,3.25fr) minmax(15rem,1fr);
+            grid-template-columns:1fr;
             gap:1rem;
             align-items:start;
+            max-width:min(1090px,calc(100% - 260px));
         }
         .patient-interview-conversation-card { border-color:var(--interview-border); border-radius:1.05rem; box-shadow:0 .35rem 1.1rem rgba(29,35,70,.055); }
         .patient-interview-conversation-card > .card-body { padding:1.15rem; }
@@ -579,6 +906,14 @@ if ($firstPending >= count($questionList) && $questionList) {
         .patient-interview-context-panel .interview-voice-panel select { min-height:2.2rem; font-size:.85rem; }
         .patient-interview-context-panel .interview-voice-panel .voice-speed-control { margin-left:0; font-size:.82rem; }
         .patient-interview-context-panel .interview-voice-panel select { min-width:5.8rem; }
+        .patient-interview-context-panel > .patient-interview-context-card[aria-labelledby="interview-voice-title"] {
+            padding:0;
+            border:0;
+            background:transparent;
+            box-shadow:none;
+        }
+        .patient-interview-context-panel > .patient-interview-context-card[aria-labelledby="interview-voice-title"] > h3 { display:none; }
+        .patient-interview-context-panel > .patient-interview-context-card[aria-labelledby="interview-tips-title"] { display:none; }
         body.patient-interview-page #sidebar.is-compact,
         body.patient-interview-page #sidebar.sidebar-compact { transition:width .2s ease, transform .2s ease; }
         @media (max-width:1199.98px) {
@@ -592,11 +927,15 @@ if ($firstPending >= count($questionList) && $questionList) {
             .patient-interview-header-side { grid-template-columns:auto minmax(12rem,1fr) auto; }
             .patient-interview-header-actions { grid-column:auto; justify-content:flex-end; }
         }
+        @media (max-width:1024px) {
+            .patient-interview-conversation-layout { max-width: calc(100% - 250px); }
+        }
         @media (max-width:900px) {
             .patient-interview-conversation-layout { grid-template-columns:1fr; }
             .patient-interview-context-panel { grid-template-columns:repeat(3,minmax(0,1fr)); align-items:start; }
         }
         @media (max-width:767.98px) {
+            .patient-interview-conversation-layout { max-width: 100%; }
             .patient-interview-shell { padding-inline:.15rem; }
             .patient-interview-header-side { grid-template-columns:1fr; }
             .patient-interview-header-context, .patient-interview-header-actions { justify-content:flex-start; }
@@ -643,11 +982,10 @@ if ($firstPending >= count($questionList) && $questionList) {
             gap:.55rem .75rem;
         }
         .patient-interview-header-context { grid-area:context; align-self:start; justify-content:flex-end; }
-        .patient-interview-header-progress { grid-area:progress; align-self:start; min-width:0; padding:.45rem .65rem; border-color:#e8e5f2; background:rgba(255,255,255,.6); }
         .patient-interview-header-actions { grid-area:actions; justify-content:flex-end; }
         .patient-interview-header-actions > * { min-height:2.2rem; padding:.3rem .7rem; font-size:.84rem; }
         .interview-module-badge, .interview-state-badge { min-height:2.1rem; padding:.35rem .8rem; font-size:.86rem; }
-        .patient-interview-conversation-layout { grid-template-columns:minmax(0,3.2fr) minmax(17rem,1fr); gap:1.35rem; }
+        .patient-interview-conversation-layout { grid-template-columns:1fr; gap:1.35rem; max-width:min(1090px,calc(100% - 260px)); }
         .patient-interview-conversation-card { border-color:#eceaf2; border-radius:1rem; box-shadow:0 .3rem 1rem rgba(35,30,77,.045); }
         .patient-interview-conversation-card > .card-body { padding:1.65rem 2rem; }
         .patient-interview-chat { gap:1.15rem; }
@@ -719,6 +1057,11 @@ if ($firstPending >= count($questionList) && $questionList) {
             line-height:1.16;
             font-weight:650;
         }
+        .patient-interview-module-context[data-module="M04"] .m04-input-stage { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:.7rem; width:100%; }
+        .patient-interview-module-context[data-module="M04"] .m04-input-stage[hidden],
+        .patient-interview-module-context[data-module="M04"] .m04-stage-actions[hidden] { display:none !important; }
+        .patient-interview-module-context[data-module="M04"] .m04-stage-actions { display:flex; flex-wrap:wrap; gap:.65rem; }
+        .patient-interview-module-context[data-module="M04"] .m04-input-stage .interview-composer-input { width:100%; }
         /* M05 V1/V2 use one canonical question at a time. Keep the topic
            secondary and place the active question in the assistant bubble so
            it shares the hierarchy already used by M03/M04. */
@@ -794,12 +1137,15 @@ if ($firstPending >= count($questionList) && $questionList) {
             .patient-interview-header { grid-template-columns:1fr; min-height:0; padding-inline:0; }
             .patient-interview-header-side { grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"progress context" "actions actions"; }
             .patient-interview-header-actions { justify-content:flex-start; }
+            .patient-interview-conversation-layout { max-width: calc(100% - 250px); }
         }
         @media (max-width:900px) {
             .patient-interview-conversation-layout { grid-template-columns:1fr; }
             .patient-interview-context-panel { grid-template-columns:repeat(3,minmax(0,1fr)); }
         }
         @media (max-width:767.98px) {
+            .patient-interview-conversation-layout { max-width: 100%; width: 100%; }
+            .patient-interview-conversation-card { padding-bottom: 3.5rem; }
             .patient-interview-header-copy h1 { font-size:clamp(1.8rem,7vw,2.35rem); }
             .patient-interview-header-side { grid-template-columns:1fr; grid-template-areas:"context" "progress" "actions"; }
             .patient-interview-header-context { justify-content:flex-start; }
@@ -844,15 +1190,13 @@ if ($firstPending >= count($questionList) && $questionList) {
             .interview-composer .chat-send-button { min-width:2.75rem; }
         }
 
-        /* M07 header V2: the progress row follows the title/description and
-           spans the complete header. Existing data hooks remain unchanged. */
+        /* Header layout; progress is presented inside the conversation card. */
         .patient-interview-header,
         .patient-interview-header-copy,
-        .patient-interview-header-progress,
         .patient-interview-header-actions { min-width:0; max-width:100%; }
         .patient-interview-header {
             grid-template-columns:minmax(0,1fr) auto;
-            grid-template-areas:"copy context" "progress progress" "actions actions";
+            grid-template-areas:"copy context" "actions actions";
             column-gap:1.15rem;
             row-gap:.9rem;
             align-items:start;
@@ -868,33 +1212,8 @@ if ($firstPending >= count($questionList) && $questionList) {
             min-width:0;
         }
         .patient-interview-header-copy h1,
-        .patient-interview-header-progress,
         .patient-interview-header-actions { overflow-wrap:anywhere; }
         .patient-interview-header-copy h1 { margin-bottom:0; }
-        .patient-interview-header-progress {
-            grid-area:progress;
-            width:100%;
-            margin-top:0;
-            padding:.7rem .8rem;
-        }
-        .patient-interview-header-progress .interview-progress-layout {
-            display:grid;
-            grid-template-columns:minmax(0,1fr) auto;
-            align-items:center;
-            column-gap:.75rem;
-            row-gap:.25rem;
-        }
-        .patient-interview-header-progress .interview-progress-layout strong,
-        .patient-interview-header-progress #interview-progress {
-            min-width:0;
-            white-space:nowrap;
-        }
-        .patient-interview-header-progress #interview-progress {
-            justify-self:end;
-            overflow:hidden;
-            text-align:right;
-            text-overflow:ellipsis;
-        }
         .patient-interview-header-actions {
             grid-area:actions;
             justify-content:flex-end;
@@ -925,8 +1244,6 @@ if ($firstPending >= count($questionList) && $questionList) {
         }
         @media (max-width:430px) {
             .patient-interview-header { row-gap:.7rem; }
-            .patient-interview-header-progress .interview-progress-layout { grid-template-columns:minmax(0,1fr); align-items:start; }
-            .patient-interview-header-progress #interview-progress { justify-self:start; text-align:left; white-space:normal; overflow:visible; text-overflow:clip; }
             .patient-interview-header-actions { display:grid !important; grid-template-columns:repeat(2,minmax(0,1fr)); }
             .patient-interview-header-actions > * { width:100%; }
             .patient-interview-header-actions > :last-child { grid-column:1 / -1; }
@@ -936,8 +1253,7 @@ if ($firstPending >= count($questionList) && $questionList) {
             .patient-interview-header-actions > :last-child { grid-column:auto; }
         }
 
-        /* Reusable clinical question pattern. It is applied only to M02 in
-           this pilot; future modules can opt in explicitly after review. */
+        /* Shared clinical question pattern for the approved M02 and M03 headers. */
         #interview-chat .clinical-question-header {
             padding:1.15rem 1.25rem;
             border:1px solid #E2D6F5;
@@ -1047,7 +1363,9 @@ if ($firstPending >= count($questionList) && $questionList) {
         #interview-chat .m02-active-question .interview-composer-input > input { min-height:3rem; padding-inline:.25rem; color:#292540; font-size:1rem; }
         #interview-chat .m02-active-question .interview-composer-input > input::placeholder { color:#788197; opacity:1; }
         #interview-chat .m02-active-question .chat-mic-button,
-        #interview-chat .m02-active-question .chat-mic-unavailable {
+        #interview-chat .m02-active-question .chat-mic-unavailable,
+        #interview-chat .patient-interview-question[data-question-index] .chat-mic-button,
+        #interview-chat .patient-interview-question[data-question-index] .chat-mic-unavailable {
             position:relative;
             width:2.75rem;
             min-width:2.75rem;
@@ -1062,10 +1380,10 @@ if ($firstPending >= count($questionList) && $questionList) {
             line-height:1;
             box-shadow:none;
         }
-        #interview-chat .m02-active-question .chat-mic-button:hover:not(:disabled) { color:#2B174C; background:#F2ECFC; border-color:#D5C6EA; }
-        #interview-chat .m02-active-question .chat-mic-button:focus-visible:not(:disabled) { outline:3px solid #c3a8e6; outline-offset:2px; }
-        #interview-chat .m02-active-question .chat-mic-button.is-listening { color:#fff !important; background:#6327A9 !important; border-color:#6327A9 !important; }
-        #interview-chat .m02-active-question .chat-mic-button.is-listening::after {
+        #interview-chat .m02-active-question .chat-mic-button:hover:not(:disabled), #interview-chat .patient-interview-question[data-question-index] .chat-mic-button:hover:not(:disabled) { color:#2B174C; background:#F2ECFC; border-color:#D5C6EA; }
+        #interview-chat .m02-active-question .chat-mic-button:focus-visible:not(:disabled), #interview-chat .patient-interview-question[data-question-index] .chat-mic-button:focus-visible:not(:disabled) { outline:3px solid #c3a8e6; outline-offset:2px; }
+        #interview-chat .m02-active-question .chat-mic-button.is-listening, #interview-chat .patient-interview-question[data-question-index] .chat-mic-button.is-listening { color:#fff !important; background:#6327A9 !important; border-color:#6327A9 !important; }
+        #interview-chat .m02-active-question .chat-mic-button.is-listening::after, #interview-chat .patient-interview-question[data-question-index] .chat-mic-button.is-listening::after {
             content:"";
             position:absolute;
             top:.15rem;
@@ -1079,7 +1397,9 @@ if ($firstPending >= count($questionList) && $questionList) {
         }
         @keyframes m02-mic-pulse { 50% { box-shadow:0 0 0 .22rem rgba(53,180,140,.2); } }
         #interview-chat .m02-active-question .chat-mic-button:disabled,
-        #interview-chat .m02-active-question .chat-mic-unavailable:disabled { color:#777286; background:#f3f1f7; border-color:#e3e0e9; opacity:.8; }
+        #interview-chat .m02-active-question .chat-mic-unavailable:disabled,
+        #interview-chat .patient-interview-question[data-question-index] .chat-mic-button:disabled,
+        #interview-chat .patient-interview-question[data-question-index] .chat-mic-unavailable:disabled { color:#777286; background:#f3f1f7; border-color:#e3e0e9; opacity:.8; }
         #interview-chat .m02-active-question .chat-send-button {
             min-width:7.5rem;
             min-height:3.5rem;
@@ -1095,8 +1415,8 @@ if ($firstPending >= count($questionList) && $questionList) {
         #interview-chat .m02-active-question .chat-send-button:focus-visible { outline:3px solid #c3a8e6; outline-offset:2px; }
         #interview-chat .m02-active-question .chat-send-button:disabled { color:#777286; background:#efedf3; border-color:#dfdce5; }
         #interview-chat .m02-active-question .interview-quick-actions { margin-top:.12rem; }
-        #interview-chat .m02-active-question .m02-safe-no-button { padding-inline:.85rem; border-radius:.65rem; color:#4c3380; background:#fff; border:1px solid #c9b9e2; font-weight:550; }
-        #interview-chat .m02-active-question .m02-safe-no-button:hover:not(:disabled) { color:#3e286c; background:#f6f2fc; border-color:#a98dcf; }
+        #interview-chat .m02-active-question .m02-safe-no-button, #interview-chat .m03-composer .m02-safe-no-button { padding-inline:.85rem; border-radius:.65rem; color:#4c3380; background:#fff; border:1px solid #c9b9e2; font-weight:550; }
+        #interview-chat .m02-active-question .m02-safe-no-button:hover:not(:disabled), #interview-chat .m03-composer .m02-safe-no-button:hover:not(:disabled) { color:#3e286c; background:#f6f2fc; border-color:#a98dcf; }
         #interview-chat .m02-active-question .interview-composer-help { margin:.6rem 0 0; color:#68738b; font-size:.84rem; }
         #interview-chat .m02-active-question .interview-answer-count { color:#7a7890; font-size:.78rem; }
         #interview-chat .clinical-voice-status {
@@ -1143,11 +1463,451 @@ if ($firstPending >= count($questionList) && $questionList) {
             #interview-chat .clinical-question-header .interview-message-header > .chat-help-button { flex:0 1 auto; }
         }
         @media (max-width:375px) { #interview-chat .m02-active-question .chat-send-button { min-width:2.75rem; } }
-        @media (prefers-reduced-motion:reduce) { #interview-chat .m02-active-question .chat-mic-button.is-listening::after { animation:none; } }
+        @media (prefers-reduced-motion:reduce) { #interview-chat .m02-active-question .chat-mic-button.is-listening::after, #interview-chat .patient-interview-question[data-question-index] .chat-mic-button.is-listening::after { animation:none; } }
         @media (prefers-reduced-motion:reduce) {
             #interview-chat .m02-active-question *, #interview-chat .m02-active-question *::before,
             #interview-chat .m02-active-question *::after { scroll-behavior:auto !important; transition:none !important; animation:none !important; }
         }
+        .patient-interview-doctor-float {
+            position:fixed;
+            right:max(1.25rem,calc((100vw - 1660px) / 2 + 1.25rem));
+            bottom:max(.35rem,env(safe-area-inset-bottom));
+            z-index:1035;
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            justify-content:flex-end;
+            width:max-content;
+            max-width:min(35rem,calc(100vw - 1.2rem));
+            pointer-events:none;
+            isolation:isolate;
+        }
+        .patient-interview-doctor-shortcuts {
+            order:1;
+            position:relative;
+            z-index:4;
+            display:flex;
+            flex-direction:column;
+            width:100%;
+            min-width:12.5rem;
+            max-width:14.2rem;
+            gap:.5rem;
+            margin-bottom:.5rem;
+            opacity:1;
+            visibility:visible;
+            pointer-events:auto;
+            transform:none;
+        }
+        .patient-interview-doctor-shortcuts button {
+            display:flex;
+            align-items:center;
+            gap:.65rem;
+            width:100%;
+            min-width:0;
+            min-height:2.75rem;
+            padding:.38rem .95rem .38rem .5rem;
+            border-radius:999px;
+            font:inherit;
+            font-size:.85rem;
+            font-weight:600;
+            line-height:1.25;
+            text-align:left;
+            color:#2d1b54;
+            background:linear-gradient(180deg,#ffffff 0%,#fbf9ff 100%);
+            box-shadow:0 .2rem .65rem rgba(64,30,111,.08),0 .06rem .15rem rgba(64,30,111,.04);
+            cursor:pointer;
+            transition:transform 200ms cubic-bezier(.2,.8,.4,1),box-shadow 200ms ease,background-color 200ms ease,border-color 200ms ease,color 200ms ease;
+        }
+        .patient-interview-doctor-shortcuts button[data-doctor-repeat] {
+            border:1.5px solid #ded4f0;
+            color:#3b1875;
+            background:#fcfaff;
+        }
+        .patient-interview-doctor-shortcuts button[data-doctor-repeat]:hover:not(:disabled) {
+            transform:translateY(-2px);
+            border-color:#bfa5e6;
+            background:#f5edfc;
+            color:#290d59;
+            box-shadow:0 .45rem 1.15rem rgba(75,26,141,.16),0 .12rem .35rem rgba(75,26,141,.08);
+        }
+        .patient-interview-doctor-shortcuts button[data-doctor-help] {
+            border:1.5px solid #d7ece7;
+            color:#1f4d45;
+            background:#f8fcfb;
+        }
+        .patient-interview-doctor-shortcuts button[data-doctor-help]:hover:not(:disabled) {
+            transform:translateY(-2px);
+            border-color:#9fd9cc;
+            background:#edf8f5;
+            color:#133c35;
+            box-shadow:0 .45rem 1.15rem rgba(27,112,98,.16),0 .12rem .35rem rgba(27,112,98,.08);
+        }
+        .patient-interview-doctor-shortcuts button:active:not(:disabled) {
+            transform:translateY(0);
+            box-shadow:0 .12rem .4rem rgba(64,30,111,.1);
+            transition-duration:80ms;
+        }
+        .patient-interview-doctor-shortcuts button:disabled {
+            cursor:not-allowed;
+            opacity:.85;
+            transform:none !important;
+            box-shadow:0 .1rem .35rem rgba(42,25,75,.06);
+        }
+        .patient-interview-doctor-shortcuts button:not(:disabled):focus-visible {
+            outline:3px solid #6327a9;
+            outline-offset:2px;
+        }
+        .patient-interview-doctor-shortcuts svg {
+            box-sizing:border-box;
+            flex:0 0 2rem;
+            width:2rem;
+            height:2rem;
+            padding:.45rem;
+            border-radius:50%;
+            stroke:currentColor;
+            transition:transform 200ms ease;
+        }
+        .patient-interview-doctor-shortcuts button:hover:not(:disabled) svg {
+            transform:scale(1.06);
+        }
+        .patient-interview-doctor-shortcuts button[data-doctor-repeat] svg {
+            color:#fff;
+            background:linear-gradient(145deg,#7829df 0%,#5716bd 100%);
+            box-shadow:0 .15rem .45rem rgba(87,22,189,.28);
+        }
+        .patient-interview-doctor-shortcuts button[data-doctor-help] svg {
+            color:#fff;
+            background:linear-gradient(145deg,#1fa388 0%,#177a66 100%);
+            box-shadow:0 .15rem .45rem rgba(23,122,102,.28);
+        }
+        .patient-interview-doctor-bubble {
+            order:2;
+            position:relative;
+            z-index:3;
+            width:max-content;
+            max-width:min(13rem,calc(100vw - 8rem));
+            margin-bottom:.45rem;
+            padding:.48rem .95rem;
+            border:1px solid rgba(224,213,239,.95);
+            border-radius:1.2rem;
+            color:#38245b;
+            background:#fff;
+            box-shadow:0 .25rem .75rem rgba(42,25,75,.09),0 .08rem .2rem rgba(42,25,75,.05);
+            font-size:.84rem;
+            font-weight:600;
+            line-height:1.35;
+            pointer-events:none;
+        }
+        .patient-interview-doctor-bubble::after {
+            content:"";
+            position:absolute;
+            left:50%;
+            bottom:-.36rem;
+            width:.65rem;
+            height:.65rem;
+            border-right:1px solid rgba(224,213,239,.95);
+            border-bottom:1px solid rgba(224,213,239,.95);
+            background:#fff;
+            transform:translateX(-50%) rotate(45deg);
+        }
+        .patient-interview-doctor-assistant {
+            order:3;
+            position:relative;
+            display:grid;
+            width:max-content;
+            color:#27154e;
+            pointer-events:none;
+        }
+        .patient-interview-doctor-assistant[open] {
+            width:min(35rem,calc(100vw - 2rem));
+            display:grid;
+            grid-template-columns:minmax(0,20rem) minmax(11rem,14rem);
+            gap:.75rem;
+            align-items:end;
+            pointer-events:auto;
+        }
+        .patient-interview-doctor-assistant::before,
+        .patient-interview-doctor-assistant::after {
+            content:"";
+            position:absolute;
+            z-index:0;
+            pointer-events:none;
+        }
+        .patient-interview-doctor-assistant::before {
+            right:.2rem;
+            bottom:-.35rem;
+            width:13.5rem;
+            height:20.8rem;
+            border:1px solid rgba(208,231,229,.78);
+            border-radius:43% 57% 48% 52% / 34% 42% 58% 66%;
+            background:radial-gradient(ellipse at 28% 72%,rgba(225,246,238,.9) 0 19%,transparent 53%),radial-gradient(ellipse at 66% 28%,rgba(239,230,253,.96) 0 34%,rgba(250,248,255,.82) 68%,transparent 100%);
+            box-shadow:inset .3rem .2rem .9rem rgba(255,255,255,.65),0 .4rem 1rem rgba(47,35,77,.08);
+            transform:rotate(4deg);
+        }
+        .patient-interview-doctor-assistant::after {
+            right:.5rem;
+            bottom:.65rem;
+            width:12.4rem;
+            height:19rem;
+            border:1px solid rgba(151,220,208,.33);
+            border-right-color:transparent;
+            border-bottom-color:transparent;
+            border-radius:56% 44% 61% 39% / 44% 54% 46% 56%;
+            background:linear-gradient(155deg,rgba(227,246,239,.2),rgba(237,230,252,.36));
+            transform:rotate(-8deg);
+        }
+        .patient-interview-doctor-assistant[open]::before {
+            right:.1rem;
+            bottom:-.35rem;
+            width:13.8rem;
+            height:20.8rem;
+        }
+        .patient-interview-doctor-assistant[open]::after {
+            right:.45rem;
+            bottom:.7rem;
+            width:12.7rem;
+            height:19.2rem;
+        }
+        .patient-interview-doctor-assistant > summary {
+            grid-column:2;
+            grid-row:1;
+            justify-self:center;
+            align-self:end;
+            z-index:2;
+            display:grid;
+            place-items:center;
+            width:13.5rem;
+            aspect-ratio:1024 / 1536;
+            margin:0;
+            padding:0;
+            border:0;
+            border-radius:0;
+            background:transparent;
+            box-shadow:none;
+            cursor:pointer;
+            list-style:none;
+            pointer-events:auto;
+            -webkit-tap-highlight-color:transparent;
+        }
+        .patient-interview-doctor-assistant > summary::-webkit-details-marker { display:none; }
+        .patient-interview-doctor-assistant > summary::marker { content:""; }
+        .patient-interview-doctor-assistant > summary img { display:block; width:100%; height:100%; object-fit:contain; filter:saturate(1.08) drop-shadow(0 .25rem .55rem rgba(47,27,78,.24)); transition:transform .18s ease,filter .18s ease; }
+        .patient-interview-doctor-assistant:not([open]) > summary:hover img { transform:translateY(-.15rem); filter:saturate(1.12) drop-shadow(0 .35rem .65rem rgba(47,27,78,.28)); }
+        .patient-interview-doctor-assistant > summary:focus-visible { outline:3px solid #5b16c8; outline-offset:3px; border-radius:.85rem; }
+        .patient-interview-doctor-assistant[open] ~ .patient-interview-doctor-shortcuts,
+        .patient-interview-doctor-assistant[open] ~ .patient-interview-doctor-bubble {
+            display:none !important;
+        }
+        .patient-interview-doctor-assistant > summary::after { content:"×"; display:none; color:#4b247b; font-size:1.65rem; font-weight:500; line-height:1; }
+        .patient-interview-doctor-assistant[open] + .patient-interview-doctor-bubble {
+            right:1.5rem;
+            bottom:19rem;
+            max-width:min(14rem,calc(100vw - 15rem));
+        }
+        .patient-interview-doctor-panel {
+            position:relative;
+            z-index:1;
+            grid-column:1;
+            grid-row:1;
+            align-self:end;
+            width:100%;
+            max-height:min(28rem,calc(100dvh - 2rem));
+            overflow:auto;
+            box-sizing:border-box;
+            padding:1.1rem;
+            border:1px solid #e2d7f1;
+            border-radius:1.4rem;
+            background:linear-gradient(155deg,#fff 0%,#fff 55%,#fbf8ff 100%);
+            box-shadow:0 .55rem 1.55rem rgba(42,25,75,.16),0 .08rem .25rem rgba(42,25,75,.06);
+        }
+        .patient-interview-doctor-panel::before { content:none; }
+        .patient-interview-doctor-panel h2 { margin:0; color:#2b174c; font-size:1.1rem; font-weight:700; line-height:1.3; }
+        .patient-interview-doctor-panel > p { margin:.45rem 0 .95rem; color:#52627a; font-size:.9rem; line-height:1.45; }
+        .patient-interview-doctor-actions { display:grid; gap:.6rem; }
+        .patient-interview-doctor-actions button,
+        .patient-interview-doctor-actions a {
+            display:flex;
+            align-items:center;
+            gap:.8rem;
+            width:100%;
+            min-width:0;
+            min-height:4rem;
+            padding:.55rem .8rem;
+            border:1px solid #e3daf3;
+            border-radius:1rem;
+            color:#32204f;
+            background:linear-gradient(180deg,#f8f4ff 0%,#f2ecfc 100%);
+            font:inherit;
+            font-size:.96rem;
+            font-weight:650;
+            text-align:left;
+            box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 .08rem .2rem rgba(59,39,91,.05);
+        }
+        .patient-interview-doctor-actions button:disabled { cursor:not-allowed; opacity:1; }
+        .patient-interview-doctor-actions button:disabled { color:#3c3153; }
+        .patient-interview-doctor-actions button:not(:disabled) { cursor:pointer; transition:background-color .16s ease,border-color .16s ease,box-shadow .16s ease; }
+        .patient-interview-doctor-actions button:not(:disabled):hover { border-color:#cdb7ed; background:linear-gradient(180deg,#f3ecff 0%,#ece2fb 100%); }
+        .patient-interview-doctor-actions button:not(:disabled):focus-visible { outline:3px solid #6327a9; outline-offset:3px; }
+        .patient-interview-doctor-actions a {
+            color:#32204f;
+            cursor:pointer;
+            text-decoration:none;
+            transition:background-color .16s ease,border-color .16s ease,box-shadow .16s ease;
+        }
+        .patient-interview-doctor-actions a:hover { color:#2b174c; border-color:#cdb7ed; background:linear-gradient(180deg,#f3ecff 0%,#ece2fb 100%); }
+        .patient-interview-doctor-actions a:focus-visible { outline:3px solid #6327a9; outline-offset:3px; }
+        .patient-interview-doctor-actions svg {
+            box-sizing:border-box;
+            flex:0 0 3.05rem;
+            width:3.05rem;
+            height:3.05rem;
+            padding:.78rem;
+            border-radius:50%;
+            color:#fff;
+            background:linear-gradient(145deg,#7829df 0%,#5716bd 100%);
+            stroke:currentColor;
+        }
+        .patient-interview-doctor-panel .patient-interview-doctor-note { margin:.7rem 0 0; color:#766d84; font-size:.75rem; line-height:1.4; }
+        .patient-interview-doctor-voice-settings {
+            margin-top:.75rem;
+            padding-top:.7rem;
+            border-top:1px solid #e8e2f4;
+            background:transparent;
+            border-radius:0;
+            display:block;
+        }
+        .patient-interview-doctor-voice-summary {
+            display:flex;
+            align-items:center;
+            gap:.55rem;
+            cursor:pointer;
+            font-size:.86rem;
+            font-weight:600;
+            color:#4b1a8d;
+            padding:.3rem .1rem;
+            list-style:none;
+            user-select:none;
+        }
+        .patient-interview-doctor-voice-summary::-webkit-details-marker { display:none; }
+        .patient-interview-doctor-voice-summary svg {
+            width:1.15rem;
+            height:1.15rem;
+            flex-shrink:0;
+            stroke:currentColor;
+        }
+        .patient-interview-doctor-voice-settings .voice-speed-control {
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:.6rem;
+            margin-top:.6rem;
+            font-size:.82rem;
+            color:#463b59;
+            font-weight:500;
+        }
+        .patient-interview-doctor-voice-settings .voice-speed-control select {
+            min-height:2.2rem;
+            padding:.2rem .5rem;
+            border:1px solid #cfc7e4;
+            border-radius:.5rem;
+            background:#fff;
+            color:#2b174c;
+            font-size:.82rem;
+        }
+        .patient-interview-doctor-assistant[open] > summary {
+            position:relative;
+            grid-column:2;
+            grid-row:1;
+            justify-self:center;
+            align-self:end;
+            width:13rem;
+            height:auto;
+            aspect-ratio:1024 / 1536;
+            margin:0;
+            border:0;
+            border-radius:0;
+            background:transparent;
+            box-shadow:none;
+        }
+        .patient-interview-doctor-assistant[open] > summary::after {
+            position:absolute;
+            top:.55rem;
+            left:-.45rem;
+            right:auto;
+            display:grid;
+            place-items:center;
+            width:2.35rem;
+            height:2.35rem;
+            border:1px solid rgba(255,255,255,.94);
+            border-radius:50%;
+            color:#fff;
+            background:linear-gradient(145deg,#7829df 0%,#5716bd 100%);
+            box-shadow:0 .22rem .65rem rgba(64,30,111,.25);
+        }
+        @media (max-width:1024px) {
+            .patient-interview-doctor-assistant:not([open]) > summary { width: 11.2rem; }
+            .patient-interview-doctor-assistant:not([open])::before { width: 11.2rem; height: 17.2rem; }
+            .patient-interview-doctor-assistant:not([open])::after { width: 10.2rem; height: 15.8rem; }
+        }
+        @media (max-width:768px) {
+            .patient-interview-doctor-assistant:not([open]) > summary { width: 9.5rem; }
+            .patient-interview-doctor-assistant:not([open])::before { width: 9.6rem; height: 14.8rem; }
+            .patient-interview-doctor-assistant:not([open])::after { width: 8.8rem; height: 13.5rem; }
+        }
+        @media (max-width:600px) {
+            .patient-interview-doctor-float { inset:auto max(.5rem,env(safe-area-inset-right)) max(.35rem,env(safe-area-inset-bottom)) auto; width:auto; max-width:min(13.5rem,calc(100vw - .8rem)); align-items:flex-end; }
+            .patient-interview-doctor-shortcuts {
+                order:1;
+                display:flex;
+                flex-direction:column;
+                width:auto;
+                min-width:0;
+                max-width:11.2rem;
+                gap:.3rem;
+                margin-bottom:.35rem;
+                opacity:1;
+                visibility:visible;
+                pointer-events:auto;
+            }
+            .patient-interview-doctor-shortcuts button { min-height:2.15rem; padding:.2rem .65rem .2rem .35rem; font-size:.74rem; gap:.4rem; }
+            .patient-interview-doctor-shortcuts svg { flex:0 0 1.6rem; width:1.6rem; height:1.6rem; padding:.32rem; }
+            .patient-interview-doctor-bubble { order:2; max-width:min(9.5rem,calc(100vw - 6rem)); margin-bottom:.3rem; padding:.35rem .65rem; font-size:.72rem; }
+            .patient-interview-doctor-assistant { grid-template-columns:minmax(0,1fr) minmax(5rem,5.6rem); }
+            .patient-interview-doctor-assistant[open] { width:100%; grid-template-columns:minmax(0,1fr); gap:0; }
+            .patient-interview-doctor-assistant:not([open])::before { right:.05rem; width:5.6rem; height:8.6rem; }
+            .patient-interview-doctor-assistant:not([open])::after { right:-.05rem; bottom:.35rem; width:5rem; height:7.8rem; }
+            .patient-interview-doctor-assistant:not([open]) > summary { width:5.4rem; }
+            .patient-interview-doctor-assistant[open]::before,
+            .patient-interview-doctor-assistant[open]::after { visibility:hidden; }
+            .patient-interview-doctor-assistant[open] > summary {
+                position:absolute;
+                top:.45rem;
+                right:.45rem;
+                grid-column:1;
+                grid-row:1;
+                justify-self:end;
+                align-self:start;
+                width:2.3rem;
+                height:2.3rem;
+                aspect-ratio:auto;
+                margin:0;
+                border:1px solid rgba(255,255,255,.92);
+                border-radius:50%;
+                background:linear-gradient(145deg,#7829df 0%,#5716bd 100%);
+                box-shadow:0 .22rem .65rem rgba(64,30,111,.25);
+            }
+            .patient-interview-doctor-assistant[open] > summary img { display:none; }
+            .patient-interview-doctor-assistant[open] > summary::after { top:0; right:0; width:100%; height:100%; }
+            .patient-interview-doctor-assistant[open] > .patient-interview-doctor-panel { grid-column:1; grid-row:1; }
+            .patient-interview-doctor-assistant[open] + .patient-interview-doctor-bubble { display:none; }
+            .patient-interview-doctor-panel { max-height:min(25rem,calc(100dvh - 1.3rem)); padding:3.2rem .8rem .85rem; }
+            .patient-interview-doctor-actions { gap:.5rem; }
+            .patient-interview-doctor-actions button,
+            .patient-interview-doctor-actions a { min-height:4rem; gap:.65rem; padding:.45rem .6rem; font-size:.86rem; }
+            .patient-interview-doctor-actions svg { flex-basis:2.7rem; width:2.7rem; height:2.7rem; padding:.68rem; }
+            .patient-interview-conversation-card { padding-bottom:3.5rem; }
+        }
+        @media (prefers-reduced-motion:reduce) { .patient-interview-doctor-assistant > summary img, .patient-interview-doctor-shortcuts, .patient-interview-doctor-shortcuts button, .patient-interview-doctor-shortcuts svg { transition:none !important; transform:none !important; } }
     </style>
 </head>
 <body class="app-shell-body app-shell-patient patient-interview-page">
@@ -1165,19 +1925,8 @@ if ($firstPending >= count($questionList) && $questionList) {
                         <h1>Entrevista Conversacional</h1>
                     </div>
                     <div class="patient-interview-header-context" aria-label="Contexto actual de la entrevista">
-                        <span class="interview-module-badge" data-interview-current-module>M01</span>
+                        <span class="interview-module-badge" data-interview-current-module>Entrevista</span>
                         <span class="interview-state-badge" data-interview-state-label data-state="INITIALIZING" aria-live="polite" aria-atomic="true">Preparando</span>
-                    </div>
-                    <div class="patient-interview-header-progress" data-interview-zone="progress">
-                        <div class="interview-progress-layout">
-                            <strong id="interview-progress-title">Progreso de la entrevista</strong>
-                            <div id="interview-progress" class="patient-interview-muted">Preparando la entrevista</div>
-                        </div>
-                        <div class="progress mt-1" role="progressbar" aria-label="Avance de la entrevista" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0" aria-valuetext="Preparando la entrevista"><div id="interview-progress-bar" class="progress-bar" style="width:0%"></div></div>
-                    </div>
-                    <div class="d-flex flex-wrap patient-interview-header-actions" data-interview-zone="navigation" aria-label="Acciones de la entrevista">
-                        <a class="btn btn-outline-primary" href="<?=SERVIDOR;?>historia-clinica/respuestas-previas" aria-label="Respuestas previas"><i data-feather="clipboard" aria-hidden="true"></i> Respuestas previas</a>
-                        <a class="btn btn-outline-secondary" href="<?=SERVIDOR;?>historia-clinica" aria-label="Mi historia clínica"><i data-feather="arrow-left" aria-hidden="true"></i> Mi historia clínica</a>
                     </div>
                 </header>
                 <div class="patient-interview-conversation-layout" data-ux-layout="chat-first">
@@ -1185,12 +1934,19 @@ if ($firstPending >= count($questionList) && $questionList) {
                     <div class="card-body patient-interview-chat" id="interview-chat" aria-describedby="interview-status" aria-busy="false">
                         <p class="interview-zone-label">Conversación y respuesta</p>
                         <h2 id="interview-chat-title" class="h4">Conversación clínica</h2>
+                        <div class="patient-interview-progress" data-interview-zone="progress">
+                            <div class="interview-progress-layout">
+                                <strong id="interview-progress-percentage"></strong>
+                                <div id="interview-progress" class="patient-interview-muted">Preparando la entrevista</div>
+                            </div>
+                            <div class="progress mt-1" role="progressbar" aria-label="Avance de la entrevista" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0" aria-valuetext="Preparando la entrevista"><div id="interview-progress-bar" class="progress-bar" style="width:0%"></div></div>
+                        </div>
                         <aside class="conversational-guidance" data-conversational-guidance data-interview-zone="assistant" aria-label="Orientación para responder">
                             <span class="conversational-guidance__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H7l-3 2v-5.1a7.5 7.5 0 1 1 16-4.4Z"/><path d="M8 10h8M8 13.5h5"/></svg></span>
                             <div class="conversational-guidance__content"><h3 class="conversational-guidance__title" data-guidance-title>Cómo responder</h3><p class="conversational-guidance__description" data-guidance-description>Una pregunta a la vez. Escribe tu respuesta y revísala antes de enviarla.</p></div>
                         </aside>
                         <?php if (!empty($data['m01']['fields'])): ?>
-                        <article class="patient-interview-module-context interview-module-card" data-module="M01">
+                        <article class="patient-interview-module-context interview-module-card chat-stage-hidden" data-module="M01">
                             <div class="patient-interview-message assistant"><div class="interview-message-header"><strong>Asistente · M01</strong></div><p class="interview-question-text">Estos son tus datos de identificación ya registrados. Se muestran como lectura informativa; esta entrega no modifica M01.</p></div>
                             <div class="patient-interview-context-grid">
                                 <?php foreach ($data['m01']['fields'] as $field): ?>
@@ -1267,7 +2023,7 @@ if ($firstPending >= count($questionList) && $questionList) {
                             $m02ActiveInputValue = is_array($m02ActiveSource) ? $m02ActiveSource['answer'] : '';
                         ?>
                         <?php if (!empty($m02Records)): ?>
-                        <article class="patient-interview-question patient-interview-active-question interview-module-card m02-active-question" data-module="M02" data-m02-pending="<?=count($m02PendingIds);?>"<?php if (is_array($m02ActiveQuestion)): ?> data-stable-id="<?=$escape($m02ActiveQuestion['stable_id'] ?? '');?>" data-m02-disease="<?=$escape($m02ActiveDisease);?>" data-m02-version="<?=$escape($m02ActiveRecord['version'] ?? '');?>"<?php endif; ?> data-m02-write-enabled="<?=!empty($data['m02']['write_enabled']) && !$m02Finalized ? '1' : '0';?>" data-m02-finalized="<?=$m02Finalized ? '1' : '0';?>" data-m02-consultation="0">
+                        <article class="patient-interview-question patient-interview-active-question interview-module-card m02-active-question chat-stage-hidden" data-module="M02" data-m02-pending="<?=count($m02PendingIds);?>"<?php if (is_array($m02ActiveQuestion)): ?> data-stable-id="<?=$escape($m02ActiveQuestion['stable_id'] ?? '');?>" data-m02-disease="<?=$escape($m02ActiveDisease);?>" data-m02-version="<?=$escape($m02ActiveRecord['version'] ?? '');?>"<?php endif; ?> data-m02-write-enabled="<?=!empty($data['m02']['write_enabled']) && !$m02Finalized ? '1' : '0';?>" data-m02-finalized="<?=$m02Finalized ? '1' : '0';?>" data-m02-consultation="0">
                             <nav class="m02-question-navigation" aria-label="Navegación de preguntas M02">
                                 <button type="button" class="interview-previous-button" data-m02-previous hidden disabled aria-label="Volver a la pregunta anterior"><span aria-hidden="true">←</span> Pregunta anterior</button>
                                 <button type="button" class="interview-previous-button" data-m02-next hidden disabled aria-label="Ir a la siguiente pregunta contestada">Siguiente pregunta <span aria-hidden="true">→</span></button>
@@ -1308,29 +2064,30 @@ if ($firstPending >= count($questionList) && $questionList) {
                         </article>
                         <?php endif; ?>
                         <?php foreach ($questionList as $index => $question): ?>
-                        <?php $m03Eligible = ($question['eligible'] ?? true) === true; $m03Parent = (int)($question['parentQuestionId'] ?? 0); $m03DirectNumeric = ($question['tipo'] ?? '') === 'input' && preg_match('/\b(?:cu[aá]ntos|cu[aá]nta|cu[aá]nto|qu[eé] edad|hace cu[aá]nto|durante cu[aá]nto)\b/iu', (string)($question['pregunta'] ?? '')) === 1; ?>
+                        <?php $m03Eligible = ($question['eligible'] ?? true) === true; $m03ThemeLabel = trim((string)($question['tema'] ?? '')); $m03Parent = (int)($question['parentQuestionId'] ?? 0); $m03DirectNumeric = ($question['tipo'] ?? '') === 'input' && preg_match('/\b(?:cu[aá]ntos|cu[aá]nta|cu[aá]nto|qu[eé] edad|hace cu[aá]nto|durante cu[aá]nto)\b/iu', (string)($question['pregunta'] ?? '')) === 1; $m03ContextualAction = is_array($question['contextualAction'] ?? null) ? $question['contextualAction'] : null; ?>
                         <?php $m03SemanticState = strtoupper(trim((string)($question['semanticState'] ?? $question['estadoRespuesta'] ?? ''))); $m03HasSemanticAnswer = in_array($m03SemanticState, ['UNKNOWN', 'NOT_REMEMBERED'], true); $hasSavedAnswer = trim((string)($question['respuesta'] ?? '')) !== '' || $m03HasSemanticAnswer; $m03SemanticLabel = $m03SemanticState === 'UNKNOWN' ? 'Dato desconocido declarado por el paciente' : ($m03SemanticState === 'NOT_REMEMBERED' ? 'Dato no recordado declarado por el paciente' : ''); ?>
-                        <article class="patient-interview-question patient-interview-active-question interview-module-card" data-question-index="<?=$index;?>" data-question-id="<?=$escape($question['idPregunta']);?>" data-theme-id="<?=$escape($question['idTema']);?>" data-theme-name="<?=$escape($question['tema'] ?? 'M03');?>" data-parent-id="<?=$escape($m03Parent);?>" data-eligible="<?=$m03Eligible ? '1' : '0';?>" data-type="<?=$escape($question['tipo']);?>" data-response-id="<?=$escape($question['idRespuesta'] ?? '');?>" data-saved-value="<?=$escape($question['respuesta'] ?? '');?>" data-semantic-state="<?=$escape($m03SemanticState);?>" data-m03-version="<?=$escape($data['m03']['version'] ?? '');?>" data-m03-write-enabled="<?=!empty($data['m03']['write_enabled']) ? '1' : '0';?>" data-m03-direct-capable="<?=$m03DirectNumeric ? '1' : '0';?>"<?=$index === $firstPending ? '' : ' hidden';?>>
-                            <button type="button" class="interview-previous-button" data-m03-previous hidden aria-label="Volver a la pregunta anterior"><span aria-hidden="true">←</span> Pregunta anterior</button>
-                            <div class="patient-interview-message assistant">
-                                <div class="interview-message-header"><strong>Asistente · <?=$escape($question['tema'] ?? 'M03');?>:</strong></div>
-                                <p class="interview-question-text"><?=$escape($question['pregunta']);?></p>
+                        <article class="patient-interview-question patient-interview-active-question interview-module-card" data-question-index="<?=$index;?>" data-question-id="<?=$escape($question['idPregunta']);?>" data-theme-id="<?=$escape($question['idTema']);?>" data-theme-name="<?=$escape($question['tema'] ?? 'M03');?>" data-parent-id="<?=$escape($m03Parent);?>" data-eligible="<?=$m03Eligible ? '1' : '0';?>" data-historical-editable="<?=!empty($question['historicalEditable']) ? '1' : '0';?>" data-type="<?=$escape($question['tipo']);?>" data-response-id="<?=$escape($question['idRespuesta'] ?? '');?>" data-saved-value="<?=$escape($question['respuesta'] ?? '');?>" data-semantic-state="<?=$escape($m03SemanticState);?>" data-m03-version="<?=$escape($data['m03']['version'] ?? '');?>" data-m03-write-enabled="<?=!empty($data['m03']['write_enabled']) ? '1' : '0';?>" data-m03-direct-capable="<?=$m03DirectNumeric ? '1' : '0';?>" hidden>
+                            <button type="button" class="interview-previous-button" data-m03-previous hidden disabled aria-label="Ir a la pregunta anterior"><span aria-hidden="true">←</span> Pregunta anterior</button>
+                            <button type="button" class="interview-previous-button" data-m03-next hidden disabled aria-label="Ir a la pregunta siguiente"><span aria-hidden="true">→</span> Pregunta siguiente</button>
+                            <div class="patient-interview-message assistant clinical-question-header">
+                                <div class="interview-message-header"><strong class="clinical-question-module"><svg class="clinical-question-module-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 20v-1.5A4.5 4.5 0 0 1 8 14h2a4.5 4.5 0 0 1 4.5 4.5V20"/><path d="M16 5.5a3 3 0 0 1 0 5.8M17 14h.5a3.5 3.5 0 0 1 3.5 3.5V19"/></svg>M03<?=$m03ThemeLabel !== '' ? ' · ' . $escape($m03ThemeLabel) : '';?></strong></div>
+                                <h3 class="interview-question-text clinical-question-title"><?=$escape($question['pregunta']);?></h3>
                             </div>
-                            <div class="interview-composer-shell" data-interview-zone="response"<?=$hasSavedAnswer && $index < $firstPending ? ' hidden' : ''; ?>>
+                            <div class="interview-composer-shell clinical-answer-area" data-interview-zone="response"<?=$hasSavedAnswer && $index < $firstPending ? ' hidden' : ''; ?>>
                                 <div class="patient-interview-answer interview-composer m03-composer">
                                     <div class="interview-composer-input m03-input-wrap">
                                         <label class="visually-hidden" for="interview-answer-<?=$index;?>">Respuesta</label>
                                         <input id="interview-answer-<?=$index;?>" class="form-control interview-text" type="text" value="<?=$escape($question['respuesta'] ?? '');?>" placeholder="Escribe tu respuesta…" autocomplete="off" maxlength="2000">
                                     </div>
-                                    <?php if (($question['tipo'] ?? '') === 'select'): ?>
-                                        <div class="m03-quick-actions" aria-label="Respuestas rápidas">
-                                            <button type="button" class="btn btn-outline-primary" data-m03-quick-yes>Sí</button>
-                                            <?php if (!empty($data['m03']['write_enabled']) && $m03Eligible): ?><button type="button" class="btn btn-primary" data-m03-safe-no>No, guardar y seguir</button><?php endif; ?>
+                                    <button type="button" class="btn btn-primary chat-send-button interview-submit" aria-label="Interpretar respuesta" title="Interpretar respuesta">➤ <span class="chat-send-label">Enviar</span></button>
+                                    <?php if ($m03ContextualAction !== null && !empty($data['m03']['write_enabled'])): ?>
+                                        <div class="m03-quick-actions" aria-label="Respuestas rápidas"<?=$m03Eligible ? '' : ' hidden';?>>
+                                            <button type="button" class="btn btn-primary m02-safe-no-button" data-m03-contextual-action data-action-key="<?=$escape($m03ContextualAction['key'] ?? '');?>" data-confirmation-label="<?=$escape($m03ContextualAction['confirmation_label'] ?? 'Respuesta confirmada');?>"<?=$m03Eligible ? '' : ' hidden disabled';?>><?=$escape($m03ContextualAction['label'] ?? '');?></button>
                                         </div>
                                     <?php endif; ?>
-                                    <button type="button" class="btn btn-primary chat-send-button interview-submit" aria-label="Interpretar respuesta" title="Interpretar respuesta">➤ <span class="chat-send-label">Enviar</span></button>
                                 </div>
                                 <div class="interview-composer-footer"><p class="interview-composer-help"><span aria-hidden="true">ⓘ</span> Escribe o dicta tu respuesta y pulsa Enviar para validarla y guardarla.</p><span class="interview-answer-count" data-answer-count>0/2000</span></div>
+                                <small id="m03-dictation-status-<?=$index;?>" class="m03-dictation-note" data-m03-dictation-status role="status" aria-live="polite" aria-atomic="true" hidden></small>
                             </div>
                             <div class="patient-interview-message patient" data-confirmed-message<?=$hasSavedAnswer ? '' : ' hidden';?>><?=$hasSavedAnswer ? $escape('Respuesta confirmada: ' . ($m03SemanticLabel !== '' ? $m03SemanticLabel : $question['respuesta'])) : '';?></div>
                         </article>
@@ -1343,10 +2100,10 @@ if ($firstPending >= count($questionList) && $questionList) {
                             $m04NegativeDeclaration = is_array($data['m04']['negative_declaration'] ?? null) ? $data['m04']['negative_declaration'] : null;
                             $m04NegativeConfirmed = ($m04NegativeDeclaration['estado'] ?? null) === 'NEGATIVE_DECLARED' && !$m04HasRecords;
                             $m04Finalized = !empty($data['m04']['finalized']);
-                            $m04Question = ($m04HasRecords && !$m04Finalized && is_array($m04QuestionIndex['M04:record:new'] ?? null))
-                                ? $m04QuestionIndex['M04:record:new']
-                                : ($m04Questions[0] ?? []);
-                            $m04StableId = (string)($m04Question['stable_id'] ?? 'M04:record:new');
+                            $m04StableId = ($m04HasRecords && !$m04Finalized && is_array($m04QuestionIndex['M04:record:new:add-another'] ?? null))
+                                ? 'M04:record:new:add-another'
+                                : 'M04:record:new';
+                            $m04Question = $m04QuestionIndex[$m04StableId] ?? ($m04Questions[0] ?? []);
                             $m04ValidDate = static function ($value): ?string {
                                 $value = trim((string)$value);
                                 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/D', $value)) return null;
@@ -1356,22 +2113,23 @@ if ($firstPending >= count($questionList) && $questionList) {
                             };
                         ?>
                         <article class="patient-interview-module-context interview-module-card" data-module="M04" data-m04-record="<?=$m04HasRecords ? (int)($m04Records[0]['id'] ?? 0) : 0;?>" data-m04-stable-id="<?=$escape($m04StableId);?>" data-m04-version="<?=$escape($data['m04']['version'] ?? '');?>" data-m04-write-enabled="<?=!empty($data['m04']['write_enabled']) ? '1' : '0';?>" data-m04-negative-confirmed="<?=$m04NegativeConfirmed ? '1' : '0';?>" aria-labelledby="m04-question-title">
-                            <div class="patient-interview-message assistant"><div class="interview-message-header"><strong>Asistente · Antecedentes quirúrgicos</strong></div><h3 id="m04-question-title" class="interview-question-text" data-m04-question-title><?=$escape($m04Question['visible_text'] ?? '¿Te realizaron alguna cirugía?');?></h3><p id="m04-question-instruction" class="patient-interview-muted mb-0" data-m04-question-instruction><?=$escape($m04Question['instruction'] ?? 'Describe una cirugía o pulsa «No, continuar».');?></p></div>
-                            <?php if ($m04HasRecords): ?>
-                            <h4 class="patient-interview-context-heading">Cirugías registradas — <?=count($m04Records);?> <?=count($m04Records) === 1 ? 'registro' : 'registros';?></h4>
-                            <div class="patient-interview-context-grid" aria-label="Cirugías registradas">
+                            <div class="patient-interview-message assistant clinical-question-header"><div class="interview-message-header"><strong class="clinical-question-module"><svg class="clinical-question-module-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 20v-1.5A4.5 4.5 0 0 1 8 14h2a4.5 4.5 0 0 1 4.5 4.5V20"/><path d="M16 5.5a3 3 0 0 1 0 5.8M17 14h.5a3.5 3.5 0 0 1 3.5 3.5V19"/></svg>M04 · Antecedentes quirúrgicos</strong></div><h3 id="m04-question-title" class="interview-question-text clinical-question-title" data-m04-question-title><?=$escape($m04Question['visible_text'] ?? '¿Le han realizado alguna cirugía?');?></h3><p id="m04-question-instruction" class="patient-interview-muted mb-0 clinical-question-description" data-m04-question-instruction><?=$escape($m04Question['instruction'] ?? 'Indique si le han realizado alguna cirugía. Si nunca le han realizado una, seleccione «No, guardar y continuar».');?></p></div>
+                            <section data-m04-record-list<?=$m04HasRecords ? '' : ' hidden';?> aria-label="Cirugías registradas">
+                            <h4 class="patient-interview-context-heading" data-m04-record-count>Cirugías registradas — <?=count($m04Records);?> <?=count($m04Records) === 1 ? 'registro' : 'registros';?></h4>
+                            <div class="patient-interview-context-grid" data-m04-records>
                                 <?php foreach ($m04Records as $record): ?>
                                 <?php $m04Date = $m04ValidDate($record['fecha'] ?? null); $m04Observations = trim((string)($record['observaciones'] ?? '')); ?>
-                                <div><dt>Registro quirúrgico</dt><dd><?= $escape($record['cirugia'] ?? ''); ?></dd><?php if ($m04Date !== null): ?><small class="patient-interview-muted">Fecha exacta: <?=$escape($m04Date);?></small><?php endif; ?><?php if ($m04Observations !== ''): ?><small class="patient-interview-muted d-block"><?=$escape($m04Observations);?></small><?php endif; ?></div>
+                                <div class="patient-interview-context-item"><strong>Cirugía</strong><dl class="mb-0"><dt>Nombre</dt><dd><?= $escape($record['cirugia'] ?? ''); ?></dd><dt>Observaciones</dt><dd><?=$m04Observations !== '' ? $escape($m04Observations) : 'Sin observaciones adicionales';?></dd></dl><?php if ($m04Date !== null): ?><small class="patient-interview-muted">Fecha histórica registrada: <?=$escape($m04Date);?></small><?php endif; ?></div>
                                 <?php endforeach; ?>
                             </div>
-                            <?php elseif ($m04NegativeConfirmed): ?><p class="patient-interview-muted">Declaración confirmada: no se registraron cirugías.</p>
-                            <?php else: ?><p class="patient-interview-muted">Datos quirúrgicos pendientes de respuesta.</p><?php endif; ?>
+                            </section>
+                            <?php if ($m04NegativeConfirmed): ?><p class="patient-interview-muted" data-m04-negative-note>Declaración confirmada: no se registraron cirugías.</p>
+                            <?php elseif (!$m04HasRecords): ?><p class="patient-interview-muted" data-m04-pending-note>Datos quirúrgicos pendientes de respuesta.</p><?php endif; ?>
                             <?php if (!$m04Finalized && !empty($data['m04']['write_enabled'])): ?><div class="patient-interview-answer interview-composer">
-                                <div class="interview-composer-input"><label class="visually-hidden" for="m04-input">Respuesta sobre antecedentes quirúrgicos</label>
-                                <input id="m04-input" class="form-control" data-m04-input type="text" placeholder="<?=$m04NegativeConfirmed ? 'Ej. corrige la respuesta: me operaron de la vesícula' : 'Ej. me operaron de la vesícula hace cinco años';?>"></div>
-                                <button type="button" class="btn btn-primary chat-send-button" data-m04-interpret aria-label="Enviar respuesta M04" title="Enviar respuesta M04">➤ <span class="chat-send-label">Enviar</span></button>
-                                <div class="m04-quick-actions" role="group" aria-label="Continuar con antecedentes quirúrgicos"><button type="button" class="btn btn-outline-primary" data-m04-finish data-m04-quick-response data-intent="FINISH_ADDITIONAL_SURGERIES">No, continuar</button></div>
+                                <div class="m04-stage-actions" data-m04-stage-actions="initial" role="group" aria-label="Respuesta sobre cirugías"<?=$m04StableId === 'M04:record:new' ? '' : ' hidden';?>><button type="button" class="btn btn-primary" data-m04-start-surgery>Sí, registrar cirugía</button><button type="button" class="btn btn-outline-primary" data-m04-negative data-m04-quick-response>No, guardar y continuar</button></div>
+                                <div class="m04-input-stage" data-m04-input-stage hidden><div class="interview-composer-input"><label class="visually-hidden" for="m04-input">Respuesta sobre antecedentes quirúrgicos</label><input id="m04-input" class="form-control" data-m04-input type="text" maxlength="2000" autocomplete="off" placeholder=""></div><button type="button" class="btn btn-primary chat-send-button" data-m04-submit aria-label="Continuar respuesta M04" title="Continuar respuesta M04">➤ <span class="chat-send-label">Continuar</span></button></div>
+                                <div class="m04-stage-actions" data-m04-stage-actions="observations" role="group" aria-label="Opciones de observaciones" hidden><button type="button" class="btn btn-outline-primary" data-m04-unknown>No recuerdo</button></div>
+                                <div class="m04-stage-actions" data-m04-stage-actions="add-another" role="group" aria-label="Agregar otra cirugía"<?=$m04StableId === 'M04:record:new:add-another' ? '' : ' hidden';?>><button type="button" class="btn btn-primary" data-m04-add-another>Sí, agregar otra</button><button type="button" class="btn btn-outline-primary" data-m04-finish data-m04-quick-response data-intent="FINISH_ADDITIONAL_SURGERIES">No, terminar</button></div>
                             </div><?php elseif ($m04Finalized): ?><p class="patient-interview-muted" role="status">M04 finalizado. La edición ordinaria está bloqueada.</p><?php endif; ?>
                             <small class="d-block patient-interview-muted mt-1" data-m04-result role="status" aria-live="polite" hidden></small>
                             <p class="patient-interview-muted mb-0">La respuesta válida se guarda después de la validación del servidor.</p>
@@ -1543,53 +2301,61 @@ if ($firstPending >= count($questionList) && $questionList) {
                         <div id="interview-status" class="patient-interview-muted patient-interview-status" data-interview-status role="status" aria-live="polite" aria-atomic="true" hidden></div>
                     </div>
                 </section>
-                <aside class="patient-interview-context-panel" aria-label="Contexto y guía de la entrevista">
-                    <section class="patient-interview-context-card" aria-labelledby="interview-context-title">
-                        <h3 id="interview-context-title"><i data-feather="clipboard" aria-hidden="true"></i> Contexto de la entrevista</h3>
-                        <div class="patient-interview-context-current"><strong data-context-current-module>M01</strong><p data-context-summary>Información de contexto de la entrevista.</p></div>
-                    </section>
-                    <section class="patient-interview-context-card" aria-labelledby="interview-voice-title">
-                        <h3><i data-feather="headphones" aria-hidden="true"></i> Guía por voz</h3>
-                        <div class="interview-voice-panel" data-voice-panel data-voice-state="DISABLED" role="region" aria-labelledby="interview-voice-title">
-                            <strong class="visually-hidden" id="interview-voice-title">Guía por voz</strong>
-                            <span class="visually-hidden" data-voice-status aria-live="polite">Activando guía por voz…</span>
-                            <div class="voice-action-row">
-                                <button type="button" class="voice-action-button" data-voice-repeat aria-label="Repetir pregunta" title="Repetir pregunta"><i data-feather="repeat" aria-hidden="true"></i></button>
-                                <button type="button" class="voice-action-button" data-voice-stop aria-label="Detener narración" title="Detener narración" disabled><i data-feather="square" aria-hidden="true"></i></button>
-                            </div>
-                            <label class="voice-speed-control" for="interview-voice-rate">Velocidad <select id="interview-voice-rate" data-voice-rate aria-label="Velocidad de narración"><option value="0.85">Lenta</option><option value="1.0" selected>Normal</option><option value="1.1">Rápida</option></select></label>
-                            <div class="voice-selector" id="interview-voice-selector" data-voice-selector hidden>
-                                <p class="voice-selector-note">Compara voces de este navegador. Usa explícitamente una voz para aplicarla a la entrevista; la preferencia se guarda en este navegador, sin respuestas ni datos clínicos.</p>
-                                <label for="interview-voice-compare">Voces disponibles (elige hasta 3)</label>
-                                <select id="interview-voice-compare" data-voice-compare multiple size="4" aria-describedby="interview-voice-inventory"></select>
-                                <small id="interview-voice-inventory" data-voice-inventory class="voice-selector-note" aria-live="polite">Detectando voces disponibles…</small>
-                                <small data-voice-local-notice class="voice-selector-warning" aria-live="polite"></small>
-                                <label for="interview-voice-sample">Frase ficticia</label>
-                                <select id="interview-voice-sample" data-voice-sample aria-label="Frase ficticia para comparar voces">
-                                    <option value="¿Actualmente tomas algún medicamento para aliviar el dolor?">Pregunta 1</option>
-                                    <option value="¿Desde hace cuánto tiempo utilizas este medicamento?">Pregunta 2</option>
-                                    <option value="¿Has presentado alguna reacción adversa?">Pregunta 3</option>
-                                </select>
-                                <div class="voice-selector-actions">
-                                    <button type="button" class="btn btn-outline-primary btn-sm" data-voice-preview disabled>Escuchar muestra</button>
-                                    <button type="button" class="btn btn-primary btn-sm" data-voice-compare-start disabled>Comparar seleccionadas</button>
-                                </div>
-                                <div class="voice-selector-actions">
-                                    <button type="button" class="btn btn-primary btn-sm" data-voice-apply disabled>Usar esta voz</button>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm" data-voice-auto>Usar voz automática</button>
-                                </div>
-                                <small data-voice-applied-status class="voice-selector-note" role="status" aria-live="polite">Usando selección automática de Chrome.</small>
-                                <small data-voice-diagnostic class="voice-selector-note" aria-live="polite">Diagnóstico local: aún no hay reproducción.</small>
-                                <small data-voice-preview-status class="voice-selector-note" role="status" aria-live="polite">No se ha reproducido ninguna muestra.</small>
-                            </div>
-                        </div>
-                    </section>
-                    <section class="patient-interview-context-card" aria-labelledby="interview-tips-title">
-                        <h3 id="interview-tips-title"><i data-feather="sun" aria-hidden="true"></i> Consejos para responder</h3>
-                        <ul class="patient-interview-tips"><li>Responde con tus propias palabras.</li><li>Puedes escribir o dictar tu respuesta.</li><li>Las respuestas complejas se revisan antes de guardarse.</li><li>Si necesitas ayuda, usa el botón de la pregunta.</li></ul>
-                    </section>
-                </aside>
                 </div>
+            </div>
+            <div class="patient-interview-doctor-float">
+            <details class="patient-interview-doctor-assistant" aria-label="Asistente virtual de la entrevista">
+                <summary aria-label="Abrir o cerrar el panel de asistencia virtual">
+                    <img src="<?=$doctorAvatarUrl;?>" width="1024" height="1536" alt="" aria-hidden="true" decoding="async">
+                    <span class="visually-hidden">Abrir o cerrar el panel de asistencia virtual</span>
+                </summary>
+                <section class="patient-interview-doctor-panel" aria-labelledby="patient-interview-doctor-title">
+                    <h2 id="patient-interview-doctor-title">Tu asistente virtual</h2>
+                    <p>Estoy aquí para ayudarte con tu entrevista.</p>
+                    <div class="patient-interview-doctor-actions" aria-label="Acciones de la entrevista">
+                        <button type="button" data-doctor-repeat disabled aria-disabled="true" aria-label="Repetir pregunta (no disponible)" title="No hay una pregunta activa disponible para repetir." aria-describedby="patient-interview-doctor-note patient-interview-doctor-repeat-status"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8.5"/><path d="M20 4v4.5h-4.5M20 12a8 8 0 0 1-13.7 5.7L4 15.5"/><path d="M4 20v-4.5h4.5"/></svg><span>Repetir pregunta</span></button>
+                        <button type="button" data-doctor-stop disabled aria-disabled="true" aria-label="Detener audio (no hay audio activo)" title="No hay una reproducción activa para detener." aria-describedby="patient-interview-doctor-note"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg><span>Detener audio</span></button>
+                        <button type="button" data-doctor-help disabled aria-disabled="true" aria-label="Ayuda con esta pregunta" title="Ayuda sobre la pregunta activa" aria-describedby="patient-interview-doctor-note"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.7 9a2.4 2.4 0 1 1 4.2 1.6c-1.2 1.1-1.9 1.4-1.9 3"/><path d="M12 17h.01"/></svg><span>Ayuda con esta pregunta</span></button>
+                        <a class="patient-interview-doctor-action-link" href="<?=SERVIDOR;?>historia-clinica/respuestas-previas" aria-label="Respuestas previas"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3.75h7l4 4v12.5H7a2 2 0 0 1-2-2v-12.5a2 2 0 0 1 2-2Z"/><path d="M14 3.75v4h4M8.5 12h7M8.5 15.5h7"/></svg><span>Respuestas previas</span></a>
+                    </div>
+                    <details class="patient-interview-doctor-voice-settings interview-voice-panel" data-voice-panel data-voice-state="DISABLED" aria-labelledby="interview-voice-title">
+                        <summary class="patient-interview-doctor-voice-summary" id="interview-voice-title"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg><span>Configuración de voz</span></summary>
+                        <span class="visually-hidden" data-voice-status aria-live="polite">Activando guía por voz…</span>
+                        <label class="voice-speed-control" for="interview-voice-rate">Velocidad <select id="interview-voice-rate" data-voice-rate aria-label="Velocidad de narración"><option value="0.85">Lenta</option><option value="1.0" selected>Normal</option><option value="1.1">Rápida</option></select></label>
+                        <div class="voice-selector" id="interview-voice-selector" data-voice-selector hidden>
+                            <p class="voice-selector-note">Compara voces de este navegador. Usa explícitamente una voz para aplicarla a la entrevista; la preferencia se guarda en este navegador, sin respuestas ni datos clínicos.</p>
+                            <label for="interview-voice-compare">Voces disponibles (elige hasta 3)</label>
+                            <select id="interview-voice-compare" data-voice-compare multiple size="4" aria-describedby="interview-voice-inventory"></select>
+                            <small id="interview-voice-inventory" data-voice-inventory class="voice-selector-note" aria-live="polite">Detectando voces disponibles…</small>
+                            <small data-voice-local-notice class="voice-selector-warning" aria-live="polite"></small>
+                            <label for="interview-voice-sample">Frase ficticia</label>
+                            <select id="interview-voice-sample" data-voice-sample aria-label="Frase ficticia para comparar voces">
+                                <option value="¿Actualmente tomas algún medicamento para aliviar el dolor?">Pregunta 1</option>
+                                <option value="¿Desde hace cuánto tiempo utilizas este medicamento?">Pregunta 2</option>
+                                <option value="¿Has presentado alguna reacción adversa?">Pregunta 3</option>
+                            </select>
+                            <div class="voice-selector-actions">
+                                <button type="button" class="btn btn-outline-primary btn-sm" data-voice-preview disabled>Escuchar muestra</button>
+                                <button type="button" class="btn btn-primary btn-sm" data-voice-compare-start disabled>Comparar seleccionadas</button>
+                            </div>
+                            <div class="voice-selector-actions">
+                                <button type="button" class="btn btn-primary btn-sm" data-voice-apply disabled>Usar esta voz</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-voice-auto>Usar voz automática</button>
+                            </div>
+                            <small data-voice-applied-status class="voice-selector-note" role="status" aria-live="polite">Usando selección automática de Chrome.</small>
+                            <small data-voice-diagnostic class="voice-selector-note" aria-live="polite">Diagnóstico local: aún no hay reproducción.</small>
+                            <small data-voice-preview-status class="voice-selector-note" role="status" aria-live="polite">No se ha reproducido ninguna muestra.</small>
+                        </div>
+                    </details>
+                    <p class="patient-interview-doctor-note" id="patient-interview-doctor-note">Acciones visuales; los controles disponibles siguen junto a la pregunta y en la entrevista.</p>
+                </section>
+            </details>
+            <div class="patient-interview-doctor-shortcuts" role="group" aria-label="Accesos rápidos de la entrevista">
+                <button type="button" data-doctor-repeat disabled aria-disabled="true" aria-label="Repetir pregunta (no disponible)" title="No hay una pregunta activa disponible para repetir." aria-describedby="patient-interview-doctor-repeat-status"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8.5"/><path d="M20 4v4.5h-4.5M20 12a8 8 0 0 1-13.7 5.7L4 15.5"/><path d="M4 20v-4.5h4.5"/></svg><span>Repetir pregunta</span></button>
+                <button type="button" data-doctor-help disabled aria-disabled="true" aria-label="Ayuda con esta pregunta" title="Ayuda sobre la pregunta activa"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.7 9a2.4 2.4 0 1 1 4.2 1.6c-1.2 1.1-1.9 1.4-1.9 3"/><path d="M12 17h.01"/></svg><span>Ayuda con esta pregunta</span></button>
+            </div>
+            <span class="visually-hidden" id="patient-interview-doctor-repeat-status" role="status" aria-live="polite">No hay una pregunta activa disponible para repetir.</span>
+            <span class="patient-interview-doctor-bubble" aria-hidden="true">Estoy aquí para ayudarte</span>
             </div>
         </main>
         <?php include_once __DIR__ . '/../components/footer-doctor.php';?>
@@ -1599,6 +2365,7 @@ if ($firstPending >= count($questionList) && $questionList) {
 <script src="<?=$coordinatorJsUrl;?>"></script>
 <script src="<?=$voiceJsUrl;?>"></script>
 <script src="<?=$localDictationJsUrl;?>"></script>
+<script src="<?=$m03DictationUiJsUrl;?>"></script>
 <script>
 (() => {
     const main = document.getElementById('main');
@@ -1624,6 +2391,18 @@ if ($firstPending >= count($questionList) && $questionList) {
     const responseGuidanceDescription = document.querySelector('[data-guidance-description]');
     let active = questions.findIndex(question => !question.hidden);
     if (active < 0) active = 0;
+    let m03ReviewOnly = false;
+    let m03PreviousEditOnly = false;
+    let m03ReviewReturnIndex = null;
+    let m03ReviewTarget = '';
+    let m03QuestionViewRevision = 0;
+    const activeM03DictationTarget = () => m03PreviousEditOnly && m03ReviewTarget
+        ? m03ReviewTarget
+        : (conversationCoordinator.snapshot().currentTarget || '');
+    const m03VoiceTargetForCard = card => (m03ReviewOnly || m03PreviousEditOnly)
+        && card === questions[active]
+        ? m03ReviewTarget
+        : '';
     const setStatus = message => {
         if (!status) return;
         const text = String(message ?? '').trim();
@@ -1634,12 +2413,72 @@ if ($firstPending >= count($questionList) && $questionList) {
     const semanticAnswerStates = new Set(['UNKNOWN', 'NOT_REMEMBERED']);
     const semanticAnswerState = question => String(question?.dataset.semanticState || '').trim().toUpperCase();
     const hasConfirmedAnswer = question => Boolean(question?.dataset.savedValue?.trim()) || semanticAnswerStates.has(semanticAnswerState(question));
+    const speakM03VisibleQuestion = (question, target, options = {}) => {
+        if (conversationStages[conversationStage]?.type !== 'm03'
+            || question !== questions[active]
+            || question?.hidden
+            || question?.closest('[hidden], .chat-stage-hidden')
+            || target !== `M03:question:${question?.dataset.questionId || ''}`) return false;
+        const canonical = conversationCoordinator.questionContract(target);
+        const module = conversationContract.modules?.M03;
+        const historicalQuestion = (m03ReviewOnly || m03PreviousEditOnly)
+            && canonical?.response?.status === 'documented'
+            && canonical.response?.persisted === true;
+        const pendingReturnQuestion = options.allowCurrentPending === true
+            && !m03ReviewOnly && !m03PreviousEditOnly
+            && conversationCoordinator.snapshot().currentTarget === target
+            && module?.conversation_state?.state === 'ANSWERABLE'
+            && module.conversation_state?.stable_id === target
+            && module.state?.write_enabled === true
+            && module.state?.finalized !== true
+            && canonical?.response?.status === 'pending'
+            && canonical.response?.persisted !== true;
+        if (canonical?.module_id !== 'M03'
+            || canonical.stable_id !== target
+            || canonical.response?.eligible !== true
+            || (!historicalQuestion && !pendingReturnQuestion)) return false;
+        const event = conversationCoordinator.voiceEvent('QUESTION', target, false);
+        if (!event?.text || event.stable_id !== target || event.text !== canonical.voice?.QUESTION) return false;
+        return voiceController?.handleEvent({...event, module_id: 'M03'}, {
+            automatic: voiceController.automaticMode,
+            userGesture: options.userGesture === true,
+        }) === true;
+    };
     const answerLabel = question => {
         const value = question?.dataset.savedValue?.trim() || '';
         if (value) return value;
         if (semanticAnswerState(question) === 'UNKNOWN') return 'Dato desconocido declarado por el paciente';
         if (semanticAnswerState(question) === 'NOT_REMEMBERED') return 'Dato no recordado declarado por el paciente';
         return '';
+    };
+    const syncM03ContextualActions = () => {
+        const module = conversationContract.modules?.M03;
+        const moduleIsWritable = module?.state?.write_enabled === true
+            && module.state?.finalized !== true
+            && module.conversation_state?.state === 'ANSWERABLE'
+            && module.conversation_state?.write_enabled === true;
+        questions.forEach(card => {
+            const button = card.querySelector('[data-m03-contextual-action]');
+            const container = button?.closest('.m03-quick-actions');
+            if (!button || !container) return;
+            const target = `M03:question:${card.dataset.questionId || ''}`;
+            const questionContract = conversationContract.question_index?.[target];
+            const activeAndAuthorized = conversationStages[conversationStage]?.type === 'm03'
+                && card === questions[active]
+                && !m03ReviewOnly && !m03PreviousEditOnly
+                && card.dataset.m03WriteEnabled === '1'
+                && card.dataset.eligible === '1'
+                && moduleIsWritable
+                && module.conversation_state?.stable_id === target
+                && questionContract?.response?.eligible === true
+                && questionContract?.response?.status === 'pending'
+                && questionContract?.response?.persisted !== true
+                && String(button.dataset.actionKey || '').trim() !== '';
+            const busy = card.dataset.m03Saving === '1' || card.dataset.m03Interpreting === '1';
+            container.hidden = !activeAndAuthorized;
+            button.hidden = !activeAndAuthorized;
+            button.disabled = !activeAndAuthorized || busy;
+        });
     };
     const coordinatorStateLabels = Object.freeze({
         INITIALIZING: 'Preparando', READY: 'Lista para comenzar', ASKING: 'Pregunta activa',
@@ -2049,6 +2888,46 @@ if ($firstPending >= count($questionList) && $questionList) {
         }
         return {allowed: true, code: 'AUTHORIZED'};
     };
+    const diagnoseM03DictationEligibility = (target, input) => {
+        const snapshot = conversationCoordinator.snapshot();
+        const card = input?.closest('.patient-interview-question[data-question-index]');
+        const module = conversationContract.modules?.M03;
+        const question = conversationCoordinator.questionContract(target);
+        if (!target) return {allowed: false, code: 'QUESTION_TARGET_MISSING'};
+        const authorizedPreviousEdit = m03PreviousEditOnly
+            && target === m03ReviewTarget
+            && card === questions[active]
+            && hasM03HistoricalEditAuthorization(card, m03ReviewReturnIndex);
+        if (target !== snapshot.currentTarget && !authorizedPreviousEdit) return {allowed: false, code: 'ACTIVE_QUESTION_ID_MISMATCH'};
+        if (snapshot.paused) return {allowed: false, code: 'INTERVIEW_PAUSED'};
+        if (snapshot.activeOperation) return {allowed: false, code: 'INTERVIEW_OPERATION_IN_PROGRESS'};
+        if (conversationStages[conversationStage]?.type !== 'm03') return {allowed: false, code: 'M03_MODULE_INACTIVE'};
+        if (!input?.matches('.m03-input-wrap > .interview-text')) return {allowed: false, code: 'M03_INPUT_NOT_FOUND'};
+        if (!card || card.hidden || card.closest('[hidden], .chat-stage-hidden')) return {allowed: false, code: 'M03_QUESTION_NOT_VISIBLE'};
+        if (card.dataset.m03Saving === '1' || card.dataset.m03Interpreting === '1') return {allowed: false, code: 'INTERVIEW_OPERATION_IN_PROGRESS'};
+        const questionId = String(card.dataset.questionId || '');
+        if (!/^[1-9]\d*$/.test(questionId) || target !== `M03:question:${questionId}`) return {allowed: false, code: 'VISIBLE_QUESTION_ID_MISMATCH'};
+        if (module?.state?.finalized === true) return {allowed: false, code: 'M03_FINALIZED'};
+        if (card.dataset.m03WriteEnabled !== '1' || module?.state?.write_enabled !== true) return {allowed: false, code: 'M03_WRITE_DISABLED'};
+        if (input.disabled) return {allowed: false, code: 'QUESTION_INPUT_DISABLED'};
+        if (input.readOnly) return {allowed: false, code: 'QUESTION_NOT_EDITABLE'};
+        if (!question || question.module_id !== 'M03') return {allowed: false, code: 'QUESTION_NOT_IN_M03_CONTRACT'};
+        if (question.stable_id !== target || String(question.question_id) !== questionId) return {allowed: false, code: 'CONTRACT_QUESTION_ID_MISMATCH'};
+        if (!module || module.conversation_state?.state !== 'ANSWERABLE') return {allowed: false, code: 'MODULE_NOT_ANSWERABLE'};
+        if (module.conversation_state?.stable_id !== target && !authorizedPreviousEdit) return {allowed: false, code: 'M03_ACTIVE_TARGET_STALE'};
+        if (card.dataset.eligible !== '1') return {allowed: false, code: 'M03_QUESTION_NOT_ELIGIBLE'};
+        if (question.response?.eligible !== true) return {allowed: false, code: 'M03_CONTRACT_ELIGIBILITY_STALE'};
+        if (question.write_enabled !== true) return {allowed: false, code: 'QUESTION_WRITE_DISABLED'};
+        const response = question.response || {};
+        if (response.status !== 'pending' && !(response.status === 'documented' && response.persisted === true)) {
+            return {allowed: false, code: 'M03_RESPONSE_NOT_DICTATABLE'};
+        }
+        if (typeof window.PatientInterviewLocalDictation?.isM03DictationContractEligible !== 'function') {
+            return {allowed: false, code: 'DICTATION_CLIENT_NOT_INITIALIZED'};
+        }
+        if (!PatientInterviewLocalDictation.isM03DictationContractEligible(target, question, module)) return {allowed: false, code: 'M03_QUESTION_CONTRACT_INELIGIBLE'};
+        return {allowed: true, code: 'AUTHORIZED'};
+    };
     const syncM02DictationPermission = card => {
         const input = card?.querySelector('[data-m02-input]');
         const module = conversationContract.modules?.M02;
@@ -2401,43 +3280,131 @@ if ($firstPending >= count($questionList) && $questionList) {
         const percentage = conversationStages.length ? (current / total) * 100 : 0;
         if (progress) progress.textContent = `Etapa ${current} de ${total}`;
         if (progressBar) progressBar.style.width = `${percentage}%`;
+        const percentageText = document.getElementById('interview-progress-percentage');
+        if (percentageText) percentageText.textContent = `${percentage} %`;
         if (progressMeter) {
             progressMeter.setAttribute('aria-valuemax', String(total));
             progressMeter.setAttribute('aria-valuenow', String(current));
             progressMeter.setAttribute('aria-valuetext', `Etapa ${current} de ${total}`);
         }
     };
-    const showQuestion = index => {
+    const hasM03HistoricalEditAuthorization = (question, returnIndex) => {
+        const module = conversationContract.modules?.M03;
+        const target = question ? `M03:question:${question.dataset.questionId || ''}` : '';
+        const returnQuestion = Number.isInteger(returnIndex) ? questions[returnIndex] : null;
+        const pendingTarget = returnQuestion ? `M03:question:${returnQuestion.dataset.questionId || ''}` : '';
+        const currentQuestion = pendingTarget ? conversationCoordinator.questionContract(pendingTarget) : null;
+        const candidateContract = target ? conversationCoordinator.questionContract(target) : null;
+        if (!question
+            || question.dataset.eligible !== '1'
+            || candidateContract?.response?.status !== 'documented'
+            || candidateContract?.response?.persisted !== true
+            || candidateContract?.response?.editable !== true
+            || !module || module.state?.write_enabled !== true || module.state?.finalized === true
+            || module.conversation_state?.state !== 'ANSWERABLE'
+            || module.conversation_state?.stable_id !== pendingTarget
+            || currentQuestion?.response?.status !== 'pending'
+            || currentQuestion?.response?.persisted === true) return false;
+        const eligibleQuestions = (module.questions || []).filter(item => item?.response?.eligible === true);
+        const pendingIndex = eligibleQuestions.findIndex(item => item.stable_id === pendingTarget
+            && item.response?.status === 'pending' && item.response?.persisted !== true);
+        const targetIndex = eligibleQuestions.findIndex(item => item.stable_id === target
+            && item.response?.status === 'documented' && item.response?.persisted === true);
+        if (pendingIndex < 1 || targetIndex < 0 || targetIndex >= pendingIndex) return false;
+        return eligibleQuestions.slice(targetIndex + 1, pendingIndex).every(item =>
+            item.response?.status === 'documented' && item.response?.persisted === true);
+    };
+    const showQuestion = (index, options = {}) => {
         const candidate = questions[index];
         if (candidate && candidate.dataset.eligible === '0' && !hasConfirmedAnswer(candidate)) {
             return false;
         }
+        const reviewOnly = options.mode === 'review';
+        const previousEditOnly = options.mode === 'direct-edit';
+        const candidateTarget = candidate ? `M03:question:${candidate.dataset.questionId || index}` : '';
+        const module = conversationContract.modules?.M03;
+        const candidateContract = conversationCoordinator.questionContract(candidateTarget);
+        const returnQuestion = Number.isInteger(options.returnIndex) ? questions[options.returnIndex] : null;
+        const returnTarget = returnQuestion ? `M03:question:${returnQuestion.dataset.questionId || ''}` : '';
+        const validReturnTarget = Boolean(returnQuestion
+            && module?.conversation_state?.stable_id === returnTarget
+            && module.conversation_state.state === 'ANSWERABLE'
+            && module.state?.write_enabled === true
+            && module.state?.finalized !== true);
+        if (reviewOnly && (!candidate
+            || !hasConfirmedAnswer(candidate)
+            || candidate.dataset.eligible !== '1'
+            || candidateContract?.response?.status !== 'documented'
+            || candidateContract?.response?.persisted !== true
+            || module?.conversation_state?.stable_id === candidateTarget
+            || !validReturnTarget)) {
+            return false;
+        }
+        if (previousEditOnly && (!validReturnTarget || !hasM03HistoricalEditAuthorization(candidate, options.returnIndex))) return false;
+        const previousQuestion = questions[active];
+        if (options.discardDraft === true && previousQuestion && previousQuestion !== candidate) {
+            const previousInput = previousQuestion.querySelector('.interview-text');
+            if (previousInput) {
+                previousInput.value = String(previousQuestion.dataset.savedValue || '');
+                updateM03AnswerCount(previousQuestion);
+            }
+        }
         active = index;
+        m03QuestionViewRevision += 1;
+        m03ReviewOnly = reviewOnly;
+        m03PreviousEditOnly = previousEditOnly;
+        m03ReviewReturnIndex = reviewOnly ? options.returnIndex : null;
+        if (previousEditOnly) m03ReviewReturnIndex = options.returnIndex;
+        m03ReviewTarget = reviewOnly || previousEditOnly ? candidateTarget : '';
         if (typeof stopAssistantVoice === 'function') stopAssistantVoice();
         if (typeof stopRecognition === 'function') stopRecognition();
         const question = questions[active];
         setCurrentModule(question ? `M03 · ${question.dataset.themeName || 'Pregunta activa'}` : 'M03');
-        if (question) conversationCoordinator.setTarget(`M03:question:${question.dataset.questionId || active}`);
+        if (question) {
+            questions.forEach(card => { delete card.dataset.m03ReviewOnly; });
+            questions.forEach(card => { delete card.dataset.m03PreviousEdit; });
+            if (reviewOnly) question.dataset.m03ReviewOnly = '1';
+            else if (previousEditOnly) question.dataset.m03PreviousEdit = '1';
+            else {
+                conversationCoordinator.setTarget(`M03:question:${question.dataset.questionId || active}`);
+            }
+        }
+        if ((previousEditOnly || options.discardDraft === true) && question) {
+            const input = question.querySelector('.interview-text');
+            if (input) {
+                input.value = String(question.dataset.savedValue || '');
+                updateM03AnswerCount(question);
+            }
+        }
         const responseZone = question?.querySelector('[data-interview-zone="response"]');
         const canEditQuestion = question?.dataset.m03WriteEnabled === '1' && question?.dataset.eligible === '1';
         if (responseZone) {
-            // A previously confirmed question is rendered with its composer
-            // hidden until the first pending question. Returning to it is an
-            // explicit edit intent, so restore the response zone and its
-            // controls for the active, eligible question only.
-            responseZone.hidden = !canEditQuestion;
-            if (canEditQuestion && question.dataset.m03Saving !== '1' && question.dataset.m03Interpreting !== '1') {
+            responseZone.hidden = reviewOnly || !canEditQuestion;
+            if (reviewOnly) {
+                responseZone.querySelectorAll('input, button, select, textarea').forEach(control => { control.disabled = true; });
+            } else if (canEditQuestion && question.dataset.m03Saving !== '1' && question.dataset.m03Interpreting !== '1') {
                 responseZone.querySelectorAll('input, button, select, textarea').forEach(control => { control.disabled = false; });
             }
         }
         moduleCards.forEach(card => card.classList.add('chat-stage-hidden'));
         questions.forEach((question, questionIndex) => { question.hidden = questionIndex !== active; });
         if (conversationStages[conversationStage]?.type === 'm03') questions.forEach(question => { question.hidden = questions.indexOf(question) !== active; });
+        syncM03ContextualActions();
         const composer = questions[active]?.querySelector('.m03-composer');
-        if (composer) composer.hidden = false;
+        if (composer) composer.hidden = reviewOnly;
+        if (reviewOnly || previousEditOnly) {
+            const confirmed = question?.querySelector('[data-confirmed-message]');
+            if (confirmed) confirmed.hidden = !reviewOnly;
+        }
         window.setTimeout(() => { if (typeof bindVoiceControls === 'function') bindVoiceControls(); }, 0);
         updateProgress();
         updateM03PreviousButton();
+        if (options.narrateQuestion === true) {
+            speakM03VisibleQuestion(question, candidateTarget, {
+                userGesture: options.userGesture === true,
+                allowCurrentPending: options.allowCurrentPending === true,
+            });
+        }
         return Boolean(question);
     };
     const valueFor = question => {
@@ -2469,19 +3436,122 @@ if ($firstPending >= count($questionList) && $questionList) {
     };
     const updateM03PreviousButton = () => {
         const current = questions[active];
+        const module = conversationContract.modules?.M03;
+        const serverTarget = module?.conversation_state?.stable_id || '';
+        const historicalMode = m03ReviewOnly || m03PreviousEditOnly;
+        const boundaryIndex = historicalMode && Number.isInteger(m03ReviewReturnIndex)
+            ? m03ReviewReturnIndex
+            : active;
+        const moduleWritable = conversationStages[conversationStage]?.type === 'm03'
+            && current?.dataset.m03WriteEnabled === '1'
+            && module?.state?.write_enabled === true
+            && module?.state?.finalized !== true
+            && module?.conversation_state?.state === 'ANSWERABLE'
+            && serverTarget === `M03:question:${questions[boundaryIndex]?.dataset.questionId || ''}`;
+        const isPersistedEligible = question => question?.dataset.eligible === '1'
+            && hasConfirmedAnswer(question)
+            && conversationCoordinator.questionContract(`M03:question:${question.dataset.questionId || ''}`)?.response?.status === 'documented'
+            && conversationCoordinator.questionContract(`M03:question:${question.dataset.questionId || ''}`)?.response?.persisted === true;
+        const previousIndex = moduleWritable
+            ? [...questions].map((question, index) => ({question, index}))
+                .filter(item => item.index < active && item.index < boundaryIndex && isPersistedEligible(item.question))
+                .pop()?.index
+            : undefined;
+        const nextHistoryIndex = historicalMode && moduleWritable
+            ? questions.findIndex((question, index) => index > active && index < boundaryIndex && isPersistedEligible(question))
+            : -1;
+        const previousAvailable = moduleWritable && previousIndex !== undefined;
+        const nextAvailable = historicalMode && moduleWritable
+            && (nextHistoryIndex >= 0 || active < boundaryIndex);
+        document.querySelectorAll('[data-m03-previous]').forEach(button => {
+            const owner = button.closest('.patient-interview-question');
+            const visible = previousAvailable && owner === current;
+            button.hidden = !visible;
+            button.disabled = !visible;
+            button.setAttribute('aria-label', 'Ir a la pregunta anterior');
+        });
+        document.querySelectorAll('[data-m03-next]').forEach(button => {
+            const owner = button.closest('.patient-interview-question');
+            const visible = nextAvailable && owner === current;
+            button.hidden = !visible;
+            button.disabled = !visible;
+            button.setAttribute('aria-label', 'Ir a la pregunta siguiente');
+        });
+    };
+    const navigateM03Previous = button => {
+        if (conversationStages[conversationStage]?.type !== 'm03'
+            || conversationCoordinator.snapshot().activeOperation) return false;
+        const module = conversationContract.modules?.M03;
+        const serverTarget = module?.conversation_state?.stable_id || '';
+        if (m03ReviewOnly || m03PreviousEditOnly) {
+            const returnIndex = m03ReviewReturnIndex;
+            const returnQuestion = Number.isInteger(returnIndex) ? questions[returnIndex] : null;
+            if (!returnQuestion
+                || serverTarget !== `M03:question:${returnQuestion.dataset.questionId || ''}`
+                || module?.conversation_state?.state !== 'ANSWERABLE'
+                || module?.state?.write_enabled !== true
+                || module?.state?.finalized === true) return false;
+            for (let index = active - 1; index >= 0; index -= 1) {
+                const candidate = questions[index];
+                if (index >= returnIndex || !isPersistedEligibleM03Question(candidate)) continue;
+                const mode = hasM03HistoricalEditAuthorization(candidate, returnIndex) ? 'direct-edit' : 'review';
+                conversationCoordinator.invalidate('history_previous_question');
+                return showQuestion(index, {mode, returnIndex, discardDraft: true, narrateQuestion: true, userGesture: true});
+            }
+            return false;
+        }
+        const current = questions[active];
+        if (!current || serverTarget !== `M03:question:${current.dataset.questionId || ''}`
+            || module?.conversation_state?.state !== 'ANSWERABLE'
+            || module?.state?.write_enabled !== true
+            || module?.state?.finalized === true) return false;
         const previousIndex = [...questions].map((question, index) => ({question, index}))
             .filter(item => item.index < active && item.question.dataset.eligible === '1' && hasConfirmedAnswer(item.question))
             .pop()?.index;
         const previous = previousIndex === undefined ? null : questions[previousIndex];
-        const available = conversationStages[conversationStage]?.type === 'm03'
-            && current?.dataset.m03WriteEnabled === '1'
-            && hasConfirmedAnswer(previous);
-        document.querySelectorAll('[data-m03-previous]').forEach(button => {
-            const owner = button.closest('.patient-interview-question');
-            const visible = available && owner === current;
-            button.hidden = !visible;
-            button.disabled = !visible;
-        });
+        const previousTarget = previous ? `M03:question:${previous.dataset.questionId || ''}` : '';
+        const previousContract = previous ? conversationCoordinator.questionContract(previousTarget) : null;
+        if (!previous
+            || previous.dataset.m03WriteEnabled !== '1'
+            || previousContract?.response?.status !== 'documented'
+            || previousContract?.response?.persisted !== true) return false;
+        const previousEditAllowed = hasM03HistoricalEditAuthorization(previous, active);
+        conversationCoordinator.invalidate(previousEditAllowed ? 'previous_question_edit' : 'previous_question_review');
+        setStatus('');
+        return showQuestion(previousIndex, {mode: previousEditAllowed ? 'direct-edit' : 'review', returnIndex: active, discardDraft: true, narrateQuestion: true, userGesture: true});
+    };
+    const isPersistedEligibleM03Question = question => {
+        if (!question || question.dataset.eligible !== '1' || !hasConfirmedAnswer(question)) return false;
+        const contract = conversationCoordinator.questionContract(`M03:question:${question.dataset.questionId || ''}`);
+        return contract?.response?.status === 'documented' && contract.response.persisted === true;
+    };
+    const navigateM03Next = button => {
+        if (conversationStages[conversationStage]?.type !== 'm03'
+            || conversationCoordinator.snapshot().activeOperation
+            || (!m03ReviewOnly && !m03PreviousEditOnly)) return false;
+        const module = conversationContract.modules?.M03;
+        const returnIndex = m03ReviewReturnIndex;
+        const returnQuestion = Number.isInteger(returnIndex) ? questions[returnIndex] : null;
+        if (!returnQuestion
+            || module?.conversation_state?.stable_id !== `M03:question:${returnQuestion.dataset.questionId || ''}`
+            || module?.conversation_state?.state !== 'ANSWERABLE'
+            || module?.state?.write_enabled !== true
+            || module?.state?.finalized === true
+            || active >= returnIndex) return false;
+        for (let index = active + 1; index <= returnIndex; index += 1) {
+            if (index === returnIndex) {
+                conversationCoordinator.invalidate('history_return_to_pending');
+                setStatus('');
+                return showQuestion(returnIndex, {discardDraft: true, narrateQuestion: true, userGesture: true, allowCurrentPending: true});
+            }
+            const candidate = questions[index];
+            if (!isPersistedEligibleM03Question(candidate)) continue;
+            const mode = hasM03HistoricalEditAuthorization(candidate, returnIndex) ? 'direct-edit' : 'review';
+            conversationCoordinator.invalidate('history_next_question');
+            setStatus('');
+            return showQuestion(index, {mode, returnIndex, discardDraft: true, narrateQuestion: true, userGesture: true});
+        }
+        return false;
     };
     const showNextM03Question = (question, nextQuestionId = null, finalized = false) => {
         const next = nextQuestionId
@@ -2496,9 +3566,36 @@ if ($firstPending >= count($questionList) && $questionList) {
         setStatus('M03 completado.');
         advanceConversation();
     };
+    const applyM03ServerEligibility = (data, confirmedQuestionId) => {
+        const result = window.PatientInterviewM03DictationUi?.applyServerReadback({
+            contract: conversationContract,
+            cards: questions,
+            questionId: Number(confirmedQuestionId),
+            data,
+        });
+        if (!result?.applied) return false;
+        const confirmedCard = questions.find(item => Number(item.dataset.questionId) === Number(confirmedQuestionId));
+        if (confirmedCard) {
+            if (Object.prototype.hasOwnProperty.call(data, 'readback_value')
+                && (typeof data.readback_value === 'string' || data.readback_value === null)) {
+                confirmedCard.dataset.savedValue = String(data.readback_value ?? '');
+            }
+            if (typeof data.semantic_state === 'string') confirmedCard.dataset.semanticState = data.semantic_state.toUpperCase();
+            if (Number(data.response_id) > 0) confirmedCard.dataset.responseId = String(data.response_id);
+        }
+        if (data.version) questions.forEach(item => { item.dataset.m03Version = data.version; });
+        syncM03ContextualActions();
+        if (typeof refreshM03DictationUi === 'function') refreshM03DictationUi();
+        return true;
+    };
+    const isCurrentM03View = (question, revision) => m03QuestionViewRevision === revision
+        && questions[active] === question
+        && conversationStages[conversationStage]?.type === 'm03';
     const saveAndAdvanceM03Direct = async (question, value, directMode) => {
         if (!question || question.dataset.m03Saving === '1' || question.dataset.m03Interpreting === '1') return;
+        const viewRevision = m03QuestionViewRevision;
         question.dataset.m03Saving = '1';
+        refreshM03DictationUi?.();
         const controls = question.querySelectorAll('button, input');
         controls.forEach(control => { control.disabled = true; });
         setStatus('Guardando y continuando…');
@@ -2509,6 +3606,7 @@ if ($firstPending >= count($questionList) && $questionList) {
                 body: JSON.stringify({
                     idPaciente: Number(main.dataset.patient),
                     idPregunta: Number(question.dataset.questionId),
+                    idRespuesta: Number(question.dataset.responseId || 0),
                     detalle: value,
                     expectedVersion: question.dataset.m03Version || '',
                     saveAndContinue: true,
@@ -2517,61 +3615,88 @@ if ($firstPending >= count($questionList) && $questionList) {
                 })
             });
             const data = await response.json();
-            if (!response.ok || !data.resultado || data.mode !== 'direct' || data.readback !== true) {
+            const editingHistoricalAnswer = m03PreviousEditOnly && question === questions[active] && hasConfirmedAnswer(question);
+            if (!response.ok || !data.resultado || data.mode !== 'direct' || data.readback !== true
+                || (editingHistoricalAnswer && Number(data.response_id) !== Number(question.dataset.responseId || 0))) {
                 throw new Error(data.mensaje || 'No fue posible guardar la respuesta.');
             }
-            question.dataset.savedValue = value;
+            question.dataset.savedValue = typeof data.readback_value === 'string' ? data.readback_value : value;
             question.dataset.semanticState = String(data.semantic_state || '').toUpperCase();
-            if (data.version) questions.forEach(item => { item.dataset.m03Version = data.version; });
+            if (Number(data.response_id) > 0) question.dataset.responseId = String(data.response_id);
+            if (!applyM03ServerEligibility(data, Number(question.dataset.questionId))) {
+                throw new Error('El guardado se confirmó, pero no se pudo actualizar el estado autorizado de M03. Recarga para verificar antes de continuar.');
+            }
+            if (!isCurrentM03View(question, viewRevision)) return;
             const message = question.querySelector('[data-confirmed-message]');
             if (message) { message.textContent = `Respuesta confirmada: ${answerLabel(question)}`; message.hidden = false; }
             setStatus('Respuesta guardada. Siguiente pregunta…');
              showNextM03Question(question, data.next_question_id, data.finalized === true);
         } catch (error) {
-            setStatus(error.message || 'No fue posible guardar la respuesta.');
+            if (isCurrentM03View(question, viewRevision)) setStatus(error.message || 'No fue posible guardar la respuesta.');
         } finally {
             controls.forEach(control => { control.disabled = false; });
             question.dataset.m03Saving = '0';
+            syncM03ContextualActions();
+            refreshM03DictationUi?.();
         }
     };
-    const confirmAndSave = async (question, value, proposalBox = null, directContract = false, semanticState = '') => {
+    const confirmAndSave = async (question, value, proposalBox = null, semanticState = '') => {
         const normalizedState = String(semanticState || '').toUpperCase();
         const stateWithoutValue = ['UNKNOWN', 'NOT_REMEMBERED'].includes(normalizedState);
         if (!value && !stateWithoutValue) { setStatus('Selecciona o escribe una respuesta antes de continuar.'); return; }
+        const viewRevision = m03QuestionViewRevision;
         const buttons = question.querySelectorAll('button, input');
         buttons.forEach(button => { button.disabled = true; });
+        refreshM03DictationUi?.();
         setStatus('Guardando tu respuesta…');
         try {
             const response = await fetch('<?=SERVIDOR;?>historia-clinica/entrevista/capturar', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', 'X-M03-CSRF': main.dataset.csrf},
-                body: JSON.stringify({ idPaciente: Number(main.dataset.patient), idPregunta: Number(question.dataset.questionId), idTema: Number(question.dataset.themeId), detalle: value || '', estadoRespuesta: normalizedState, expectedVersion: question.dataset.m03Version || '', expectedRespuesta: question.dataset.savedValue || '' })
+                body: JSON.stringify({ idPaciente: Number(main.dataset.patient), idPregunta: Number(question.dataset.questionId), idTema: Number(question.dataset.themeId), idRespuesta: Number(question.dataset.responseId || 0), detalle: value || '', estadoRespuesta: normalizedState, expectedVersion: question.dataset.m03Version || '', expectedRespuesta: question.dataset.savedValue || '' })
             });
             const data = await response.json();
-            if (!response.ok || !data.resultado || (directContract && data.readback !== true)) {
+            const editingPreviousAnswer = m03PreviousEditOnly && question === questions[active];
+            if (!response.ok || !data.resultado || data.readback !== true) {
                 throw new Error(data.mensaje || 'No fue posible verificar la respuesta guardada.');
             }
-            question.dataset.savedValue = value;
+            if (editingPreviousAnswer && Number(data.response_id) !== Number(question.dataset.responseId || 0)) {
+                throw new Error('La respuesta guardada no coincide con la que se estaba editando. Recarga la pregunta para verificarla.');
+            }
+            question.dataset.savedValue = String(data.readback_value ?? value);
+            const answerInput = question.querySelector('.interview-text');
+            if (answerInput) answerInput.value = question.dataset.savedValue;
+            if (Number(data.response_id) > 0) question.dataset.responseId = String(data.response_id);
             question.dataset.semanticState = String(data.semantic_state || normalizedState).toUpperCase();
             if (data.version) questions.forEach(item => { item.dataset.m03Version = data.version; });
+            if (!applyM03ServerEligibility(data, Number(question.dataset.questionId))) {
+                throw new Error('El guardado se confirmó, pero no se pudo actualizar el estado autorizado de M03. Recarga para verificar antes de continuar.');
+            }
+            if (!isCurrentM03View(question, viewRevision)) return;
             const message = question.querySelector('[data-confirmed-message]');
             if (message) { message.textContent = `Paciente: ${answerLabel(question)}`; message.hidden = false; }
             if (proposalBox) proposalBox.hidden = true;
             setStatus('Respuesta guardada en tu Historia Clínica.');
-             showNextM03Question(question, null, data.finalized === true);
+             showNextM03Question(question, data.next_question_id, data.finalized === true);
         } catch (error) {
-            setStatus(error.message || 'No fue posible guardar la respuesta.');
-        } finally { buttons.forEach(button => { button.disabled = false; }); }
+            if (isCurrentM03View(question, viewRevision)) setStatus(error.message || 'No fue posible guardar la respuesta.');
+        } finally {
+            buttons.forEach(button => { button.disabled = false; });
+            syncM03ContextualActions();
+            refreshM03DictationUi?.();
+        }
     };
     const interpret = async question => {
         const utterance = valueFor(question);
         if (!utterance) { announceEmptyResponse(question, 'M03'); return; }
         if (question.dataset.m03Interpreting === '1' || question.dataset.m03Saving === '1') return;
+        const viewRevision = m03QuestionViewRevision;
         const directMode = directModeForM03(question);
         if (directMode) return saveAndAdvanceM03Direct(question, utterance, directMode);
         question.dataset.m03Interpreting = '1';
         const controls = question.querySelectorAll('button, input');
         controls.forEach(control => { control.disabled = true; });
+        refreshM03DictationUi?.();
         setStatus('Interpretando tu respuesta…');
         try {
             const response = await fetch('<?=SERVIDOR;?>historia-clinica/entrevista/interpretar', {
@@ -2580,6 +3705,7 @@ if ($firstPending >= count($questionList) && $questionList) {
                 body: JSON.stringify({idPaciente: Number(main.dataset.patient), idPregunta: Number(question.dataset.questionId), idTema: Number(question.dataset.themeId), modulo:'M03', utterance})
             });
             const data = await response.json();
+            if (!isCurrentM03View(question, viewRevision)) return;
             if (!response.ok || !data.resultado) throw new Error(data.mensaje || 'No fue posible interpretar la respuesta.');
             const proposal = data.proposal || {};
             if (proposal.kind === 'explanation') {
@@ -2590,6 +3716,10 @@ if ($firstPending >= count($questionList) && $questionList) {
                 const unknownStorageUnavailable = proposal.unknown_response
                     && proposal.unknown_response.persist === false
                     && proposal.unknown_response.never_infer_negative === true;
+                if (proposal.error_code === 'M03_TOBACCO_ANSWER_AMBIGUOUS') {
+                    await announceM03TobaccoInvalidResponse(question, proposal, viewRevision);
+                    return;
+                }
                 setStatus(unknownStorageUnavailable
                     ? 'No se guardó el dato desconocido ni se interpretó como “No”. La pregunta permanece pendiente.'
                     : (proposal.clarification || 'Necesito una aclaración antes de guardar la respuesta.'));
@@ -2599,32 +3729,28 @@ if ($firstPending >= count($questionList) && $questionList) {
                 // The server has classified this deterministic catalog value as
                 // directly admissible. Reuse the normal capture endpoint so
                 // CSRF, authorization, versioning and readback remain active.
-                await confirmAndSave(question, proposal.structured_value || '', null, true, proposal.semantic_state || '');
+                await confirmAndSave(question, proposal.structured_value || '', null, proposal.semantic_state || '');
                 return;
             }
             setStatus(proposal.clarification || 'La respuesta no puede guardarse todavía; precisa la información solicitada.');
         } catch (error) {
-            setStatus(error.message || 'No fue posible interpretar la respuesta.');
-        } finally { controls.forEach(control => { control.disabled = false; }); question.dataset.m03Interpreting = '0'; }
-    };
-    document.querySelectorAll('[data-m03-quick-yes]').forEach(button => button.addEventListener('click', () => {
-        const question = button.closest('.patient-interview-question');
-        const input = question?.querySelector('.interview-text');
-        if (!question || !input || question.dataset.m03Interpreting === '1' || question.dataset.m03Saving === '1') return;
-        if (input.value.trim() !== '' && input.value.trim() !== 'Sí') {
-            setStatus('Ya existe una respuesta escrita. No se reemplazó; revísala o bórrala antes de usar Sí.');
-            input.focus();
-            return;
+            if (isCurrentM03View(question, viewRevision)) setStatus(error.message || 'No fue posible interpretar la respuesta.');
+        } finally {
+            controls.forEach(control => { control.disabled = false; });
+            question.dataset.m03Interpreting = '0';
+            syncM03ContextualActions();
+            refreshM03DictationUi?.();
         }
-        input.value = 'Sí';
-        interpret(question);
-    }));
-    const captureSafeM03No = async (question, button) => {
-        if (!question || question.dataset.m03Saving === '1' || question.dataset.m03Interpreting === '1') return;
+    };
+    const captureM03ContextualAction = async (question, button) => {
+        const actionKey = String(button?.dataset.actionKey || '').trim();
+        if (!question || !actionKey || question.dataset.m03Saving === '1' || question.dataset.m03Interpreting === '1') return;
+        const viewRevision = m03QuestionViewRevision;
         question.dataset.m03Saving = '1';
         const controls = question.querySelectorAll('button, input');
         controls.forEach(control => { control.disabled = true; });
-        setStatus('Guardando respuesta negativa…');
+        refreshM03DictationUi?.();
+        setStatus('Guardando y verificando tu respuesta…');
         try {
             const response = await fetch('<?=SERVIDOR;?>historia-clinica/entrevista/capturar', {
                 method: 'POST',
@@ -2633,49 +3759,43 @@ if ($firstPending >= count($questionList) && $questionList) {
                     idPaciente: Number(main.dataset.patient),
                     idPregunta: Number(question.dataset.questionId),
                     idTema: Number(question.dataset.themeId),
-                    detalle: 'No',
+                    contextualActionKey: actionKey,
                     expectedVersion: question.dataset.m03Version || '',
                     expectedRespuesta: question.dataset.savedValue || ''
                 })
             });
             const data = await response.json();
-            if (!response.ok || !data.resultado) throw new Error(data.mensaje || 'No fue posible guardar la respuesta negativa.');
-            question.dataset.savedValue = 'No';
-            question.dataset.semanticState = String(data.semantic_state || 'NEGATIVE').toUpperCase();
+            if (!response.ok || !data.resultado || data.readback !== true || !Array.isArray(data.eligible_question_ids)) throw new Error(data.mensaje || 'No fue posible verificar la respuesta guardada.');
+            question.dataset.savedValue = String(data.readback_value ?? '');
+            question.dataset.semanticState = String(data.semantic_state || '').toUpperCase();
             if (data.version) questions.forEach(item => { item.dataset.m03Version = data.version; });
+            if (!applyM03ServerEligibility(data, Number(question.dataset.questionId))) {
+                throw new Error('El guardado se confirmó, pero no se pudo actualizar el estado autorizado de M03. Recarga para verificar antes de continuar.');
+            }
+            if (!isCurrentM03View(question, viewRevision)) return;
             const message = question.querySelector('[data-confirmed-message]');
-            if (message) { message.textContent = 'Respuesta confirmada: No'; message.hidden = false; }
-            setStatus('Respuesta negativa guardada.');
-             showNextM03Question(question, null, data.finalized === true);
+            const confirmationLabel = String(button.dataset.confirmationLabel || 'Respuesta confirmada');
+            if (message) { message.textContent = `Respuesta confirmada: ${confirmationLabel}`; message.hidden = false; }
+            setStatus('Respuesta guardada y verificada.');
+            showNextM03Question(question, data.next_question_id, data.finalized === true);
         } catch (error) {
-            setStatus(error.message || 'No fue posible guardar la respuesta negativa. Puedes reintentar.');
+            if (isCurrentM03View(question, viewRevision)) setStatus(error.message || 'No fue posible guardar la respuesta. Puedes reintentar.');
         } finally {
             controls.forEach(control => { control.disabled = false; });
             question.dataset.m03Saving = '0';
+            syncM03ContextualActions();
+            refreshM03DictationUi?.();
         }
     };
-    document.querySelectorAll('[data-m03-safe-no]').forEach(button => button.addEventListener('click', () => {
-        captureSafeM03No(button.closest('.patient-interview-question'), button);
+    document.querySelectorAll('[data-m03-contextual-action]').forEach(button => button.addEventListener('click', () => {
+        captureM03ContextualAction(button.closest('.patient-interview-question'), button);
     }));
     document.querySelectorAll('.interview-submit').forEach(button => button.addEventListener('click', () => {
         const question = button.closest('.patient-interview-question');
         interpret(question);
     }));
-    document.querySelectorAll('[data-m03-previous]').forEach(button => button.addEventListener('click', () => {
-        const previousIndex = [...questions].map((question, index) => ({question, index}))
-            .filter(item => item.index < active && item.question.dataset.eligible === '1' && hasConfirmedAnswer(item.question))
-            .pop()?.index;
-        const previous = previousIndex === undefined ? null : questions[previousIndex];
-        if (!previous || !hasConfirmedAnswer(previous) || previous.dataset.m03WriteEnabled !== '1') return;
-        if (!conversationCoordinator.goBack()) { setStatus('No se puede volver mientras existe una operación pendiente.'); return; }
-        showQuestion(previousIndex);
-        const input = previous.querySelector('.interview-text');
-        if (input) { input.value = previous.dataset.savedValue || ''; input.focus(); }
-        const confirmed = previous.querySelector('[data-confirmed-message]');
-        if (confirmed) confirmed.hidden = true;
-        updateM03SubmitAffordance(previous);
-        setStatus('');
-    }));
+    document.querySelectorAll('[data-m03-previous]').forEach(button => button.addEventListener('click', () => navigateM03Previous(button)));
+    document.querySelectorAll('[data-m03-next]').forEach(button => button.addEventListener('click', () => navigateM03Next(button)));
     document.querySelectorAll('.interview-text').forEach(input => input.addEventListener('keydown', event => {
         if (event.key !== 'Enter' || event.shiftKey) return;
         event.preventDefault();
@@ -2690,6 +3810,7 @@ if ($firstPending >= count($questionList) && $questionList) {
         updateM03AnswerCount(question);
     }));
     questions.forEach(question => { updateM03SubmitAffordance(question); updateM03AnswerCount(question); });
+    syncM03ContextualActions();
     document.querySelectorAll('.interview-composer input[type="text"]:not(.interview-text)').forEach(input => input.addEventListener('keydown', event => {
         if (event.key !== 'Enter' || event.shiftKey) return;
         event.preventDefault();
@@ -2856,33 +3977,93 @@ if ($firstPending >= count($questionList) && $questionList) {
             controls.forEach(control => { control.disabled = false; });
         }
     }));
-    const M04_CONTINUATION_QUESTION = '¿Quieres agregar otra cirugía?';
-    const M04_CONTINUATION_INSTRUCTION = 'Puedes escribir otra cirugía o seleccionar «No, continuar» para pasar al siguiente módulo.';
-    const M04_CONTINUATION_VOICE = 'Tu cirugía quedó registrada. Puedes agregar otra cirugía o seleccionar No, continuar para pasar al siguiente módulo.';
-    const updateM04Continuation = card => {
-        const question = card?.querySelector('[data-m04-question-title]');
-        const instruction = card?.querySelector('[data-m04-question-instruction]');
-        if (question) question.textContent = M04_CONTINUATION_QUESTION;
-        if (instruction) instruction.textContent = M04_CONTINUATION_INSTRUCTION;
-        if (card) card.dataset.m04Continuation = '1';
+    const M04_STAGES = {
+        initial: 'M04:record:new',
+        name: 'M04:record:new:name',
+        observations: 'M04:record:new:observations',
+        addAnother: 'M04:record:new:add-another',
     };
-    const speakM04Continuation = (card, version) => {
-        const key = String(version || 'readback');
-        if (!card || card.dataset.m04ContinuationVoiceKey === key) return;
-        const target = String(card.dataset.m04StableId || conversationCoordinator.snapshot().currentTarget || '').trim();
-        if (!target || target !== conversationCoordinator.snapshot().currentTarget) return;
-        card.dataset.m04ContinuationVoiceKey = key;
-        const snapshot = conversationCoordinator.snapshot();
-        voiceController.speakEvent({
-            type: 'QUESTION',
-            stable_id: target,
-            text: M04_CONTINUATION_VOICE,
-            state: snapshot.state,
-            patient_id: null,
-            context: 'M04',
-            revision: snapshot.revision,
-            operation_generation: snapshot.sequence,
-        }, {automatic: true});
+    let m04DraftSurgeryName = '';
+    const refreshM04QuestionVoice = (card, speak = true) => {
+        const message = card?.querySelector('.patient-interview-message.assistant');
+        if (message) {
+            message.querySelectorAll('.chat-voice-button, .chat-help-button').forEach(control => control.remove());
+            message.removeAttribute('data-voice-bound');
+        }
+        const target = card ? canonicalStageTarget({card}) : null;
+        if (target) conversationCoordinator.setTarget(target);
+        if (target && speak && conversationStages[conversationStage]?.card === card) {
+            const question = conversationContract.question_index?.[target];
+            const event = conversationCoordinator.voiceEvent('QUESTION', target, false);
+            if (question?.module_id === 'M04' && event?.stable_id === target && event.text === question.visible_text) {
+                voiceController.speakEvent({...event, module_id: 'M04'}, {automatic: true});
+            }
+        }
+        window.setTimeout(() => { if (typeof bindVoiceControls === 'function') bindVoiceControls(); }, 0);
+    };
+    const setM04Stage = (card, stage, {preserveDraft = false, speak = true} = {}) => {
+        if (!card || !Object.prototype.hasOwnProperty.call(M04_STAGES, stage)) return false;
+        const stableId = M04_STAGES[stage];
+        const question = conversationContract.question_index?.[stableId];
+        if (!question || question.module_id !== 'M04') return false;
+        card.dataset.m04StableId = stableId;
+        card.dataset.m04Stage = stage;
+        const title = card.querySelector('[data-m04-question-title]');
+        const instruction = card.querySelector('[data-m04-question-instruction]');
+        if (title) title.textContent = question.visible_text || question.original_question || '';
+        if (instruction) instruction.textContent = question.instruction || '';
+        const inputStage = card.querySelector('[data-m04-input-stage]');
+        if (inputStage) inputStage.hidden = !['name', 'observations'].includes(stage);
+        card.querySelectorAll('[data-m04-stage-actions]').forEach(actions => {
+            actions.hidden = actions.dataset.m04StageActions !== (stage === 'initial' ? 'initial' : stage === 'addAnother' ? 'add-another' : stage);
+        });
+        const input = card.querySelector('[data-m04-input]');
+        if (input) {
+            input.value = '';
+            input.placeholder = stage === 'name' ? 'Escribe el nombre de la cirugía' : 'Escribe lo que recuerdas sobre cuándo ocurrió';
+            input.setAttribute('aria-label', stage === 'name' ? 'Nombre de la cirugía' : 'Observaciones sobre cuándo ocurrió');
+            if (['name', 'observations'].includes(stage)) window.setTimeout(() => input.focus(), 0);
+        }
+        const submit = card.querySelector('[data-m04-submit]');
+        if (submit) {
+            const label = submit.querySelector('.chat-send-label');
+            if (label) label.textContent = stage === 'name' ? 'Continuar' : 'Guardar cirugía';
+            submit.setAttribute('aria-label', stage === 'name' ? 'Continuar al dato de observaciones' : 'Guardar cirugía');
+        }
+        const result = card.querySelector('[data-m04-result]');
+        if (result) { result.textContent = ''; result.hidden = true; }
+        refreshM04QuestionVoice(card, speak);
+        return true;
+    };
+    const appendM04PersistedRecord = (card, record) => {
+        if (!record || !Number.isInteger(Number(record.id)) || Number(record.id) < 1) return false;
+        const list = card.querySelector('[data-m04-record-list]');
+        const records = card.querySelector('[data-m04-records]');
+        const count = card.querySelector('[data-m04-record-count]');
+        if (!list || !records) return false;
+        if (records.querySelector(`[data-m04-record-id="${Number(record.id)}"]`)) return true;
+        const item = document.createElement('div');
+        item.className = 'patient-interview-context-item';
+        item.dataset.m04RecordId = String(Number(record.id));
+        const heading = document.createElement('strong');
+        heading.textContent = 'Cirugía';
+        const details = document.createElement('dl');
+        details.className = 'mb-0';
+        for (const [labelText, valueText] of [['Nombre', record.cirugia], ['Observaciones', record.observaciones || 'Sin observaciones adicionales']]) {
+            const term = document.createElement('dt'); term.textContent = labelText;
+            const value = document.createElement('dd'); value.textContent = String(valueText || '');
+            details.append(term, value);
+        }
+        item.append(heading, details);
+        records.prepend(item);
+        list.hidden = false;
+        if (count) {
+            const total = records.querySelectorAll('[data-m04-record-id], .patient-interview-context-item').length;
+            count.textContent = `Cirugías registradas — ${total} ${total === 1 ? 'registro' : 'registros'}`;
+        }
+        card.querySelector('[data-m04-pending-note]')?.remove();
+        card.querySelector('[data-m04-negative-note]')?.remove();
+        return true;
     };
     const saveM04Proposal = async (card, proposal, trigger = null) => {
         if (!card || card.dataset.m04Saving === '1') return;
@@ -2897,27 +4078,23 @@ if ($firstPending >= count($questionList) && $questionList) {
             });
             const data = await response.json();
             if (!response.ok || !data.resultado) throw new Error(data.mensaje || 'No fue posible guardar M04.');
-            card.dataset.m04Version = data.version || data.record?.version || card.dataset.m04Version;
-            if (data.negative_declaration?.estado === 'NEGATIVE_DECLARED') card.dataset.m04NegativeConfirmed = '1';
             const result = card.querySelector('[data-m04-result]');
             const isNegative = proposal.kind === 'm04_negative_proposal';
             if (!isNegative && data.readback !== true) throw new Error('La cirugía se guardó, pero el servidor no confirmó su lectura posterior. La pregunta permanece activa.');
-            if (isNegative && data.finalized !== true) throw new Error('La declaración se guardó, pero M04 no quedó finalizado. La pregunta permanece activa.');
-            const savedMessage = isNegative
-                ? 'Declaración negativa M04 guardada.'
-                : 'Tu cirugía quedó registrada. Puedes agregar otra cirugía o seleccionar «No, continuar» para pasar al siguiente módulo.';
+            if (isNegative && (data.readback !== true || data.finalized !== true)) throw new Error('La declaración no quedó confirmada mediante lectura y finalización. La pregunta permanece activa.');
+            if (!isNegative && !appendM04PersistedRecord(card, data.record)) throw new Error('No se pudo mostrar el registro confirmado por el servidor. La pregunta permanece activa.');
+            card.dataset.m04Version = data.version || data.record?.version || card.dataset.m04Version;
+            if (data.negative_declaration?.estado === 'NEGATIVE_DECLARED') card.dataset.m04NegativeConfirmed = '1';
+            const savedMessage = isNegative ? 'Declaración negativa M04 guardada.' : 'Cirugía guardada y confirmada.';
             if (result) { result.textContent = savedMessage; result.hidden = false; }
             setStatus(savedMessage);
             if (isNegative) {
                 advanceConversation();
             } else {
-                updateM04Continuation(card);
-                speakM04Continuation(card, data.version || data.record?.version || 'readback');
+                m04DraftSurgeryName = '';
+                card.dataset.m04Record = String(data.record.id);
+                setM04Stage(card, 'addAnother');
                 conversationCoordinator.transition('ASKING', {reason: 'm04_additional_surgery'});
-                if (input) {
-                    input.value = '';
-                    input.focus();
-                }
             }
         } catch (error) { setStatus(error.message || 'No fue posible guardar M04.'); }
         finally { if (trigger) trigger.disabled = false; card.dataset.m04Saving = '0'; }
@@ -2947,52 +4124,64 @@ if ($firstPending >= count($questionList) && $questionList) {
         finally { setM04ControlsDisabled(card, false); if (trigger) trigger.disabled = false; card.dataset.m04Saving = '0'; }
     };
     const setM04ControlsDisabled = (card, disabled) => {
-        card?.querySelectorAll('[data-m04-input], [data-m04-interpret], [data-m04-finish], [data-m04-quick-response]').forEach(control => { control.disabled = disabled; });
+        card?.querySelectorAll('[data-m04-input], [data-m04-submit], [data-m04-finish], [data-m04-quick-response], [data-m04-start-surgery], [data-m04-negative], [data-m04-add-another], [data-m04-unknown]').forEach(control => { control.disabled = disabled; });
     };
-    const interpretM04 = async (card, trigger = null) => {
-        if (!card || card.dataset.m04Interpreting === '1' || card.dataset.m04Saving === '1') return;
+    const submitM04Stage = (card, trigger = null) => {
+        if (!card || card.dataset.m04Saving === '1') return;
         const input = card.querySelector('[data-m04-input]');
-        const result = card.querySelector('[data-m04-result]');
-        const utterance = input ? input.value.trim() : '';
-        if (!utterance) { setStatus('Escribe una respuesta M04 para revisarla.'); return; }
-        card.dataset.m04Interpreting = '1';
-        setM04ControlsDisabled(card, true);
-        try {
-            const response = await fetch('<?=SERVIDOR;?>historia-clinica/entrevista/interpretar', {
-                method: 'POST', headers: {'Content-Type': 'application/json', 'X-M03-CSRF': main.dataset.csrf},
-                body: JSON.stringify({idPaciente: Number(main.dataset.patient), modulo: 'M04', utterance})
-            });
-            const data = await response.json();
-            if (!response.ok || !data.resultado) throw new Error(data.mensaje || 'No fue posible revisar M04.');
-            const proposal = data.proposal || {};
-            if (result) {
-                result.textContent = proposal.clarification || proposal.message || '';
-                result.hidden = false;
-            }
-            if (proposal.kind === 'm04_negative_review') {
-                const limitation = 'Respuesta «No» reconocida, pero no se pudo preparar un estado durable. La pregunta permanece pendiente.';
-                if (result) result.textContent = limitation;
-                setStatus(limitation);
+        const value = String(input?.value || '').trim();
+        if (card.dataset.m04Stage === 'name') {
+            if (!value) { setStatus('Escribe el nombre de la cirugía para continuar.'); input?.focus(); return; }
+            const normalizedName = value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+            if (/^(?:no recuerdo|no me acuerdo|no lo se|no se|desconozco)(?:\b.*)?$/.test(normalizedName)) {
+                setStatus('Para registrar una cirugía se necesita su nombre. No se guardó un nombre supuesto y la respuesta permanece pendiente.');
+                input?.focus();
                 return;
             }
-            if (proposal.kind === 'clarification' || proposal.needs_clarification) {
-                setStatus(proposal.clarification || 'M04 solicita una aclaración. No se guardó ningún dato.');
-                return;
-            }
-            if (proposal.direct_save === true && proposal.can_confirm === true) {
-                await saveM04Proposal(card, proposal, trigger);
-                return;
-            }
-            setStatus(proposal.message || 'M04 no pudo validar la respuesta. No se guardó ningún dato.');
-        } catch (error) { setStatus(error.message || 'No fue posible revisar M04.'); }
-        finally { setM04ControlsDisabled(card, false); card.dataset.m04Interpreting = '0'; }
+            m04DraftSurgeryName = value;
+            setM04Stage(card, 'observations', {preserveDraft: true});
+            return;
+        }
+        if (card.dataset.m04Stage !== 'observations') return;
+        if (!m04DraftSurgeryName) { setStatus('El nombre de la cirugía no está disponible. Vuelve a ingresarlo.'); setM04Stage(card, 'name', {speak: false}); return; }
+        if (!value) { setStatus('Escribe lo que recuerdas o selecciona «No recuerdo».'); input?.focus(); return; }
+        saveM04Proposal(card, {kind: 'm04_proposal', surgery: m04DraftSurgeryName, date: null, observations: value}, trigger);
     };
-    document.querySelectorAll('[data-m04-interpret]').forEach(button => button.addEventListener('click', () => {
-        interpretM04(button.closest('[data-module="M04"]'), button);
+    const saveM04UnknownDate = card => {
+        if (!card || card.dataset.m04Stage !== 'observations' || !m04DraftSurgeryName || card.dataset.m04Saving === '1') return;
+        saveM04Proposal(card, {
+            kind: 'm04_proposal', surgery: m04DraftSurgeryName, date: null,
+            observations: 'El paciente seleccionó «No recuerdo» para cuándo ocurrió la cirugía.',
+        }, card.querySelector('[data-m04-unknown]'));
+    };
+    document.querySelectorAll('[data-m04-start-surgery]').forEach(button => button.addEventListener('click', () => {
+        const card = button.closest('[data-module="M04"]');
+        m04DraftSurgeryName = '';
+        setM04Stage(card, 'name');
     }));
+    document.querySelectorAll('[data-m04-negative]').forEach(button => button.addEventListener('click', () => {
+        const card = button.closest('[data-module="M04"]');
+        if (card?.dataset.m04Stage !== 'initial') return;
+        saveM04Proposal(card, {
+            kind: 'm04_negative_proposal', semantic_state: 'NEGATIVE_DECLARED', origin: 'PATIENT_DECLARATION',
+        }, button);
+    }));
+    document.querySelectorAll('[data-m04-add-another]').forEach(button => button.addEventListener('click', () => {
+        const card = button.closest('[data-module="M04"]');
+        if (card?.dataset.m04Stage !== 'addAnother') return;
+        m04DraftSurgeryName = '';
+        setM04Stage(card, 'name');
+    }));
+    document.querySelectorAll('[data-m04-submit]').forEach(button => button.addEventListener('click', () => {
+        submitM04Stage(button.closest('[data-module="M04"]'), button);
+    }));
+    document.querySelectorAll('[data-m04-input]').forEach(input => input.addEventListener('keydown', event => {
+        if (event.key === 'Enter') { event.preventDefault(); submitM04Stage(input.closest('[data-module="M04"]'), input.closest('[data-module="M04"]')?.querySelector('[data-m04-submit]')); }
+    }));
+    document.querySelectorAll('[data-m04-unknown]').forEach(button => button.addEventListener('click', () => saveM04UnknownDate(button.closest('[data-module="M04"]'))));
     document.querySelectorAll('[data-m04-finish]').forEach(button => button.addEventListener('click', () => {
         const card = button.closest('[data-module="M04"]');
-        if (!card || button.dataset.intent !== 'FINISH_ADDITIONAL_SURGERIES') return;
+        if (!card || card.dataset.m04Stage !== 'addAnother' || button.dataset.intent !== 'FINISH_ADDITIONAL_SURGERIES') return;
         finishM04(card, button);
     }));
     const refreshM05QuestionVoice = card => {
@@ -3699,9 +4888,24 @@ if ($firstPending >= count($questionList) && $questionList) {
     const localDictationEnabled = main.dataset.localDictationEnabled === '1';
     let localDictation = null;
     let activeRecognitionState = null;
+    let m03MicPermissionDenied = false;
+    let m03MicPermissionStatus = null;
+    let m03DictationRuntime = {target: '', state: 'IDLE', message: ''};
+    let refreshM03DictationUi = null;
     const setRecognitionStatus = (state, message) => {
         if (typeof main !== 'undefined' && main) main.dataset.sttState = state;
         if (typeof status !== 'undefined' && status) status.dataset.sttState = state;
+        const currentTarget = activeM03DictationTarget();
+        if (/^M03:question:[1-9]\d*$/.test(currentTarget)) {
+            m03DictationRuntime = {target: currentTarget, state, message: String(message || '').trim()};
+            if (state === 'ERROR' && /^Permiso de micrófono denegado\./i.test(m03DictationRuntime.message)) {
+                m03MicPermissionDenied = true;
+            }
+            if (['IDLE', 'TRANSCRIPT_READY', 'LISTENING', 'RECOGNIZING'].includes(state)) {
+                m03DictationRuntime.message = '';
+            }
+            if (typeof refreshM03DictationUi === 'function') window.setTimeout(refreshM03DictationUi, 0);
+        }
         const m02Card = document.querySelector('.m02-active-question:not([hidden]):not(.chat-stage-hidden)');
         const inlineStatus = m02Card?.querySelector('[data-m02-dictation-status]');
         if (inlineStatus) {
@@ -3770,6 +4974,9 @@ if ($firstPending >= count($questionList) && $questionList) {
         } catch (error) { return false; }
     };
     let voiceController = null;
+    let syncAvatarRepeatControls = () => {};
+    let syncAvatarStopControls = () => {};
+    let syncAvatarHelpControls = () => {};
     const renderVoiceSelection = () => {
         if (!voiceController) return;
         const selection = voiceController.getVoiceSelection();
@@ -3848,7 +5055,7 @@ if ($firstPending >= count($questionList) && $questionList) {
         audioConstructor: window.Audio,
         piperAudio: piperM02Audio,
         preferredVoice: readVoicePreference(),
-        onVoicesChanged: inventory => { renderVoiceInventory(inventory); renderVoiceSelection(); },
+        onVoicesChanged: inventory => { renderVoiceInventory(inventory); renderVoiceSelection(); syncAvatarRepeatControls(); syncAvatarStopControls(); syncAvatarHelpControls(); },
         onStateChange: snapshot => {
             if (!voicePanel) return;
             voicePanel.dataset.voiceState = snapshot.state;
@@ -3859,6 +5066,9 @@ if ($firstPending >= count($questionList) && $questionList) {
             if (voiceStopButton) voiceStopButton.disabled = !snapshot.speaking && !snapshot.paused && !snapshot.audioPending && !snapshot.audioBlocked;
             updateVoicePreviewActions(snapshot.muted);
             renderVoiceSelection();
+            syncAvatarRepeatControls();
+            syncAvatarStopControls(snapshot);
+            syncAvatarHelpControls();
         },
         onError: error => setStatus(error?.code === 'AUDIO_BLOCKED'
             ? 'El navegador necesita una interacción para activar el audio.'
@@ -3876,18 +5086,42 @@ if ($firstPending >= count($questionList) && $questionList) {
     const setVoiceButtonState = button => { button.title = 'Repetir la pregunta activa'; button.setAttribute('aria-label', 'Repetir pregunta'); button.disabled = !speechSupported(); };
     const resetVoiceButtons = () => document.querySelectorAll('.chat-voice-button').forEach(setVoiceButtonState);
     const stopAssistantVoice = () => { voiceController.cancel(); resetVoiceButtons(); };
-    localDictation = new PatientInterviewLocalDictation({
-        ticketUrl: main.dataset.dictationTicketUrl,
-        workletUrl: main.dataset.dictationWorkletUrl,
-        getPatientId: () => Number(main.dataset.patient),
-        getCsrf: () => main.dataset.csrf,
-        getContractVersion: () => main.dataset.conversationContractVersion,
-        getTarget: () => conversationCoordinator.snapshot().currentTarget,
-        isPaused: () => conversationCoordinator.snapshot().paused,
-        isTargetAuthorized: (target, input) => diagnoseM02DictationEligibility(target, input).allowed,
-        stopVoice: stopAssistantVoice,
-        setStatus: setRecognitionStatus,
-    });
+    const ensureLocalDictation = () => {
+        if (localDictation) return localDictation;
+        const DictationClient = window.PatientInterviewLocalDictation;
+        if (typeof DictationClient !== 'function') return null;
+        try {
+            localDictation = new DictationClient({
+                ticketUrl: main.dataset.dictationTicketUrl,
+                workletUrl: main.dataset.dictationWorkletUrl,
+                getPatientId: () => Number(main.dataset.patient),
+                getCsrf: () => main.dataset.csrf,
+                getContractVersion: () => {
+                    const target = activeM03DictationTarget();
+                    const m03Match = /^M03:question:([1-9]\d*)$/.exec(target);
+                    if (m03Match) {
+                        const card = questions.find(item => String(item.dataset.questionId || '') === m03Match[1]);
+                        return String(card?.dataset.m03Version || conversationCoordinator.questionContract(target)?.response?.version || '');
+                    }
+                    return String(main.dataset.conversationContractVersion || '');
+                },
+                getTarget: () => activeM03DictationTarget(),
+                isPaused: () => conversationCoordinator.snapshot().paused,
+                isTargetAuthorized: (target, input) => {
+                    const targetModule = String(target || '').split(':', 1)[0];
+                    if (targetModule === 'M02') return diagnoseM02DictationEligibility(target, input).allowed;
+                    if (targetModule === 'M03') return diagnoseM03DictationEligibility(target, input).allowed;
+                    return false;
+                },
+                stopVoice: stopAssistantVoice,
+                setStatus: setRecognitionStatus,
+            });
+        } catch (_) {
+            localDictation = null;
+        }
+        return localDictation;
+    };
+    ensureLocalDictation();
     const m02ErrorMessages = Object.freeze({
         EMPTY_RESPONSE: 'Escribe una respuesta para revisarla.',
         INVALID_RESPONSE: 'M02 no pudo validar la respuesta. No se guardó ningún dato.',
@@ -3895,6 +5129,44 @@ if ($firstPending >= count($questionList) && $questionList) {
         SAVE_FAILED: 'No pude confirmar el guardado. Revisa la respuesta antes de volver a intentar.',
         READBACK_FAILED: 'No pude confirmar que tu respuesta quedara guardada. No avancé.',
     });
+    const m03TobaccoInvalidErrorCode = 'M03_TOBACCO_ANSWER_AMBIGUOUS';
+    const m03TobaccoInvalidErrorText = 'No pude identificar tu respuesta. Para continuar, dime claramente si fumas cigarros de nicotina. Puedes responder: sí, fumo; no, no fumo; no lo sé o no lo recuerdo. Tu respuesta no se guardó. Puedes intentarlo nuevamente.';
+    const announceM03TobaccoInvalidResponse = async (card, proposal, viewRevision) => {
+        const stableId = 'M03:question:1';
+        const snapshot = conversationCoordinator.snapshot();
+        const canonical = conversationCoordinator.questionContract(stableId);
+        if (proposal?.error_code !== m03TobaccoInvalidErrorCode
+            || String(card?.dataset.questionId || '') !== '1'
+            || String(card?.dataset.themeId || '') !== '1'
+            || !isCurrentM03View(card, viewRevision)
+            || snapshot.currentTarget !== stableId
+            || canonical?.module_id !== 'M03'
+            || canonical?.stable_id !== stableId
+            || canonical?.question_id !== 1) return false;
+        const operationKey = `${snapshot.revision}|${snapshot.operation_generation}`;
+        if (card.dataset.m03LastAmbiguousPlaybackKey === operationKey) return false;
+        card.dataset.m03LastAmbiguousPlaybackKey = operationKey;
+
+        if (localDictation?.state) {
+            try { await stopRecognition(true); } catch (error) {}
+        }
+        if (!isCurrentM03View(card, viewRevision)
+            || conversationCoordinator.snapshot().currentTarget !== stableId) return false;
+
+        voiceController?.cancel();
+        const text = String(proposal.clarification || '');
+        setStatus(text || m03TobaccoInvalidErrorText);
+        // This audio is bound to one explicit server classification. It never
+        // submits, clears the draft, advances, or starts microphone capture.
+        if (text === m03TobaccoInvalidErrorText && voiceController?.enabled && !voiceController.muted) {
+            voiceController.speakEvent({
+                type: 'ERROR', module_id: 'M03', error_code: m03TobaccoInvalidErrorCode,
+                stable_id: 'M03:error:tobacco-answer-ambiguous', question_stable_id: stableId,
+                text, revision: snapshot.revision, operation_generation: snapshot.operation_generation,
+            }, {force: true});
+        }
+        return true;
+    };
     const announceM02Error = (card, code) => {
         if (code === 'EMPTY_RESPONSE') return announceEmptyResponse(card, 'M02');
         const text = m02ErrorMessages[code];
@@ -3949,6 +5221,13 @@ if ($firstPending >= count($questionList) && $questionList) {
     };
     const handleVoiceEvent = event => {
         if (!event || ['SAVING', 'SUCCESS', 'ERROR', 'SESSION_EXPIRED'].includes(event.type)) return false;
+        if (event.type === 'CLARIFICATION' && event.stable_id === 'M03:question:1') {
+            const question = conversationCoordinator.questionContract(event.stable_id);
+            if (question?.module_id === 'M03' && question?.question_id === 1) {
+                voiceController?.cancel();
+                return false;
+            }
+        }
         if (event.type === 'RESUME') {
             const current = conversationCoordinator.snapshot().currentTarget;
             const question = moduleBlockedVoiceEventFor(current) || conversationCoordinator.voiceEvent('QUESTION', current, false);
@@ -4000,10 +5279,64 @@ if ($firstPending >= count($questionList) && $questionList) {
             automatic: voiceController.automaticMode,
         });
     };
+    const resolveActiveRepeatEvent = (avatarOnly = false) => {
+        const activeCard = questions[active];
+        const snapshot = conversationCoordinator.snapshot();
+        const scopedVoiceTarget = m03VoiceTargetForCard(activeCard);
+        const activeTarget = scopedVoiceTarget || snapshot.currentTarget;
+        if (!activeTarget || (avatarOnly && /^(?:M04|M07):/.test(activeTarget))) return null;
+        const visibleMessages = Array.from(document.querySelectorAll(
+            '.patient-interview-question:not([hidden]):not(.chat-stage-hidden) > .patient-interview-message.assistant, .interview-module-card:not([hidden]):not(.chat-stage-hidden) > .patient-interview-message.assistant'
+        ));
+        if (!visibleMessages.some(message => stableTargetForMessage(message) === activeTarget)) return null;
+        const blockedEvent = moduleBlockedVoiceEventFor(activeTarget);
+        const action = conversationCoordinator.actionContract(activeTarget);
+        const event = blockedEvent || conversationCoordinator.voiceEvent(action ? 'ACTION' : 'QUESTION', activeTarget, false);
+        const targetMatches = blockedEvent
+            ? event?.stable_id === activeTarget
+            : action
+                ? event?.action_id === activeTarget && event?.stable_id === null
+                : event?.stable_id === activeTarget;
+        if (!event?.text || !targetMatches) return null;
+        if (!blockedEvent && action?.module_id === 'M02') event.module_id = 'M02';
+        else if (!blockedEvent && conversationCoordinator.questionContract(activeTarget)?.module_id === 'M02') event.module_id = 'M02';
+        return {target: activeTarget, event};
+    };
+    const refreshAvatarRepeatControls = () => {
+        const speechReady = speechSupported();
+        const repeatable = Boolean(speechReady && resolveActiveRepeatEvent(true));
+        const reason = !speechReady
+            ? 'La narración por voz no está disponible en este navegador.'
+            : repeatable
+                ? ''
+                : 'No hay una pregunta activa disponible para repetir.';
+        document.querySelectorAll('[data-doctor-repeat]').forEach(button => {
+            button.disabled = !repeatable;
+            button.setAttribute('aria-disabled', repeatable ? 'false' : 'true');
+            button.setAttribute('aria-label', repeatable ? 'Repetir pregunta' : `Repetir pregunta. ${reason}`);
+            button.title = repeatable ? 'Repetir la pregunta clínica activa' : reason;
+        });
+        const statusNode = document.getElementById('patient-interview-doctor-repeat-status');
+        if (statusNode && statusNode.textContent !== reason) statusNode.textContent = reason;
+    };
+    syncAvatarRepeatControls = refreshAvatarRepeatControls;
+    const refreshAvatarStopControls = (snapshot = null) => {
+        const snap = snapshot || (voiceController ? voiceController.snapshot() : null);
+        const active = Boolean(snap && (snap.speaking || snap.paused || snap.audioPending || snap.audioBlocked));
+        document.querySelectorAll('[data-doctor-stop]').forEach(button => {
+            button.disabled = !active;
+            button.setAttribute('aria-disabled', active ? 'false' : 'true');
+            button.setAttribute('aria-label', active ? 'Detener audio' : 'Detener audio (no hay audio activo)');
+            button.title = active ? 'Detener la narración activa' : 'No hay una reproducción activa para detener.';
+        });
+    };
+    syncAvatarStopControls = refreshAvatarStopControls;
     const repeatActiveQuestion = (button = null) => {
-        const activeTarget = conversationCoordinator.snapshot().currentTarget;
+        const avatarOnly = button?.hasAttribute('data-doctor-repeat') === true;
+        const resolved = resolveActiveRepeatEvent(avatarOnly);
+        const activeTarget = resolved?.target || '';
         const buttonTarget = button?.dataset.voiceTarget || activeTarget;
-        if (!activeTarget || buttonTarget !== activeTarget) {
+        if (!activeTarget || buttonTarget !== activeTarget || !resolved) {
             stopAssistantVoice();
             setStatus('La pregunta cambió. Selecciona la pregunta activa para repetirla.');
             return false;
@@ -4012,20 +5345,8 @@ if ($firstPending >= count($questionList) && $questionList) {
             setStatus('La narración por voz no está disponible. Puedes seguir con las instrucciones escritas.');
             return false;
         }
-        const blockedEvent = moduleBlockedVoiceEventFor(activeTarget);
-        const action = conversationCoordinator.actionContract(activeTarget);
-        const event = blockedEvent || conversationCoordinator.voiceEvent(action ? 'ACTION' : 'QUESTION', activeTarget, false);
-        const targetMatches = blockedEvent
-            ? event?.stable_id === activeTarget
-            : action
-                ? event?.action_id === activeTarget
-                : event?.stable_id === activeTarget;
-        if (!event?.text || !targetMatches) {
-            setStatus('No se pudo resolver la pregunta activa. La captura escrita sigue disponible.');
-            return false;
-        }
-        if (!blockedEvent && action?.module_id === 'M02') event.module_id = 'M02';
-        else if (!blockedEvent && conversationCoordinator.questionContract(activeTarget)?.module_id === 'M02') event.module_id = 'M02';
+        const event = resolved.event;
+        if (String(activeTarget).startsWith('M03:') && typeof stopRecognition === 'function') void stopRecognition(true);
         stopAssistantVoice();
         const voiceState = voiceController.snapshot();
         let started;
@@ -4035,16 +5356,102 @@ if ($firstPending >= count($questionList) && $questionList) {
         } else {
             started = voiceController.speakEvent(event, {force:true, userGesture:true});
         }
-        if (button) setVoiceButtonState(button);
+        if (button && !button.hasAttribute('data-doctor-repeat')) setVoiceButtonState(button);
+        refreshAvatarStopControls();
         return started;
     };
+    const bindDoctorRepeatControls = () => {
+        document.querySelectorAll('[data-doctor-repeat]:not([data-doctor-repeat-bound])').forEach(button => {
+            button.addEventListener('click', () => repeatActiveQuestion(button));
+            button.dataset.doctorRepeatBound = '1';
+        });
+        refreshAvatarRepeatControls();
+    };
+    bindDoctorRepeatControls();
+    const bindDoctorStopControls = () => {
+        document.querySelectorAll('[data-doctor-stop]:not([data-doctor-stop-bound])').forEach(button => {
+            button.addEventListener('click', () => {
+                stopAssistantVoice();
+                refreshAvatarStopControls();
+            });
+            button.dataset.doctorStopBound = '1';
+        });
+        refreshAvatarStopControls();
+    };
+    bindDoctorStopControls();
+    const resolveActiveHelpTarget = () => {
+        const snapshot = conversationCoordinator.snapshot();
+        const activeCard = questions[active];
+        const visibleM03ReviewTarget = (m03ReviewOnly || m03PreviousEditOnly) && m03ReviewTarget
+            && activeCard?.dataset.questionId
+            && m03ReviewTarget === `M03:question:${activeCard.dataset.questionId}`
+            ? m03ReviewTarget
+            : '';
+        const target = visibleM03ReviewTarget || snapshot.currentTarget;
+        if (!target) return null;
+        const visibleMessages = Array.from(document.querySelectorAll(
+            '.patient-interview-question:not([hidden]):not(.chat-stage-hidden) > .patient-interview-message.assistant, .interview-module-card:not([hidden]):not(.chat-stage-hidden) > .patient-interview-message.assistant'
+        ));
+        const message = visibleMessages.find(candidate => stableTargetForMessage(candidate) === target) || null;
+        if (!message) return null;
+        const blockedEvent = moduleBlockedVoiceEventFor(target);
+        if (blockedEvent) return null;
+        const action = conversationCoordinator.actionContract(target);
+        const question = action ? null : conversationCoordinator.questionContract(target);
+        const event = conversationCoordinator.voiceEvent('HELP', target, false);
+        const isM04ObservationQuestion = question?.stable_id === 'M04:record:new:observations';
+        const extraM04UnknownHelp = isM04ObservationQuestion
+            ? ' Si no recuerda una respuesta, puede seleccionar No recuerdo.'
+            : '';
+        const helpText = action?.module_id === 'M02' && action.action_id === 'M02:action:finalize'
+            ? String(message.querySelector('[data-m02-action-id="M02:action:finalize"]')?.dataset.m02FinalizeHelpText || '').trim()
+            : `${String(question?.help || event?.text || '').trim()}${extraM04UnknownHelp}`;
+        if ((!action && (!question || question.stable_id !== target))
+            || (action && (action.module_id !== 'M02' || action.action_id !== 'M02:action:finalize' || action.stable_id !== null))
+            || !helpText) {
+            return null;
+        }
+        return {target, message, helpText};
+    };
+    const refreshAvatarHelpControls = () => {
+        const resolved = resolveActiveHelpTarget();
+        const helpAvailable = Boolean(resolved);
+        const reason = helpAvailable
+            ? ''
+            : 'No hay ayuda disponible para este paso.';
+        document.querySelectorAll('[data-doctor-help]').forEach(button => {
+            button.disabled = !helpAvailable;
+            button.setAttribute('aria-disabled', helpAvailable ? 'false' : 'true');
+            button.setAttribute('aria-label', helpAvailable ? 'Ayuda con esta pregunta' : `Ayuda con esta pregunta. ${reason}`);
+            button.title = helpAvailable ? 'Ayuda sobre la pregunta activa' : reason;
+        });
+    };
+    syncAvatarHelpControls = refreshAvatarHelpControls;
+    const bindDoctorHelpControls = () => {
+        document.querySelectorAll('[data-doctor-help]:not([data-doctor-help-bound])').forEach(button => {
+            button.addEventListener('click', () => showContractHelp(button));
+            button.dataset.doctorHelpBound = '1';
+        });
+        refreshAvatarHelpControls();
+    };
+    bindDoctorHelpControls();
     clearContextualHelp = () => document.querySelectorAll('[data-question-help]').forEach(panel => {
         panel.textContent = '';
         panel.hidden = true;
     });
     const showContractHelp = button => {
         const snapshot = conversationCoordinator.snapshot();
-        const target = snapshot.currentTarget;
+        const activeCard = questions[active];
+        const visibleM03ReviewTarget = (m03ReviewOnly || m03PreviousEditOnly) && m03ReviewTarget
+            && activeCard?.dataset.questionId
+            && m03ReviewTarget === `M03:question:${activeCard.dataset.questionId}`
+            ? m03ReviewTarget
+            : '';
+        const isAvatar = button?.hasAttribute('data-doctor-help') === true || !button?.closest('.patient-interview-question');
+        const target = visibleM03ReviewTarget && (isAvatar || button?.closest('.patient-interview-question') === activeCard)
+            ? visibleM03ReviewTarget
+            : snapshot.currentTarget;
+        if (String(target || '').startsWith('M03:') && typeof stopRecognition === 'function') void stopRecognition(true);
         const visibleMessages = Array.from(document.querySelectorAll(
             '.patient-interview-question:not([hidden]):not(.chat-stage-hidden) > .patient-interview-message.assistant, .interview-module-card:not([hidden]):not(.chat-stage-hidden) > .patient-interview-message.assistant'
         ));
@@ -4064,9 +5471,13 @@ if ($firstPending >= count($questionList) && $questionList) {
         const action = conversationCoordinator.actionContract(target);
         const question = action ? null : conversationCoordinator.questionContract(target);
         const event = conversationCoordinator.voiceEvent('HELP', target, false);
+        const isM04ObservationQuestion = question?.stable_id === 'M04:record:new:observations';
+        const extraM04UnknownHelp = isM04ObservationQuestion
+            ? ' Si no recuerda una respuesta, puede seleccionar No recuerdo.'
+            : '';
         const helpText = action?.module_id === 'M02' && action.action_id === 'M02:action:finalize'
             ? String(message.querySelector('[data-m02-action-id="M02:action:finalize"]')?.dataset.m02FinalizeHelpText || '').trim()
-            : String(question?.help || event.text || '').trim();
+            : `${String(question?.help || event.text || '').trim()}${extraM04UnknownHelp}`;
         stopAssistantVoice();
         if ((!action && (!question || question.stable_id !== target))
             || (action && (action.module_id !== 'M02' || action.action_id !== 'M02:action:finalize' || action.stable_id !== null))
@@ -4077,35 +5488,62 @@ if ($firstPending >= count($questionList) && $questionList) {
         let panel = message.querySelector('[data-question-help]');
         if (!panel) {
             panel = document.createElement('p');
-            panel.className = 'interview-contextual-help';
+            panel.className = 'interview-contextual-help visually-hidden';
             panel.dataset.questionHelp = '1';
             panel.setAttribute('role', 'note');
             panel.setAttribute('aria-live', 'polite');
             message.appendChild(panel);
+        } else if (!panel.classList.contains('visually-hidden')) {
+            panel.classList.add('visually-hidden');
         }
         panel.textContent = helpText;
         panel.hidden = false;
         setStatus('');
         const helpEvent = {...event, type: 'HELP', module_id: action?.module_id || question.module_id, action_id: action?.action_id || null,
             stable_id: action ? null : question.stable_id, text: helpText};
-        if (speechSupported()) voiceController.speakEvent(helpEvent, {force:true, userGesture:true});
+        if (speechSupported() && isM04ObservationQuestion && piperM02Audio.m04?.enabled === true) {
+            const helpIds = ['M04:help:3', 'M04:help:4'];
+            const events = helpIds.map(helpId => {
+                const entry = piperM02Audio.m04.help_audio?.[helpId];
+                return entry ? {...helpEvent, text: entry.text, help_id: helpId} : null;
+            }).filter(Boolean);
+            if (events.length === helpIds.length) voiceController.speakSequence(events, {force:true, userGesture:true});
+            else voiceController.speakEvent(helpEvent, {force:true, userGesture:true});
+        } else if (speechSupported()) voiceController.speakEvent(helpEvent, {force:true, userGesture:true});
     };
     const startRecognition = async (button, input) => {
         if (conversationContract.modules?.M02?.conversation_state?.state === 'READY_TO_FINALIZE') {
             setRecognitionStatus('IDLE', '');
             return false;
         }
-        const target = conversationCoordinator.snapshot().currentTarget;
-        const eligibility = diagnoseM02DictationEligibility(target, input);
+        const target = activeM03DictationTarget();
+        const moduleId = String(target || '').split(':')[0];
+        if (moduleId === 'M03' && (m03ReviewOnly || (m03PreviousEditOnly && target !== m03ReviewTarget))) {
+            setRecognitionStatus('IDLE', '');
+            return false;
+        }
+        if (moduleId === 'M03') ensureLocalDictation();
+        const eligibility = moduleId === 'M02'
+            ? diagnoseM02DictationEligibility(target, input)
+            : moduleId === 'M03'
+                ? diagnoseM03DictationEligibility(target, input)
+                : {allowed: false, code: 'MODULE_NOT_AUTHORIZED'};
         if (!eligibility.allowed) {
-            const message = main.dataset.m02DictationDiagnostics === '1'
-                ? `M02_DICTATION_BLOCKED:${eligibility.code}`
-                : 'El dictado solo está disponible para la pregunta M02 activa y editable.';
+            const message = moduleId === 'M03'
+                ? 'No se pudo iniciar el micrófono.'
+                : main.dataset.m02DictationDiagnostics === '1'
+                    ? `${moduleId}_DICTATION_BLOCKED:${eligibility.code}`
+                    : `El dictado solo está disponible para la pregunta ${moduleId} activa y editable.`;
             setRecognitionStatus('UNAVAILABLE', message);
             return false;
         }
         if (!localDictationEnabled) {
             setRecognitionStatus('UNAVAILABLE', 'El dictado local no está habilitado en este entorno. Puedes responder por escrito.');
+            return false;
+        }
+        ensureLocalDictation();
+        if (typeof localDictation?.start !== 'function') {
+            setRecognitionStatus('UNAVAILABLE', 'El cliente local de dictado no se pudo inicializar. Puedes responder por escrito.');
             return false;
         }
         const started = await localDictation.start(button, input);
@@ -4239,14 +5677,153 @@ if ($firstPending >= count($questionList) && $questionList) {
         if (voiceRepeatButton) voiceRepeatButton.disabled = true;
         if (voiceStatus) voiceStatus.textContent = 'La narración por voz no está disponible. Puedes seguir con las instrucciones escritas.';
     }
+    const syncM03DictationPermission = () => {
+        const m03IsActive = conversationStages[conversationStage]?.type === 'm03';
+        const activeQuestion = m03IsActive ? questions[active] : null;
+        const resolverTarget = conversationCoordinator.snapshot().currentTarget;
+        const dictationTarget = activeM03DictationTarget();
+        const m03Module = conversationContract.modules?.M03;
+        const moduleWriteEnabled = m03Module?.state?.write_enabled === true;
+        const moduleFinalized = m03Module?.state?.finalized === true;
+        document.querySelectorAll('.patient-interview-question[data-question-index]').forEach(card => {
+            const host = card.querySelector('.m03-input-wrap');
+            const input = host?.querySelector('.interview-text');
+            const target = `M03:question:${String(card.dataset.questionId || '')}`;
+            const question = conversationCoordinator.questionContract(target);
+            const activeCardVisible = card === activeQuestion
+                && m03IsActive
+                && !card.hidden
+                && !card.closest('[hidden], .chat-stage-hidden');
+            const responseZone = input?.closest('[data-interview-zone="response"]');
+            const fieldVisible = activeCardVisible
+                && Boolean(input?.matches('.m03-input-wrap > .interview-text'))
+                && Boolean(responseZone && !responseZone.hidden)
+                && !input.closest('[hidden], .chat-stage-hidden');
+            const client = activeCardVisible ? ensureLocalDictation() : localDictation;
+            const eligibility = fieldVisible
+                ? diagnoseM03DictationEligibility(target, input)
+                : {allowed: false, code: 'M03_QUESTION_NOT_VISIBLE'};
+            const clientInitialized = typeof client?.supported === 'function' && typeof client?.start === 'function';
+            const supported = clientInitialized && client.supported();
+            const available = window.PatientInterviewM03DictationUi?.canInitiate({
+                featureEnabled: localDictationEnabled,
+                clientSupported: supported,
+                permissionDenied: m03MicPermissionDenied,
+            }) === true;
+            const unavailableReason = m03MicPermissionDenied
+                ? 'Chrome bloqueó el permiso del micrófono para este sitio. Permítelo en la configuración del navegador y vuelve a cargar la entrevista.'
+                : !localDictationEnabled
+                    ? 'El dictado local no está habilitado en este entorno. Puedes responder por escrito.'
+                    : !clientInitialized
+                        ? 'El cliente local de dictado no se pudo inicializar. Puedes responder por escrito.'
+                    : !supported
+                        ? 'Este navegador no ofrece los requisitos del dictado local. Puedes responder por escrito.'
+                        : 'El dictado local no está disponible. Puedes responder por escrito.';
+            const runtime = m03DictationRuntime.target === target ? m03DictationRuntime : {state: 'IDLE', message: ''};
+            const unavailableReasonCode = m03MicPermissionDenied
+                ? 'MICROPHONE_PERMISSION_DENIED'
+                : !localDictationEnabled
+                    ? 'DICTATION_FEATURE_DISABLED'
+                    : !clientInitialized
+                        ? 'DICTATION_CLIENT_NOT_INITIALIZED'
+                        : !supported
+                            ? 'DICTATION_BROWSER_UNSUPPORTED'
+                            : 'DICTATION_UNAVAILABLE';
+            const syncResult = window.PatientInterviewM03DictationUi?.syncCard({
+                card,
+                active: activeCardVisible,
+                fieldVisible,
+                input,
+                eligibility,
+                available,
+                unavailableReason,
+                unavailableReasonCode,
+                runtimeState: runtime.state,
+                runtimeMessage: runtime.message,
+                localDiagnostics: main.dataset.m02DictationDiagnostics === '1' ? {
+                    module_active: m03IsActive,
+                    question_visible: fieldVisible,
+                    question_eligible: card.dataset.eligible === '1',
+                    question_editable: Boolean(input && !input.disabled && !input.readOnly),
+                    module_write_enabled: moduleWriteEnabled,
+                    question_contract_available: Boolean(question),
+                    question_write_enabled: question?.write_enabled === true,
+                    question_response_status: ['pending', 'documented', 'read_only', 'not_applicable'].includes(question?.response?.status) ? question.response.status : 'unknown',
+                    question_response_persisted: question?.response?.persisted === true,
+                    module_finalized: moduleFinalized,
+                    stable_id_matches: target === resolverTarget
+                        || (m03PreviousEditOnly && target === dictationTarget && hasM03HistoricalEditAuthorization(card, m03ReviewReturnIndex)),
+                    vosk_client_available: supported,
+                    microphone_permission_state: m03MicPermissionStatus?.state || 'unsupported_or_unknown',
+                } : null,
+                onStart: (button, activeInput) => startRecognition(button, activeInput),
+            });
+            if (main.dataset.m02DictationDiagnostics === '1') {
+                card.dataset.m03DictationDiagnostics = JSON.stringify({
+                    module_active: m03IsActive,
+                    question_visible: fieldVisible,
+                    question_eligible: card.dataset.eligible === '1',
+                    question_editable: Boolean(input && !input.disabled && !input.readOnly),
+                    module_write_enabled: moduleWriteEnabled,
+                    question_contract_available: Boolean(question),
+                    question_write_enabled: question?.write_enabled === true,
+                    question_response_status: ['pending', 'documented', 'read_only', 'not_applicable'].includes(question?.response?.status) ? question.response.status : 'unknown',
+                    question_response_persisted: question?.response?.persisted === true,
+                    module_finalized: moduleFinalized,
+                    stable_id_matches: target === resolverTarget
+                        || (m03PreviousEditOnly && target === dictationTarget && hasM03HistoricalEditAuthorization(card, m03ReviewReturnIndex)),
+                    vosk_client_available: supported,
+                    microphone_permission_state: m03MicPermissionStatus?.state || 'unsupported_or_unknown',
+                    button_disabled: syncResult?.mounted ? Boolean(host?.querySelector('[data-m03-dictation-control]')?.disabled) : true,
+                    disabled_reason: syncResult?.reasonCode || host?.querySelector('[data-m03-dictation-control]')?.dataset.dictationReason || '',
+                    last_disable_function: syncResult?.disabledBy || null,
+                });
+            } else {
+                delete card.dataset.m03DictationDiagnostics;
+            }
+        });
+    };
+    refreshM03DictationUi = syncM03DictationPermission;
+    window.addEventListener('online', syncM03DictationPermission, {passive: true});
+    window.addEventListener('offline', syncM03DictationPermission, {passive: true});
+    window.addEventListener('patient-interview:dictation-availability-change', syncM03DictationPermission);
+    const syncM03MicPermissionState = () => {
+        if (!navigator.permissions?.query) {
+            m03MicPermissionDenied = false;
+            syncM03DictationPermission();
+            return;
+        }
+        navigator.permissions.query({name: 'microphone'}).then(permission => {
+            if (m03MicPermissionStatus !== permission) {
+                m03MicPermissionStatus?.removeEventListener?.('change', syncM03MicPermissionState);
+                m03MicPermissionStatus = permission;
+                permission.addEventListener?.('change', syncM03MicPermissionState);
+            }
+            m03MicPermissionDenied = permission.state === 'denied';
+            syncM03DictationPermission();
+        }).catch(() => {
+            // An unsupported/indeterminate Permissions API must not suppress the click
+            // that lets getUserMedia display Chrome's native permission prompt.
+            m03MicPermissionDenied = false;
+            syncM03DictationPermission();
+        });
+    };
+    syncM03MicPermissionState();
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) syncM03MicPermissionState();
+    });
     function bindVoiceControls() {
         const activeQuestionMessage = document.querySelector('.patient-interview-question:not([hidden]):not(.chat-stage-hidden) > .patient-interview-message.assistant');
         const activeModuleMessage = document.querySelector('.interview-module-card:not(.chat-stage-hidden):not([hidden]) > .patient-interview-message.assistant');
         document.querySelectorAll('.patient-interview-message.assistant[data-voice-bound]').forEach(message => {
             if (message !== activeQuestionMessage && message !== activeModuleMessage) return;
-            const activeTarget = conversationCoordinator.snapshot().currentTarget;
+            const coordinatorTarget = conversationCoordinator.snapshot().currentTarget;
             const resolvedTarget = stableTargetForMessage(message);
+            const owner = message.closest('.patient-interview-question');
+            const scopedVoiceTarget = m03VoiceTargetForCard(owner);
+            const activeTarget = scopedVoiceTarget || coordinatorTarget;
             if (!resolvedTarget || resolvedTarget !== activeTarget) return;
+            message.querySelectorAll('.chat-voice-button, .chat-help-button').forEach(btn => btn.remove());
             message.querySelectorAll('.chat-voice-button, .chat-help-button').forEach(control => {
                 control.dataset.voiceTarget = resolvedTarget;
             });
@@ -4256,24 +5833,12 @@ if ($firstPending >= count($questionList) && $questionList) {
             if (!visible || (message !== activeQuestionMessage && message !== activeModuleMessage)) return;
             const header = message.querySelector('.interview-message-header');
             if (!header) return;
-            const voiceTarget = stableTargetForMessage(message);
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.className = 'btn btn-outline-secondary btn-sm chat-voice-button ms-2';
-            button.dataset.voiceTarget = voiceTarget || '';
-            button.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg><span>Repetir pregunta</span>';
-            setVoiceButtonState(button);
-            button.addEventListener('click', () => repeatActiveQuestion(button));
-            header.appendChild(button);
-            const help = document.createElement('button');
-            help.type = 'button';
-            help.className = 'btn btn-outline-secondary btn-sm chat-help-button ms-1';
-            help.dataset.voiceTarget = voiceTarget || '';
-            help.textContent = '? Ayuda';
-            help.title = 'Mostrar ayuda de la pregunta';
-            help.setAttribute('aria-label', 'Mostrar ayuda de la pregunta');
-            help.addEventListener('click', () => showContractHelp(help));
-            header.appendChild(help);
+            const resolvedTarget = stableTargetForMessage(message);
+            const owner = message.closest('.patient-interview-question');
+            const scopedVoiceTarget = m03VoiceTargetForCard(owner);
+            const voiceTarget = scopedVoiceTarget || resolvedTarget;
+            if (!voiceTarget || (!scopedVoiceTarget && voiceTarget !== conversationCoordinator.snapshot().currentTarget)) return;
+            header.querySelectorAll('.chat-voice-button, .chat-help-button').forEach(btn => btn.remove());
             message.dataset.voiceBound = '1';
         });
         document.querySelectorAll('[data-module="M02"] .patient-interview-answer input[type="text"]').forEach(input => {
@@ -4293,7 +5858,7 @@ if ($firstPending >= count($questionList) && $questionList) {
             if (!host) return;
             const existingButton = host.querySelector('.chat-mic-button');
             const existingIndicator = host.querySelector('.chat-mic-unavailable');
-            if (localDictationEnabled && localDictation.supported()) {
+            if (localDictationEnabled && localDictation?.supported?.() === true) {
                 existingIndicator?.remove();
                 if (!existingButton) {
                     const button = document.createElement('button');
@@ -4321,6 +5886,10 @@ if ($firstPending >= count($questionList) && $questionList) {
             }
             input.dataset.micBound = '1';
         });
+        syncM03DictationPermission();
+        if (typeof syncAvatarRepeatControls === 'function') syncAvatarRepeatControls();
+        if (typeof syncAvatarStopControls === 'function') syncAvatarStopControls();
+        if (typeof syncAvatarHelpControls === 'function') syncAvatarHelpControls();
     }
     document.addEventListener('visibilitychange', () => { if (document.hidden) { stopAssistantVoice(); stopRecognition(); } });
     window.addEventListener('pagehide', () => { conversationCoordinator.invalidate('page_hidden'); stopAssistantVoice(); stopRecognition(); });
@@ -4334,6 +5903,11 @@ if ($firstPending >= count($questionList) && $questionList) {
         const bindMap = orientation => { const canvas=mapState[orientation]?.canvas; if(!canvas)return; let drawing=false,last=null; canvas.addEventListener('pointerdown',event=>{const state=mapState[orientation];event.preventDefault();drawing=true;last=point(canvas,event);canvas.setPointerCapture?.(event.pointerId);state.ctx.strokeStyle=state.color;state.ctx.lineWidth=Math.max(18,canvas.width/48);state.ctx.lineCap='round';state.ctx.lineJoin='round';state.ctx.beginPath();state.ctx.moveTo(last.x,last.y);state.ctx.lineTo(last.x+.1,last.y+.1);state.ctx.stroke();state.dirty=true;}); canvas.addEventListener('pointermove',event=>{if(!drawing)return;const state=mapState[orientation];event.preventDefault();const next=point(canvas,event);state.ctx.beginPath();state.ctx.moveTo(last.x,last.y);state.ctx.lineTo(next.x,next.y);state.ctx.stroke();last=next;}); const finish=event=>{if(!drawing)return;event.preventDefault();drawing=false;last=null;}; canvas.addEventListener('pointerup',finish);canvas.addEventListener('pointercancel',finish);canvas.addEventListener('pointerleave',event=>{if(drawing&&event.buttons===0)finish(event);}); };
         ['frente','espalda'].forEach(orientation=>{ loadMap(orientation).then(()=>bindMap(orientation)); mapCard.querySelectorAll('[data-map-panel="'+orientation+'"] [data-map-color]').forEach(button=>button.addEventListener('click',()=>{mapState[orientation].color=button.dataset.mapColor||'#ff0000';})); mapCard.querySelector('[data-map-clear="'+orientation+'"]').addEventListener('click',()=>{loadMap(orientation);mapCard.querySelector('[data-map-preview-box="'+orientation+'"]').hidden=true;setStatus('Edición local del mapa '+orientation+' limpiada. No se guardó ningún dato.');}); mapCard.querySelector('[data-map-preview="'+orientation+'"]').addEventListener('click',()=>{const state=mapState[orientation],box=mapCard.querySelector('[data-map-preview-box="'+orientation+'"][data-map-preview-box]'),preview=mapCard.querySelector('[data-map-preview-image="'+orientation+'"]');if(!state?.canvas)return;mapState[orientation].preview=state.canvas.toDataURL('image/png');preview.src=mapState[orientation].preview;box.hidden=false;setStatus('Previsualización lista. No se ha guardado el mapa '+orientation+'.');}); mapCard.querySelector('[data-map-edit="'+orientation+'"]').addEventListener('click',()=>{mapCard.querySelector('[data-map-preview-box="'+orientation+'"]').hidden=true;setStatus('Puedes corregir el mapa '+orientation+' antes de confirmar.');}); mapCard.querySelector('[data-map-cancel="'+orientation+'"]').addEventListener('click',()=>{mapState[orientation].preview=null;mapCard.querySelector('[data-map-preview-box="'+orientation+'"]').hidden=true;setStatus('Previsualización cancelada. No se guardó ningún mapa.');}); mapCard.querySelector('[data-map-confirm="'+orientation+'"]').addEventListener('click',async button=>{const preview=mapState[orientation]?.preview;if(!preview){setStatus('Genera una previsualización antes de confirmar.');return;}button.currentTarget.disabled=true;try{const response=await fetch('<?=SERVIDOR;?>historia-clinica/entrevista/capturar-m09-mapa',{method:'POST',headers:{'Content-Type':'application/json','X-M03-CSRF':main.dataset.csrf},body:JSON.stringify({idPaciente:Number(main.dataset.patient),orientation,image:preview,expectedVersion:mapVersion()})});const data=await response.json();if(!response.ok||!data.resultado)throw new Error(data.mensaje||'No fue posible guardar el mapa.');mapCard.dataset.m09MapVersion=data.version||mapVersion();mapState[orientation].preview=null;mapCard.querySelector('[data-map-preview-box="'+orientation+'"]').hidden=true;await loadMap(orientation);setStatus('Mapa '+orientation+' confirmado y recuperado desde el almacenamiento.');}catch(error){setStatus(error.message||'No fue posible guardar el mapa.');}finally{button.currentTarget.disabled=false;}}); });
     }
+    // setM04Stage() synchronously changes the coordinator target and invokes
+    // its state/voice callbacks, so initialize M04 only after those handlers.
+    document.querySelectorAll('[data-module="M04"]').forEach(card => {
+        setM04Stage(card, card.dataset.m04StableId === M04_STAGES.addAnother ? 'addAnother' : 'initial', {speak: false});
+    });
     showConversationStage(conversationStage);
     bindVoiceControls();
     document.querySelectorAll('[data-module="M02"]').forEach(syncM02DictationPermission);
