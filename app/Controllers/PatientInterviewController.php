@@ -16,6 +16,8 @@ use App\Services\ConversationalM06Adapter;
 use App\Services\ConversationalM07Adapter;
 use App\Services\ConversationalM09Adapter;
 use App\Services\ConversationalM03Adapter;
+use App\Services\M03TobaccoResponsePolicy;
+use App\Services\PreviousResponsesStatusClassifier;
 use App\Services\ConversationalM09MapAdapter;
 use App\Services\ConversationalM08TreatmentAdapter;
 use App\Services\LocalDictationTicketService;
@@ -103,6 +105,126 @@ final class PatientInterviewController extends BaseController
 
         $m02Adapter = new ConversationalM02Adapter();
         $m02State = $m02Adapter->read($patientId);
+        $m03Adapter = new ConversationalM03Adapter();
+        $m03State = $m03Adapter->read($patientId);
+        $m04Adapter = new ConversationalM04Adapter();
+        $m04State = $m04Adapter->read($patientId);
+        $m05Adapter = new ConversationalM05Adapter();
+        $m05State = $m05Adapter->read($patientId);
+        $m04EditDatabaseAuthorized = $m04Adapter->previousResponseEditDatabaseAuthorized();
+        $m04Entries = [];
+        foreach (($m04State['records'] ?? []) as $record) {
+            if (!is_array($record)) continue;
+            $recordId = (int)($record['id'] ?? 0);
+            $surgery = trim((string)($record['cirugia'] ?? ''));
+            // Legacy blank rows are storage artifacts, not patient statements.
+            if ($recordId < 1 || $surgery === '') continue;
+            $date = (string)($record['fecha'] ?? '');
+            $dateInput = '';
+            if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/D', $date, $dateParts)
+                && checkdate((int)$dateParts[2], (int)$dateParts[3], (int)$dateParts[1])) {
+                $dateInput = $date;
+            }
+            $m04Entries[] = [
+                'record_id' => $recordId,
+                'stable_id' => 'M04:record:' . $recordId,
+                'surgery' => (string)$record['cirugia'],
+                'date' => $date,
+                'date_input' => $dateInput,
+                'observations' => (string)($record['observaciones'] ?? ''),
+                'version' => (string)($m04State['previous_response_version'] ?? ''),
+                'editable' => $m04EditDatabaseAuthorized,
+                'edit_blocker' => $m04EditDatabaseAuthorized ? '' : 'La edición no está autorizada en este entorno.',
+            ];
+        }
+
+        // Preserve the M05 catalog order and make duplicate or dependency-ineligible
+        // history explicit instead of selecting an arbitrary row for editing.
+        $m05ThemeRows = [];
+        foreach (($m05State['questions'] ?? []) as $question) {
+            if (!is_array($question)) continue;
+            $themeId = (int)($question['theme_id'] ?? 0);
+            $questionId = (int)($question['question_id'] ?? 0);
+            if ($themeId < 1 || $questionId < 1) continue;
+            if (!isset($m05ThemeRows[$themeId])) {
+                $m05ThemeRows[$themeId] = ['theme_id' => $themeId, 'theme' => (string)($question['tema'] ?? ''), 'questions' => []];
+            }
+            $m05ThemeRows[$themeId]['questions'][$questionId][] = $question;
+        }
+        $m05V1Themes = [];
+        foreach ($m05ThemeRows as $theme) {
+            $questionEntries = [];
+            foreach ($theme['questions'] as $questionId => $rows) {
+                $question = $rows[0];
+                $responseId = count($rows) === 1 ? (int)($question['response_id'] ?? 0) : 0;
+                $answer = count($rows) === 1 ? (string)($question['respuesta'] ?? '') : '';
+                $type = count($rows) === 1 ? (string)($question['tipo'] ?? '') : '';
+                $eligible = count($rows) === 1 && (($question['eligible'] ?? true) === true);
+                $supportedType = $type === 'input' || ($type === 'select' && in_array($answer, ['', 'Si', 'Sí', 'No'], true));
+                $editable = $responseId > 0 && $eligible && $supportedType;
+                $status = count($rows) !== 1 ? 'REQUIERE_REVISION'
+                    : ($responseId < 1 ? 'SIN_REGISTRO'
+                        : (!empty($question['needs_clarification']) ? 'POR_ACLARAR'
+                            : (!$eligible ? 'NO_APLICA' : 'REGISTRADA')));
+                $blocker = count($rows) !== 1 ? 'Hay registros duplicados para esta pregunta; se conserva en solo lectura.'
+                    : ($responseId < 1 ? 'Esta pregunta no tiene una respuesta registrada.'
+                        : (!$eligible ? 'La dependencia de esta pregunta no está habilitada; se conserva la respuesta histórica sin editarla.'
+                            : (!$supportedType ? 'El tipo o valor guardado no tiene un editor seguro compatible.' : '')));
+                $questionEntries[] = [
+                    'question_id' => (int)$questionId,
+                    'stable_id' => 'M05:v1:' . (int)$questionId,
+                    'question' => (string)($question['pregunta'] ?? ''),
+                    'response_id' => $responseId,
+                    'type' => $type,
+                    'editor_control' => $type === 'select' ? 'select' : 'text',
+                    'answer' => $answer,
+                    'version' => (string)($m05State['previous_v1_version'] ?? ''),
+                    'editable' => $editable,
+                    'status' => $status,
+                    'pending' => $status !== 'REGISTRADA' && $status !== 'NO_APLICA',
+                    'edit_blocker' => $blocker,
+                ];
+            }
+            $m05V1Themes[] = [
+                'theme_id' => (int)$theme['theme_id'],
+                'theme' => (string)$theme['theme'],
+                'entries' => $questionEntries,
+            ];
+        }
+
+        $m05DiseaseRows = [];
+        foreach (($m05State['diseases'] ?? []) as $disease) {
+            if (!is_array($disease)) continue;
+            $diseaseId = (int)($disease['disease_id'] ?? 0);
+            if ($diseaseId > 0) $m05DiseaseRows[$diseaseId][] = $disease;
+        }
+        $m05V2Diseases = [];
+        foreach ($m05DiseaseRows as $diseaseId => $rows) {
+            $disease = $rows[0];
+            $responseId = count($rows) === 1 ? (int)($disease['response_id'] ?? 0) : 0;
+            $answer = count($rows) === 1 ? (string)($disease['respuesta'] ?? '') : '';
+            $year = count($rows) === 1 ? (string)($disease['year_diagnostico'] ?? '') : '';
+            $editable = count($rows) === 1 && $responseId > 0;
+            $status = count($rows) !== 1 ? 'REQUIERE_REVISION'
+                : ($responseId < 1 ? 'SIN_REGISTRO'
+                    : (!empty($disease['needs_clarification']) ? 'POR_ACLARAR' : 'REGISTRADA'));
+            $m05V2Diseases[] = [
+                'disease_id' => (int)$diseaseId,
+                'stable_id' => 'M05:v2:' . (int)$diseaseId,
+                'enfermedad' => (string)($disease['enfermedad'] ?? ''),
+                'response_id' => $responseId,
+                'answer' => $answer,
+                'tipo' => count($rows) === 1 ? (string)($disease['tipo'] ?? '') : '',
+                'year' => $year,
+                'year_display' => $year === 'NR' ? 'No recuerdo' : $year,
+                'version' => (string)($m05State['previous_v2_version'] ?? ''),
+                'editable' => $editable,
+                'status' => $status,
+                'pending' => $responseId < 1 || !empty($disease['needs_clarification']) || count($rows) !== 1,
+                'edit_blocker' => count($rows) !== 1 ? 'Hay respuestas duplicadas para esta enfermedad; se conserva en solo lectura.'
+                    : ($responseId < 1 ? 'Esta enfermedad no tiene una respuesta registrada.' : ''),
+            ];
+        }
         $contract = $this->conversationService()->buildUnifiedContract(['M02' => $m02State]);
         $questions = $contract['modules']['M02']['questions'] ?? [];
         $recordsByDisease = [];
@@ -160,14 +282,316 @@ final class PatientInterviewController extends BaseController
             ];
         }
 
+        $m03ThemeGroups = [];
+        $m03QuestionGroupsById = [];
+        foreach (($m03State['questions'] ?? []) as $question) {
+            if (!is_array($question)) continue;
+            $themeId = (int)($question['idTema'] ?? 0);
+            $questionId = (int)($question['idPregunta'] ?? 0);
+            if ($themeId < 1 || $questionId < 1) continue;
+            if (!isset($m03ThemeGroups[$themeId])) {
+                $m03ThemeGroups[$themeId] = ['theme_id' => $themeId, 'theme' => (string)($question['tema'] ?? ''), 'questions' => []];
+            }
+            $m03ThemeGroups[$themeId]['questions'][$questionId][] = $question;
+            $m03QuestionGroupsById[$questionId][] = $question;
+        }
+        ksort($m03ThemeGroups, SORT_NUMERIC);
+        $m03Themes = [];
+        $m03QuestionNumber = 0;
+        foreach ($m03ThemeGroups as $themeGroup) {
+            $themeEntries = [];
+            $themeConflicts = [];
+            $themeStatusItems = [];
+            foreach ($themeGroup['questions'] as $questionId => $questionRows) {
+                $m03QuestionNumber++;
+                if (count($questionRows) !== 1) {
+                    $themeConflicts[] = [
+                        'number' => $m03QuestionNumber,
+                        'question_id' => (int)$questionId,
+                        'stable_id' => 'M03:question:' . (int)$questionId,
+                        'question' => (string)($questionRows[0]['pregunta'] ?? ''),
+                        'status' => 'REQUIERE_REVISION',
+                        'pending' => true,
+                        'reason' => 'Se detectaron varias respuestas registradas para esta pregunta. No se muestra una como vigente ni se permite editar hasta aclarar la duplicidad.',
+                    ];
+                    continue;
+                }
+                $question = $questionRows[0];
+                $semanticState = strtoupper(trim((string)($question['semanticState'] ?? '')));
+                $answer = trim((string)($question['respuesta'] ?? ''));
+                $classification = PreviousResponsesStatusClassifier::m03(
+                    $questionRows,
+                    $m03QuestionGroupsById,
+                    !empty($m03State['semantic_state_available']),
+                    !empty($m03State['finalized'])
+                );
+                $persisted = (int)($question['idRespuesta'] ?? 0) > 0
+                    && ($answer !== '' || in_array($semanticState, ['KNOWN', 'NEGATIVE', 'UNKNOWN', 'NOT_REMEMBERED'], true));
+                if (!$persisted) {
+                    $themeStatusItems[] = [
+                        'number' => $m03QuestionNumber,
+                        'question_id' => (int)$questionId,
+                        'stable_id' => 'M03:question:' . (int)$questionId,
+                        'question' => (string)($question['pregunta'] ?? ''),
+                        ...$classification,
+                    ];
+                    continue;
+                }
+
+                $blockerCode = $m03Adapter->previousResponseEditBlockerCode($m03State, $question);
+                if (in_array($blockerCode, ['M03_PREVIOUS_STATE_UNVERIFIED', 'M03_PREVIOUS_STATE_INCONSISTENT', 'M03_PREVIOUS_SELECT_INCONSISTENT'], true)) {
+                    $themeConflicts[] = [
+                        'number' => $m03QuestionNumber,
+                        'question_id' => (int)$question['idPregunta'],
+                        'stable_id' => 'M03:question:' . (int)$question['idPregunta'],
+                        'question' => (string)$question['pregunta'],
+                        'status' => 'REQUIERE_REVISION',
+                        'pending' => true,
+                        'reason' => 'El registro tiene un estado y un valor incompatibles. No se muestra ni se modifica hasta aclararlo.',
+                    ];
+                    continue;
+                }
+                $editorState = in_array($semanticState, ['KNOWN', 'NEGATIVE', 'UNKNOWN', 'NOT_REMEMBERED'], true)
+                    ? $semanticState
+                    : (((string)($question['tipo'] ?? '') === 'select' && $answer === 'No')
+                        || ((int)$questionId === 5 && (int)$themeId === 1 && $answer === AntecedentesNoPatologicosModel::M03_Q5_NOT_STOPPED_DETAIL)
+                            ? 'NEGATIVE'
+                            : 'KNOWN');
+                $detailedTobaccoAffirmative = (int)$questionId === 1 && (int)$themeId === 1
+                    && $editorState === 'KNOWN' && !in_array($answer, ['Si', 'Sí'], true);
+                $themeEntries[] = [
+                    'number' => $m03QuestionNumber,
+                    'question_id' => (int)$question['idPregunta'],
+                    'stable_id' => 'M03:question:' . (int)$question['idPregunta'],
+                    'question' => (string)$question['pregunta'],
+                    'review_status' => $classification['status'],
+                    'review_pending' => $classification['pending'],
+                    'type' => (string)$question['tipo'],
+                    'editor_control' => ((string)$question['tipo'] === 'input' || $detailedTobaccoAffirmative) ? 'text' : 'select',
+                    'answer' => ConversationalM03Adapter::formatPreviousResponse($question),
+                    'answer_input' => in_array($editorState, ['UNKNOWN', 'NOT_REMEMBERED'], true) ? '' : $answer,
+                    'semantic_state' => $editorState,
+                    'response_id' => (int)$question['idRespuesta'],
+                    'version' => ConversationalM03Adapter::previousResponseVersion($patientId, $question),
+                    'editable' => $blockerCode === null,
+                    'edit_blocker' => match ($blockerCode) {
+                        'M03_PREVIOUS_DATABASE_NOT_AUTHORIZED' => 'La edición no está autorizada en este entorno local.',
+                        'M03_PREVIOUS_DUPLICATE_ROWS' => 'Hay respuestas duplicadas para esta pregunta; no se modificará ninguna hasta identificar la vigente.',
+                        'M03_PREVIOUS_DEPENDENCY_INELIGIBLE' => 'La dependencia de esta pregunta no está vigente; la respuesta se conserva en solo lectura.',
+                        'M03_PREVIOUS_STATE_UNVERIFIED', 'M03_PREVIOUS_STATE_INCONSISTENT', 'M03_PREVIOUS_SELECT_INCONSISTENT' => 'El estado guardado requiere revisión antes de editarse.',
+                        'M03_PREVIOUS_QUESTION_TYPE_UNSUPPORTED' => 'El tipo de esta pregunta no tiene un editor compatible.',
+                        default => '',
+                    },
+                ];
+            }
+            $m03Themes[] = [
+                'theme_id' => (int)$themeGroup['theme_id'],
+                'theme' => (string)$themeGroup['theme'],
+                'entries' => $themeEntries,
+                'conflicts' => $themeConflicts,
+                'status_items' => $themeStatusItems,
+            ];
+        }
+
         $this->view('/paciente/respuestas-previas.php', [
             'title' => 'Respuestas previas',
             'datos' => $auth,
             'idPaciente' => $patientId,
             'm02Finalized' => (bool)($m02State['finalized'] ?? false),
             'entries' => $entries,
+            'm02StatusItems' => $m02StatusItems,
+            'm03Finalized' => (bool)($m03State['finalized'] ?? false),
+            'm03Themes' => $m03Themes,
+            'm03EditUrl' => SERVIDOR . 'historia-clinica/respuestas-previas/m03',
+            'm04Finalized' => ($m04State['write_blocker'] ?? null) !== 'FINALIZATION_STATE_UNAVAILABLE'
+                && (bool)($m04State['finalized'] ?? false),
+            'm04Entries' => $m04Entries,
+            'm04Version' => (string)($m04State['previous_response_version'] ?? ''),
+            'm04CreateAuthorized' => $m04EditDatabaseAuthorized,
+            'm04EditUrl' => SERVIDOR . 'historia-clinica/respuestas-previas/m04',
+            'm04CreateUrl' => SERVIDOR . 'historia-clinica/respuestas-previas/m04/nueva',
+            'm05Finalized' => (bool)($m05State['finalized'] ?? false),
+            'm05V1Themes' => $m05V1Themes,
+            'm05V2Diseases' => $m05V2Diseases,
+            'm05V1Version' => (string)($m05State['previous_v1_version'] ?? ''),
+            'm05V2Version' => (string)($m05State['previous_v2_version'] ?? ''),
+            'm05V1EditUrl' => SERVIDOR . 'historia-clinica/respuestas-previas/m05/v1',
+            'm05V2EditUrl' => SERVIDOR . 'historia-clinica/respuestas-previas/m05/v2',
             'csrf' => ClinicalSummarySecurity::captureCsrfToken($patientId),
             'sidebar' => $sidebar->render(),
+        ]);
+    }
+
+    /** Update an existing M05 V1 history answer; the endpoint never creates a row. */
+    public function updatePreviousM05V1(): void
+    {
+        header('Content-Type: application/json; charset=UTF-8');
+        header('Cache-Control: no-store, private');
+        header('Pragma: no-cache');
+        if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? '')) !== 'POST') {
+            echo HttpMethod::jsonResponse(405, false, 'Método no permitido.');
+            return;
+        }
+        $contentType = strtolower(trim(explode(';', (string)($_SERVER['CONTENT_TYPE'] ?? ''), 2)[0]));
+        $contentLength = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
+        if ($contentType !== 'application/json' || $contentLength < 1 || $contentLength > 8192) {
+            echo HttpMethod::jsonResponse(400, false, 'Solicitud de edición no válida.');
+            return;
+        }
+        $raw = file_get_contents('php://input', false, null, 0, 8193);
+        if (!is_string($raw) || strlen($raw) > 8192) {
+            echo HttpMethod::jsonResponse(413, false, 'La solicitud excede el tamaño permitido.');
+            return;
+        }
+        try {
+            $data = json_decode($raw, true, 16, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            echo HttpMethod::jsonResponse(400, false, 'Solicitud de edición no válida.');
+            return;
+        }
+        $allowedKeys = ['stable_id', 'response_id', 'expected_version', 'answer'];
+        if (!is_array($data) || array_diff(array_keys($data), $allowedKeys) !== []) {
+            echo HttpMethod::jsonResponse(422, false, 'Solicitud de edición no válida.');
+            return;
+        }
+
+        $authGuard = new AuthMiddleware('historia-clinica');
+        $auth = $authGuard->authPermisos();
+        $patientId = (int)($auth['id_usuario'] ?? 0);
+        $authGuard->assertPatientAccess($patientId, $auth);
+        $csrf = $_SERVER['HTTP_X_M03_CSRF'] ?? null;
+        if (!ClinicalSummarySecurity::validCaptureCsrf($patientId, is_string($csrf) ? $csrf : null)) {
+            echo HttpMethod::jsonResponse(403, false, 'Token de seguridad inválido o ausente.');
+            return;
+        }
+
+        $stableId = is_string($data['stable_id'] ?? null) ? trim($data['stable_id']) : '';
+        $responseId = filter_var($data['response_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $expectedVersion = is_string($data['expected_version'] ?? null) ? $data['expected_version'] : '';
+        $answer = is_string($data['answer'] ?? null) ? $data['answer'] : '';
+        if (!preg_match('/^M05:v1:([1-9][0-9]*)$/D', $stableId, $match)
+            || $responseId === false || !preg_match('/^[a-f0-9]{64}$/D', $expectedVersion)
+            || mb_strlen($answer, 'UTF-8') > 2000) {
+            echo HttpMethod::jsonResponse(422, false, 'La pregunta o respuesta M05 no es válida.');
+            return;
+        }
+        $questionId = (int)$match[1];
+        $adapter = new ConversationalM05Adapter();
+        $state = $adapter->read($patientId);
+        $questionRows = array_values(array_filter(
+            $state['questions'],
+            static fn(array $row): bool => (int)($row['question_id'] ?? 0) === $questionId
+        ));
+        if (count($questionRows) !== 1 || (int)($questionRows[0]['response_id'] ?? 0) !== (int)$responseId) {
+            echo HttpMethod::jsonResponse(409, false, 'La respuesta M05 ya no está disponible para edición. Recarga la pantalla.');
+            return;
+        }
+        $result = $adapter->editPreviousResponseV1($patientId, $questionId, (int)$responseId, $expectedVersion, $answer);
+        $status = (int)($result['resultado'] ?? 500);
+        if (!in_array($status, [200, 403, 404, 409, 422, 500], true)) $status = 500;
+        $ok = $status === 200 && ($result['readback'] ?? false) === true
+            && (int)($result['response_id'] ?? 0) === (int)$responseId
+            && (int)($result['question_id'] ?? 0) === $questionId;
+        echo HttpMethod::jsonResponse($ok ? 200 : $status, $ok, (string)($result['mensaje'] ?? 'No fue posible actualizar la respuesta M05.'), '', [
+            'readback' => $result['readback'] ?? false,
+            'response_id' => $result['response_id'] ?? null,
+            'question_id' => $result['question_id'] ?? null,
+            'answer' => $result['answer'] ?? null,
+            'version' => $result['version'] ?? null,
+        ]);
+    }
+
+    /** Update an existing M05 V2 history answer/year without changing type or inserting rows. */
+    public function updatePreviousM05V2(): void
+    {
+        header('Content-Type: application/json; charset=UTF-8');
+        header('Cache-Control: no-store, private');
+        header('Pragma: no-cache');
+        if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? '')) !== 'POST') {
+            echo HttpMethod::jsonResponse(405, false, 'Método no permitido.');
+            return;
+        }
+        $contentType = strtolower(trim(explode(';', (string)($_SERVER['CONTENT_TYPE'] ?? ''), 2)[0]));
+        $contentLength = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
+        if ($contentType !== 'application/json' || $contentLength < 1 || $contentLength > 8192) {
+            echo HttpMethod::jsonResponse(400, false, 'Solicitud de edición no válida.');
+            return;
+        }
+        $raw = file_get_contents('php://input', false, null, 0, 8193);
+        if (!is_string($raw) || strlen($raw) > 8192) {
+            echo HttpMethod::jsonResponse(413, false, 'La solicitud excede el tamaño permitido.');
+            return;
+        }
+        try {
+            $data = json_decode($raw, true, 16, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            echo HttpMethod::jsonResponse(400, false, 'Solicitud de edición no válida.');
+            return;
+        }
+        $allowedKeys = ['stable_id', 'disease_id', 'response_id', 'expected_version', 'response', 'year_diagnostico', 'clear_year'];
+        if (!is_array($data) || array_diff(array_keys($data), $allowedKeys) !== []) {
+            echo HttpMethod::jsonResponse(422, false, 'Solicitud de edición no válida.');
+            return;
+        }
+
+        $authGuard = new AuthMiddleware('historia-clinica');
+        $auth = $authGuard->authPermisos();
+        $patientId = (int)($auth['id_usuario'] ?? 0);
+        $authGuard->assertPatientAccess($patientId, $auth);
+        $csrf = $_SERVER['HTTP_X_M03_CSRF'] ?? null;
+        if (!ClinicalSummarySecurity::validCaptureCsrf($patientId, is_string($csrf) ? $csrf : null)) {
+            echo HttpMethod::jsonResponse(403, false, 'Token de seguridad inválido o ausente.');
+            return;
+        }
+
+        $stableId = is_string($data['stable_id'] ?? null) ? trim($data['stable_id']) : '';
+        $diseaseId = filter_var($data['disease_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $responseId = filter_var($data['response_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $expectedVersion = is_string($data['expected_version'] ?? null) ? $data['expected_version'] : '';
+        $answer = is_string($data['response'] ?? null) ? $data['response'] : '';
+        $yearValue = $data['year_diagnostico'] ?? null;
+        $year = is_string($yearValue) && $yearValue !== '' ? $yearValue : null;
+        $clearYear = $data['clear_year'] ?? false;
+        if (!preg_match('/^M05:v2:([1-9][0-9]*)$/D', $stableId, $match)
+            || $diseaseId === false || (int)$match[1] !== (int)$diseaseId
+            || $responseId === false || !preg_match('/^[a-f0-9]{64}$/D', $expectedVersion)
+            || mb_strlen($answer, 'UTF-8') > 2000
+            || ($yearValue !== null && !is_string($yearValue))
+            || !is_bool($clearYear)
+            || ($year !== null && (preg_match('/^(19|20)\d{2}$/D', $year) !== 1 || (int)$year > (int)date('Y')))
+            || ($clearYear && $year !== null)) {
+            echo HttpMethod::jsonResponse(422, false, 'La enfermedad o respuesta M05 no es válida.');
+            return;
+        }
+        $diseaseId = (int)$diseaseId;
+        $responseId = (int)$responseId;
+        $adapter = new ConversationalM05Adapter();
+        $state = $adapter->read($patientId);
+        $diseaseRows = array_values(array_filter(
+            $state['diseases'],
+            static fn(array $row): bool => (int)($row['disease_id'] ?? 0) === $diseaseId
+        ));
+        if (count($diseaseRows) !== 1 || (int)($diseaseRows[0]['response_id'] ?? 0) !== $responseId) {
+            echo HttpMethod::jsonResponse(409, false, 'La respuesta de esa enfermedad M05 ya no está disponible para edición. Recarga la pantalla.');
+            return;
+        }
+        $result = $adapter->editPreviousResponseV2($patientId, $diseaseId, $responseId, $expectedVersion, $answer, $year, $clearYear);
+        $status = (int)($result['resultado'] ?? 500);
+        if (!in_array($status, [200, 403, 404, 409, 422, 500], true)) $status = 500;
+        $record = is_array($result['record'] ?? null) ? $result['record'] : [];
+        $ok = $status === 200 && ($result['readback'] ?? false) === true
+            && (int)($result['response_id'] ?? 0) === $responseId
+            && (int)($result['disease_id'] ?? 0) === $diseaseId
+            && ($result['tipo_unchanged'] ?? false) === true;
+        echo HttpMethod::jsonResponse($ok ? 200 : $status, $ok, (string)($result['mensaje'] ?? 'No fue posible actualizar la respuesta de M05.'), '', [
+            'readback' => $result['readback'] ?? false,
+            'response_id' => $result['response_id'] ?? null,
+            'disease_id' => $result['disease_id'] ?? null,
+            'response' => $record['respuesta'] ?? null,
+            'year_diagnostico' => $record['year_diagnostico'] ?? null,
+            'needs_clarification' => $record['needs_clarification'] ?? false,
+            'version' => $result['version'] ?? null,
+            'tipo_unchanged' => $result['tipo_unchanged'] ?? false,
         ]);
     }
 
@@ -312,6 +736,287 @@ final class PatientInterviewController extends BaseController
             $extra['relatives'] = array_values(array_filter($saved['relatives'] ?? [], 'is_string'));
         }
         echo HttpMethod::jsonResponse($status, $ok, (string)($result['mensaje'] ?? 'No fue posible actualizar la respuesta M02.'), '', $extra);
+    }
+
+    /** Update one existing M03 answer without reopening or finalizing the module. */
+    public function updatePreviousM03(): void
+    {
+        header('Content-Type: application/json; charset=UTF-8');
+        header('Cache-Control: no-store, private');
+        header('Pragma: no-cache');
+        if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? '')) !== 'POST') {
+            echo HttpMethod::jsonResponse(405, false, 'Método no permitido.');
+            return;
+        }
+        $contentType = strtolower(trim(explode(';', (string)($_SERVER['CONTENT_TYPE'] ?? ''), 2)[0]));
+        $contentLength = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
+        if ($contentType !== 'application/json' || $contentLength < 1 || $contentLength > 8192) {
+            echo HttpMethod::jsonResponse(400, false, 'Solicitud de edición no válida.');
+            return;
+        }
+        $raw = file_get_contents('php://input', false, null, 0, 8193);
+        if (!is_string($raw) || strlen($raw) > 8192) {
+            echo HttpMethod::jsonResponse(413, false, 'La solicitud excede el tamaño permitido.');
+            return;
+        }
+        try {
+            $data = json_decode($raw, true, 16, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            echo HttpMethod::jsonResponse(400, false, 'Solicitud de edición no válida.');
+            return;
+        }
+        $allowedKeys = ['stable_id', 'response_id', 'expected_version', 'answer', 'semantic_state'];
+        if (!is_array($data) || array_diff(array_keys($data), $allowedKeys) !== []) {
+            echo HttpMethod::jsonResponse(422, false, 'Solicitud de edición no válida.');
+            return;
+        }
+
+        $authGuard = new AuthMiddleware('historia-clinica');
+        $auth = $authGuard->authPermisos();
+        $patientId = (int)($auth['id_usuario'] ?? 0);
+        $authGuard->assertPatientAccess($patientId, $auth);
+        $csrf = $_SERVER['HTTP_X_M03_CSRF'] ?? null;
+        if (!ClinicalSummarySecurity::validCaptureCsrf($patientId, is_string($csrf) ? $csrf : null)) {
+            echo HttpMethod::jsonResponse(403, false, 'Token de seguridad inválido o ausente.');
+            return;
+        }
+
+        $stableId = is_string($data['stable_id'] ?? null) ? trim($data['stable_id']) : '';
+        $responseId = filter_var($data['response_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $expectedVersion = is_string($data['expected_version'] ?? null) ? $data['expected_version'] : '';
+        $answer = is_string($data['answer'] ?? null) ? trim($data['answer']) : '';
+        $semanticState = strtoupper(trim(is_string($data['semantic_state'] ?? null) ? $data['semantic_state'] : ''));
+        if (!preg_match('/^M03:question:([1-9][0-9]*)$/', $stableId, $match)
+            || $responseId === false || !preg_match('/^[a-f0-9]{64}$/', $expectedVersion)
+            || !in_array($semanticState, ['KNOWN', 'NEGATIVE', 'UNKNOWN', 'NOT_REMEMBERED'], true)
+            || mb_strlen($answer, 'UTF-8') > 2000) {
+            echo HttpMethod::jsonResponse(422, false, 'La pregunta o respuesta M03 no es válida.');
+            return;
+        }
+        $questionId = (int)$match[1];
+        $adapter = new ConversationalM03Adapter();
+        $state = $adapter->read($patientId);
+        $questionRows = array_values(array_filter($state['questions'], static fn(array $row): bool => (int)($row['idPregunta'] ?? 0) === $questionId));
+        if (count($questionRows) !== 1 || (int)($questionRows[0]['idRespuesta'] ?? 0) !== (int)$responseId) {
+            echo HttpMethod::jsonResponse(409, false, 'La respuesta ya no está disponible para edición. Recarga la pantalla.');
+            return;
+        }
+        $question = $questionRows[0];
+        $type = (string)($question['tipo'] ?? '');
+        if ($type === 'select') {
+            if ($questionId === M03TobaccoResponsePolicy::QUESTION_ID && $semanticState === 'KNOWN' && $answer !== '') {
+                $utterance = $answer;
+            } elseif ($answer !== '') {
+                echo HttpMethod::jsonResponse(422, false, 'Selecciona una sola opción de respuesta.');
+                return;
+            } else {
+                $utterance = match ($semanticState) {
+                    'KNOWN' => 'Sí', 'NEGATIVE' => 'No', 'UNKNOWN' => 'No lo sé', 'NOT_REMEMBERED' => 'No recuerdo',
+                };
+            }
+        } elseif ($type === 'input') {
+            if (in_array($semanticState, ['UNKNOWN', 'NOT_REMEMBERED'], true)) {
+                if ($answer !== '') {
+                    echo HttpMethod::jsonResponse(422, false, 'Para conservar un estado desconocido no agregues un valor clínico.');
+                    return;
+                }
+                $utterance = $semanticState === 'UNKNOWN' ? 'No lo sé' : 'No recuerdo';
+            } elseif ($semanticState === 'NEGATIVE') {
+                if ($questionId !== 5 || (int)($question['idTema'] ?? 0) !== 1 || $answer !== AntecedentesNoPatologicosModel::M03_Q5_NOT_STOPPED_DETAIL) {
+                    echo HttpMethod::jsonResponse(422, false, 'La respuesta negativa no corresponde a esta pregunta.');
+                    return;
+                }
+                $utterance = $answer;
+            } else {
+                if ($answer === '') {
+                    echo HttpMethod::jsonResponse(422, false, 'Completa la respuesta antes de guardar.');
+                    return;
+                }
+                $utterance = $answer;
+            }
+        } else {
+            echo HttpMethod::jsonResponse(422, false, 'El tipo de pregunta M03 no admite edición aquí.');
+            return;
+        }
+
+        $result = $adapter->editExistingResponse($patientId, $questionId, (int)$responseId, $expectedVersion, $utterance, $semanticState);
+        $status = (int)($result['resultado'] ?? 500);
+        if (!in_array($status, [200, 403, 404, 409, 422, 500], true)) $status = 500;
+        $ok = $status === 200 && ($result['readback'] ?? false) === true;
+        echo HttpMethod::jsonResponse($status, $ok, (string)($result['mensaje'] ?? 'No fue posible actualizar la respuesta M03.'), '', [
+            'readback' => $result['readback'] ?? false,
+            'answer' => $result['answer'] ?? null,
+            'semantic_state' => $result['semantic_state'] ?? null,
+            'version' => $result['version'] ?? null,
+            'response_id' => $result['response_id'] ?? null,
+            'code' => $result['code'] ?? null,
+        ]);
+    }
+
+    /** Update one already-recorded M04 surgery from the authenticated patient's review page. */
+    public function updatePreviousM04(): void
+    {
+        header('Content-Type: application/json; charset=UTF-8');
+        header('Cache-Control: no-store, private');
+        header('Pragma: no-cache');
+        if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? '')) !== 'POST') {
+            echo HttpMethod::jsonResponse(405, false, 'Método no permitido.');
+            return;
+        }
+        $contentType = strtolower(trim(explode(';', (string)($_SERVER['CONTENT_TYPE'] ?? ''), 2)[0]));
+        $contentLength = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
+        if ($contentType !== 'application/json' || $contentLength < 1 || $contentLength > 8192) {
+            echo HttpMethod::jsonResponse(400, false, 'Solicitud de edición no válida.');
+            return;
+        }
+        $raw = file_get_contents('php://input', false, null, 0, 8193);
+        if (!is_string($raw) || strlen($raw) > 8192) {
+            echo HttpMethod::jsonResponse(413, false, 'La solicitud excede el tamaño permitido.');
+            return;
+        }
+        try {
+            $data = json_decode($raw, true, 16, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            echo HttpMethod::jsonResponse(400, false, 'Solicitud de edición no válida.');
+            return;
+        }
+        $allowedKeys = ['stable_id', 'record_id', 'expected_version', 'cirugia', 'fecha', 'observaciones'];
+        if (!is_array($data) || array_diff(array_keys($data), $allowedKeys) !== []) {
+            echo HttpMethod::jsonResponse(422, false, 'Solicitud de edición no válida.');
+            return;
+        }
+
+        $authGuard = new AuthMiddleware('historia-clinica');
+        $auth = $authGuard->authPermisos();
+        $patientId = (int)($auth['id_usuario'] ?? 0);
+        $authGuard->assertPatientAccess($patientId, $auth);
+        $csrf = $_SERVER['HTTP_X_M03_CSRF'] ?? null;
+        if (!ClinicalSummarySecurity::validCaptureCsrf($patientId, is_string($csrf) ? $csrf : null)) {
+            echo HttpMethod::jsonResponse(403, false, 'Token de seguridad inválido o ausente.');
+            return;
+        }
+
+        $stableId = is_string($data['stable_id'] ?? null) ? trim($data['stable_id']) : '';
+        $recordId = filter_var($data['record_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $expectedVersion = is_string($data['expected_version'] ?? null) ? $data['expected_version'] : '';
+        $surgery = is_string($data['cirugia'] ?? null) ? $data['cirugia'] : '';
+        $date = is_string($data['fecha'] ?? null) ? $data['fecha'] : '';
+        $observations = is_string($data['observaciones'] ?? null) ? $data['observaciones'] : '';
+        if (!preg_match('/^M04:record:([1-9][0-9]*)$/D', $stableId, $match)
+            || $recordId === false || (int)$match[1] !== (int)$recordId
+            || !preg_match('/^[a-f0-9]{64}$/D', $expectedVersion)
+            || mb_strlen($surgery, 'UTF-8') > 2000 || mb_strlen($date, 'UTF-8') > 10
+            || mb_strlen($observations, 'UTF-8') > 2000) {
+            echo HttpMethod::jsonResponse(422, false, 'La cirugía o su identificador no son válidos.');
+            return;
+        }
+
+        $result = (new ConversationalM04Adapter())->editExistingSurgery(
+            $patientId,
+            (int)$recordId,
+            $expectedVersion,
+            $surgery,
+            $date,
+            $observations
+        );
+        $status = (int)($result['resultado'] ?? 500);
+        if (!in_array($status, [200, 403, 404, 409, 422, 500], true)) $status = 500;
+        $record = is_array($result['record'] ?? null) ? $result['record'] : [];
+        $ok = $status === 200 && ($result['readback'] ?? false) === true
+            && (int)($result['record_id'] ?? 0) === (int)$recordId
+            && (int)($record['id'] ?? 0) === (int)$recordId;
+        echo HttpMethod::jsonResponse($status, $ok, (string)($result['mensaje'] ?? 'No fue posible actualizar la cirugía.'), '', [
+            'readback' => $result['readback'] ?? false,
+            'record_id' => $result['record_id'] ?? null,
+            'cirugia' => $record['cirugia'] ?? null,
+            'fecha' => $record['fecha'] ?? null,
+            'observaciones' => $record['observaciones'] ?? null,
+            'version' => $result['version'] ?? null,
+            'code' => $result['code'] ?? null,
+        ]);
+    }
+
+    /** Create a new M04 surgery from the authenticated patient's review page. */
+    public function createPreviousM04(): void
+    {
+        header('Content-Type: application/json; charset=UTF-8');
+        header('Cache-Control: no-store, private');
+        header('Pragma: no-cache');
+        if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? '')) !== 'POST') {
+            echo HttpMethod::jsonResponse(405, false, 'Método no permitido.');
+            return;
+        }
+        $contentType = strtolower(trim(explode(';', (string)($_SERVER['CONTENT_TYPE'] ?? ''), 2)[0]));
+        $contentLength = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
+        if ($contentType !== 'application/json' || $contentLength < 1 || $contentLength > 8192) {
+            echo HttpMethod::jsonResponse(400, false, 'Solicitud de registro no válida.');
+            return;
+        }
+        $raw = file_get_contents('php://input', false, null, 0, 8193);
+        if (!is_string($raw) || strlen($raw) > 8192) {
+            echo HttpMethod::jsonResponse(413, false, 'La solicitud excede el tamaño permitido.');
+            return;
+        }
+        try {
+            $data = json_decode($raw, true, 16, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            echo HttpMethod::jsonResponse(400, false, 'Solicitud de registro no válida.');
+            return;
+        }
+        $allowedKeys = ['expected_version', 'cirugia', 'fecha', 'observaciones'];
+        if (!is_array($data) || array_diff(array_keys($data), $allowedKeys) !== []) {
+            echo HttpMethod::jsonResponse(422, false, 'Solicitud de registro no válida.');
+            return;
+        }
+
+        $authGuard = new AuthMiddleware('historia-clinica');
+        $auth = $authGuard->authPermisos();
+        $patientId = (int)($auth['id_usuario'] ?? 0);
+        $authGuard->assertPatientAccess($patientId, $auth);
+        $csrf = $_SERVER['HTTP_X_M03_CSRF'] ?? null;
+        if (!ClinicalSummarySecurity::validCaptureCsrf($patientId, is_string($csrf) ? $csrf : null)) {
+            echo HttpMethod::jsonResponse(403, false, 'Token de seguridad inválido o ausente.');
+            return;
+        }
+
+        $expectedVersion = is_string($data['expected_version'] ?? null) ? $data['expected_version'] : '';
+        $surgery = is_string($data['cirugia'] ?? null) ? $data['cirugia'] : '';
+        $date = is_string($data['fecha'] ?? null) ? $data['fecha'] : '';
+        $observations = is_string($data['observaciones'] ?? null) ? $data['observaciones'] : '';
+        if (!preg_match('/^[a-f0-9]{64}$/D', $expectedVersion)
+            || mb_strlen($surgery, 'UTF-8') > 2000 || mb_strlen($date, 'UTF-8') > 10
+            || mb_strlen($observations, 'UTF-8') > 2000) {
+            echo HttpMethod::jsonResponse(422, false, 'Revisa los datos de la nueva cirugía.');
+            return;
+        }
+
+        $result = (new ConversationalM04Adapter())->createPreviousSurgery(
+            $patientId,
+            $expectedVersion,
+            $surgery,
+            $date,
+            $observations
+        );
+        $status = (int)($result['resultado'] ?? 500);
+        if (!in_array($status, [200, 403, 409, 422, 500], true)) $status = 500;
+        $record = is_array($result['record'] ?? null) ? $result['record'] : [];
+        $recordId = (int)($result['record_id'] ?? 0);
+        $version = is_string($result['version'] ?? null) ? $result['version'] : '';
+        $ok = $status === 200 && ($result['readback'] ?? false) === true
+            && $recordId > 0 && (int)($record['id'] ?? 0) === $recordId
+            && trim((string)($record['cirugia'] ?? '')) === trim($surgery)
+            && preg_match('/^[a-f0-9]{64}$/D', $version) === 1;
+        if ($status === 200 && !$ok) $status = 500;
+        echo HttpMethod::jsonResponse($status, $ok, (string)($result['mensaje'] ?? 'No fue posible registrar la cirugía.'), '', [
+            'readback' => $result['readback'] ?? false,
+            'record_id' => $recordId > 0 ? $recordId : null,
+            'cirugia' => $record['cirugia'] ?? null,
+            'fecha' => $record['fecha'] ?? null,
+            'observaciones' => $record['observaciones'] ?? null,
+            'version' => $version !== '' ? $version : null,
+            'finalized' => $result['finalized'] ?? null,
+            'code' => $result['code'] ?? null,
+        ]);
     }
 
     private function formatM02CurrentAnswer(array $record): string

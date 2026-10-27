@@ -2,12 +2,15 @@
 namespace App\Models;
 use App\Config\Database;
 use App\Models\PacienteModulosModelo;
+use PDO;
 
 class AntecedentesPatologicosModel{
 private $bd;
+private bool $m05V2PatientLockHeld;
 
-public function __construct(){
-$this->bd = Database::getInstance();
+public function __construct(?PDO $db = null, bool $m05V2PatientLockHeld = false){
+$this->bd = $db ?? Database::getInstance();
+$this->m05V2PatientLockHeld = $m05V2PatientLockHeld;
 
 } 
 
@@ -764,7 +767,7 @@ $this->bd = Database::getInstance();
     $consulta2 = "";
     if($opcionEdicion == 1){
     $consulta = "respuesta";
-    if($data['detalle'] == "No"){
+    if($data['detalle'] == "No" && ($data['preserveV2Details'] ?? false) !== true){
     $consulta2 = ",tipo = '', year_diagnostico = ''";
     }
     }else if($opcionEdicion == 2){
@@ -776,6 +779,18 @@ $this->bd = Database::getInstance();
     $idPaciente = (int)($data['idPaciente'] ?? 0);
     $idRespuesta = (int)($data['idEnfermedad'] ?? 0);
     $idEnfermedadCatalogo = (int)($data['idEnfermedadCatalogo'] ?? 0);
+    if ($idPaciente < 1) {
+        return ['resultado' => 403, 'mensaje' => 'No tienes autorización para actualizar esta enfermedad.'];
+    }
+    $lockName = 'clinica_m05_v2_patient_' . $idPaciente;
+    $lockAcquired = false;
+    if (!$this->m05V2PatientLockHeld) {
+        $lock = $this->bd->prepare('SELECT GET_LOCK(:name,5)');
+        $lock->execute([':name' => $lockName]);
+        $lockAcquired = (int)$lock->fetchColumn() === 1;
+        if (!$lockAcquired) return ['resultado' => 409, 'mensaje' => 'M05 se está actualizando en otra operación.'];
+    }
+    try {
     if ($idRespuesta < 1 && $idEnfermedadCatalogo > 0) {
     $catalog = $this->bd->prepare('SELECT id FROM pac_enfermedades_modulo_5 WHERE id = :id LIMIT 1');
     $catalog->execute([':id' => $idEnfermedadCatalogo]);
@@ -812,6 +827,12 @@ $this->bd = Database::getInstance();
     } else {
     return array('resultado' => 401,'mensaje' => '¡Error al actualizar la enfermedad de la lista!');
     }
+    } finally {
+        if ($lockAcquired) {
+            $release = $this->bd->prepare('SELECT RELEASE_LOCK(:name)');
+            $release->execute([':name' => $lockName]);
+        }
+    }
     }
 
 
@@ -831,6 +852,14 @@ $this->bd = Database::getInstance();
 
     //---------- AGREGA PREGUNTAS AL INICIAR ----------//
     public function antecedentesPatologicosV2($idPaciente, $idEnfermedad) {
+    $idPaciente = (int)$idPaciente;
+    $idEnfermedad = (int)$idEnfermedad;
+    if ($idPaciente < 1 || $idEnfermedad < 1) return;
+    $lockName = 'clinica_m05_v2_patient_' . $idPaciente;
+    $lock = $this->bd->prepare('SELECT GET_LOCK(:name,5)');
+    $lock->execute([':name' => $lockName]);
+    if ((int)$lock->fetchColumn() !== 1) return;
+    try {
     $sql = "SELECT COUNT(*) FROM pac_enfermedades_respuestas_modulo_5 WHERE id_paciente = ? AND id_enfermedad = ?";
     $stmt = $this->bd->prepare($sql);
     $stmt->execute([$idPaciente, $idEnfermedad]);
@@ -841,6 +870,10 @@ $this->bd = Database::getInstance();
     VALUES (?, ?, '', '', '')";
     $stmt_insert = $this->bd->prepare($sql_insert);
     $stmt_insert->execute(params: [$idEnfermedad, $idPaciente]);
+    }
+    } finally {
+        $release = $this->bd->prepare('SELECT RELEASE_LOCK(:name)');
+        $release->execute([':name' => $lockName]);
     }
     }
 

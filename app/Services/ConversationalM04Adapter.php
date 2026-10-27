@@ -25,6 +25,7 @@ final class ConversationalM04Adapter
         $rows->execute([':id' => $patientId]);
         $policy = (new ClinicalWriteEligibilityPolicy($db))->evaluate($patientId, 4);
         $records = $rows->fetchAll(PDO::FETCH_ASSOC);
+        $previousResponseVersion = self::versionForRecords($records);
         $negativeStateAvailable = $this->tableExists($db, self::NEGATIVE_STATE_TABLE);
         $negativeDeclaration = $negativeStateAvailable
             ? $this->readNegativeDeclaration($db, $patientId)
@@ -46,6 +47,7 @@ final class ConversationalM04Adapter
             'key' => 'M04',
             'title' => 'Antecedentes quirúrgicos',
             'records' => $records,
+            'previous_response_version' => $previousResponseVersion,
             'has_recorded_surgeries' => $hasRecordedSurgeries,
             'response_state' => $responseState,
             'negative_state_available' => $negativeStateAvailable,
@@ -304,6 +306,322 @@ final class ConversationalM04Adapter
      * whether this is the end of additional surgeries or the negative history
      * declaration for a patient with no surgery records.
      */
+    public function createPreviousSurgery(
+        int $patientId,
+        string $expectedVersion,
+        string $surgery,
+        string $date,
+        string $observations
+    ): array {
+        $surgery = trim($surgery);
+        $date = trim($date);
+        if ($patientId < 1 || preg_match('/^[a-f0-9]{64}$/D', $expectedVersion) !== 1) {
+            return ['resultado' => 422, 'code' => 'M04_PREVIOUS_CREATE_INVALID', 'mensaje' => 'La solicitud para registrar la cirugía no es válida.', 'readback' => false];
+        }
+        if ($surgery === '' || mb_strlen($surgery, 'UTF-8') > 2000 || mb_strlen($observations, 'UTF-8') > 2000) {
+            return ['resultado' => 422, 'code' => 'M04_PREVIOUS_CREATE_FIELDS_INVALID', 'mensaje' => 'Escribe el nombre de la cirugía y revisa los límites de texto.', 'readback' => false];
+        }
+        if ($date !== '' && (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/D', $date, $dateParts)
+            || !checkdate((int)$dateParts[2], (int)$dateParts[3], (int)$dateParts[1]))) {
+            return ['resultado' => 422, 'code' => 'M04_PREVIOUS_CREATE_DATE_INVALID', 'mensaje' => 'Selecciona una fecha completa válida o déjala vacía.', 'readback' => false];
+        }
+
+        $db = $this->db ?: Database::getInstance();
+        if (!$this->previousResponseEditDatabaseAuthorized($db)) {
+            return ['resultado' => 403, 'code' => 'M04_PREVIOUS_DATABASE_NOT_AUTHORIZED', 'mensaje' => 'El registro M04 no está autorizado en esta base de datos.', 'readback' => false];
+        }
+
+        $driver = strtolower((string)$db->getAttribute(PDO::ATTR_DRIVER_NAME));
+        $isMysql = $driver === 'mysql';
+        $dateIsNullable = $this->surgeryDateNullable($db);
+        if ($date === '' && !$dateIsNullable) {
+            return ['resultado' => 409, 'code' => 'M04_PREVIOUS_DATE_NULL_REQUIRED', 'mensaje' => 'El esquema no permite guardar una cirugía sin fecha; no se inventó una fecha.', 'readback' => false];
+        }
+
+        $lockName = 'clinica_m04_capture_' . $patientId;
+        $lockAcquired = false;
+        try {
+            if ($isMysql) {
+                $lock = $db->prepare('SELECT GET_LOCK(:name, 5)');
+                $lock->execute([':name' => $lockName]);
+                $lockAcquired = (int)$lock->fetchColumn() === 1;
+                if (!$lockAcquired) {
+                    return ['resultado' => 409, 'code' => 'M04_PREVIOUS_CREATE_LOCK_UNAVAILABLE', 'mensaje' => 'No fue posible proteger el registro contra envíos duplicados. Inténtalo de nuevo.', 'readback' => false];
+                }
+            }
+
+            $db->beginTransaction();
+            $lockSuffix = $isMysql ? ' FOR UPDATE' : '';
+            $rowsQuery = $db->prepare(
+                'SELECT id, fecha, cirugia, observaciones
+                 FROM pc_antecedentes_quirurgicos
+                 WHERE id_paciente = :patient
+                 ORDER BY id DESC' . $lockSuffix
+            );
+            $rowsQuery->execute([':patient' => $patientId]);
+            $currentRows = $rowsQuery->fetchAll(PDO::FETCH_ASSOC);
+            if (!hash_equals(self::versionForRecords($currentRows), $expectedVersion)) {
+                $db->rollBack();
+                return ['resultado' => 409, 'code' => 'M04_PREVIOUS_CREATE_VERSION_CONFLICT', 'mensaje' => 'La lista de cirugías cambió. Recarga Respuestas previas antes de intentar guardar.', 'readback' => false];
+            }
+
+            $dateValue = $date === '' ? null : $date;
+            $insert = $db->prepare(
+                'INSERT INTO pc_antecedentes_quirurgicos (id_paciente, fecha, cirugia, observaciones)
+                 VALUES (:patient, :date, :surgery, :observations)'
+            );
+            $insert->bindValue(':patient', $patientId, PDO::PARAM_INT);
+            if ($dateValue === null) $insert->bindValue(':date', null, PDO::PARAM_NULL);
+            else $insert->bindValue(':date', $dateValue, PDO::PARAM_STR);
+            $insert->bindValue(':surgery', $surgery, PDO::PARAM_STR);
+            $insert->bindValue(':observations', $observations, PDO::PARAM_STR);
+            $insert->execute();
+            $recordId = (int)$db->lastInsertId();
+            if ($recordId < 1) throw new \RuntimeException('M04 previous surgery insert id unavailable');
+
+            $readbackQuery = $db->prepare(
+                'SELECT id, fecha, cirugia, observaciones
+                 FROM pc_antecedentes_quirurgicos
+                 WHERE id = :record AND id_paciente = :patient LIMIT 1'
+            );
+            $readbackQuery->execute([':record' => $recordId, ':patient' => $patientId]);
+            $record = $readbackQuery->fetch(PDO::FETCH_ASSOC);
+            $savedDate = is_array($record) ? ($record['fecha'] ?? null) : null;
+            $dateMatches = $dateValue === null ? ($savedDate === null || $savedDate === '') : $savedDate === $dateValue;
+            if (!is_array($record)
+                || (int)($record['id'] ?? 0) !== $recordId
+                || trim((string)($record['cirugia'] ?? '')) !== $surgery
+                || !$dateMatches
+                || (string)($record['observaciones'] ?? '') !== $observations) {
+                throw new \RuntimeException('M04 previous surgery insert readback mismatch');
+            }
+            $db->commit();
+
+            $freshState = $this->read($patientId);
+            $confirmed = null;
+            foreach (($freshState['records'] ?? []) as $freshRecord) {
+                if ((int)($freshRecord['id'] ?? 0) === $recordId) {
+                    $confirmed = $freshRecord;
+                    break;
+                }
+            }
+            if (!is_array($confirmed)
+                || trim((string)($confirmed['cirugia'] ?? '')) !== $surgery
+                || ($confirmed['fecha'] ?? null) !== $dateValue
+                || (string)($confirmed['observaciones'] ?? '') !== $observations) {
+                return ['resultado' => 500, 'code' => 'M04_PREVIOUS_CREATE_READBACK_FAILED', 'mensaje' => 'La lectura posterior no confirmó la cirugía registrada.', 'readback' => false];
+            }
+
+            return [
+                'resultado' => 200,
+                'mensaje' => 'Cirugía registrada y verificada.',
+                'readback' => true,
+                'record_id' => $recordId,
+                'record' => $confirmed,
+                'version' => (string)$freshState['previous_response_version'],
+                'finalized' => (bool)($freshState['finalized'] ?? false),
+            ];
+        } catch (\Throwable) {
+            if ($db->inTransaction()) $db->rollBack();
+            return ['resultado' => 500, 'code' => 'M04_PREVIOUS_CREATE_FAILED', 'mensaje' => 'No fue posible confirmar el registro de la cirugía.', 'readback' => false];
+        } finally {
+            if ($isMysql && $lockAcquired) {
+                try {
+                    $release = $db->prepare('SELECT RELEASE_LOCK(:name)');
+                    $release->execute([':name' => $lockName]);
+                } catch (\Throwable) {
+                    // Keep the clinical response unchanged if lock cleanup fails.
+                }
+            }
+        }
+    }
+
+    /**
+     * Edits one already-persisted surgery for the previous-responses screen.
+     * This operation is update-only: it never creates a row or changes M04
+     * finalization/progress. Blank dates preserve the exact stored value.
+     */
+    public function editExistingSurgery(
+        int $patientId,
+        int $recordId,
+        string $expectedVersion,
+        string $surgery,
+        string $date,
+        string $observations
+    ): array {
+        $surgery = trim($surgery);
+        $date = trim($date);
+        if ($patientId < 1 || $recordId < 1 || preg_match('/^[a-f0-9]{64}$/D', $expectedVersion) !== 1) {
+            return ['resultado' => 422, 'code' => 'M04_PREVIOUS_EDIT_INVALID', 'mensaje' => 'La solicitud de edición M04 no es válida.', 'readback' => false];
+        }
+        if ($surgery === '' || mb_strlen($surgery, 'UTF-8') > 2000 || mb_strlen($observations, 'UTF-8') > 2000) {
+            return ['resultado' => 422, 'code' => 'M04_PREVIOUS_FIELDS_INVALID', 'mensaje' => 'Completa el nombre de la cirugía y revisa los límites de texto.', 'readback' => false];
+        }
+        if ($date !== '') {
+            if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/D', $date, $dateParts)
+                || !checkdate((int)$dateParts[2], (int)$dateParts[3], (int)$dateParts[1])) {
+                return ['resultado' => 422, 'code' => 'M04_PREVIOUS_DATE_INVALID', 'mensaje' => 'Usa una fecha completa válida o deja el campo vacío para conservar la fecha registrada.', 'readback' => false];
+            }
+        }
+
+        $db = $this->db ?: Database::getInstance();
+        if (!$this->previousResponseEditDatabaseAuthorized($db)) {
+            return ['resultado' => 403, 'code' => 'M04_PREVIOUS_DATABASE_NOT_AUTHORIZED', 'mensaje' => 'La edición M04 no está autorizada en esta base de datos.', 'readback' => false];
+        }
+
+        $driver = strtolower((string)$db->getAttribute(PDO::ATTR_DRIVER_NAME));
+        $isMysql = $driver === 'mysql';
+        $lockName = 'clinica_m04_capture_' . $patientId;
+        $lockAcquired = false;
+        try {
+            if ($isMysql) {
+                $lock = $db->prepare('SELECT GET_LOCK(:name, 5)');
+                $lock->execute([':name' => $lockName]);
+                $lockAcquired = (int)$lock->fetchColumn() === 1;
+                if (!$lockAcquired) {
+                    return ['resultado' => 409, 'code' => 'M04_PREVIOUS_LOCK_UNAVAILABLE', 'mensaje' => 'No fue posible bloquear el antecedente para su edición. Inténtalo de nuevo.', 'readback' => false];
+                }
+            }
+
+            $db->beginTransaction();
+            $lockSuffix = $isMysql ? ' FOR UPDATE' : '';
+            $lockedRows = $db->prepare(
+                'SELECT id, fecha, cirugia, observaciones
+                 FROM pc_antecedentes_quirurgicos
+                 WHERE id_paciente = :patient
+                 ORDER BY id DESC' . $lockSuffix
+            );
+            $lockedRows->execute([':patient' => $patientId]);
+            $currentRows = $lockedRows->fetchAll(PDO::FETCH_ASSOC);
+            if (!hash_equals(self::versionForRecords($currentRows), $expectedVersion)) {
+                $db->rollBack();
+                return ['resultado' => 409, 'code' => 'M04_PREVIOUS_VERSION_CONFLICT', 'mensaje' => 'Los antecedentes quirúrgicos cambiaron desde que abriste la edición. Recarga para revisar los valores actuales.', 'readback' => false];
+            }
+
+            $current = null;
+            foreach ($currentRows as $candidate) {
+                if ((int)($candidate['id'] ?? 0) === $recordId) {
+                    $current = $candidate;
+                    break;
+                }
+            }
+            if (!is_array($current)) {
+                $db->rollBack();
+                return ['resultado' => 404, 'code' => 'M04_PREVIOUS_RECORD_NOT_FOUND', 'mensaje' => 'La cirugía ya no está disponible para esta sesión.', 'readback' => false];
+            }
+            if (trim((string)($current['cirugia'] ?? '')) === '') {
+                $db->rollBack();
+                return ['resultado' => 409, 'code' => 'M04_PREVIOUS_RECORD_NOT_PERSISTED', 'mensaje' => 'El registro no contiene una cirugía y se mantiene sin edición.', 'readback' => false];
+            }
+
+            // An omitted or empty edit date means “preserve”, never “clear” or “unknown”.
+            $effectiveDate = $date === '' ? ($current['fecha'] ?? null) : $date;
+            $existingSurgery = (string)($current['cirugia'] ?? '');
+            $effectiveSurgery = trim($existingSurgery) === $surgery ? $existingSurgery : $surgery;
+            $existingObservations = (string)($current['observaciones'] ?? '');
+            $normalizedExistingObservations = str_replace(["\r\n", "\r"], "\n", $existingObservations);
+            $normalizedSubmittedObservations = str_replace(["\r\n", "\r"], "\n", $observations);
+            // HTML textarea newline normalization must not rewrite an untouched historical value.
+            $effectiveObservations = $normalizedExistingObservations === $normalizedSubmittedObservations
+                ? $existingObservations
+                : $observations;
+            $update = $db->prepare(
+                'UPDATE pc_antecedentes_quirurgicos
+                 SET fecha = :date, cirugia = :surgery, observaciones = :observations
+                 WHERE id = :record AND id_paciente = :patient'
+            );
+            $update->bindValue(':date', $effectiveDate, $effectiveDate === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+            $update->bindValue(':surgery', $effectiveSurgery, PDO::PARAM_STR);
+            $update->bindValue(':observations', $effectiveObservations, PDO::PARAM_STR);
+            $update->bindValue(':record', $recordId, PDO::PARAM_INT);
+            $update->bindValue(':patient', $patientId, PDO::PARAM_INT);
+            $update->execute();
+
+            $readbackQuery = $db->prepare(
+                'SELECT id, fecha, cirugia, observaciones
+                 FROM pc_antecedentes_quirurgicos
+                 WHERE id = :record AND id_paciente = :patient LIMIT 1'
+            );
+            $readbackQuery->execute([':record' => $recordId, ':patient' => $patientId]);
+            $saved = $readbackQuery->fetch(PDO::FETCH_ASSOC);
+            if (!is_array($saved)
+                || (int)$saved['id'] !== $recordId
+                || ($saved['fecha'] ?? null) !== $effectiveDate
+                || (string)$saved['cirugia'] !== $effectiveSurgery
+                || (string)$saved['observaciones'] !== $effectiveObservations) {
+                throw new \RuntimeException('M04 previous surgery readback mismatch');
+            }
+            $db->commit();
+
+            $freshState = $this->read($patientId);
+            $confirmed = null;
+            foreach ($freshState['records'] as $freshRecord) {
+                if ((int)($freshRecord['id'] ?? 0) === $recordId) {
+                    $confirmed = $freshRecord;
+                    break;
+                }
+            }
+            if (!is_array($confirmed)
+                || (string)($confirmed['cirugia'] ?? '') !== $effectiveSurgery
+                || ($confirmed['fecha'] ?? null) !== $effectiveDate
+                || (string)($confirmed['observaciones'] ?? '') !== $effectiveObservations) {
+                return ['resultado' => 500, 'code' => 'M04_PREVIOUS_READBACK_FAILED', 'mensaje' => 'La lectura posterior no confirmó los cambios de la cirugía.', 'readback' => false];
+            }
+            return [
+                'resultado' => 200,
+                'mensaje' => 'Cirugía actualizada y verificada.',
+                'readback' => true,
+                'record_id' => $recordId,
+                'record' => $confirmed,
+                'version' => (string)$freshState['previous_response_version'],
+            ];
+        } catch (\Throwable) {
+            if ($db->inTransaction()) $db->rollBack();
+            return ['resultado' => 500, 'code' => 'M04_PREVIOUS_UPDATE_FAILED', 'mensaje' => 'No fue posible confirmar la edición de la cirugía.', 'readback' => false];
+        } finally {
+            if ($isMysql && $lockAcquired) {
+                try {
+                    $release = $db->prepare('SELECT RELEASE_LOCK(:name)');
+                    $release->execute([':name' => $lockName]);
+                } catch (\Throwable) {
+                    // The request result is already determined; do not mask it.
+                }
+            }
+        }
+    }
+
+    public function previousResponseEditDatabaseAuthorized(?PDO $db = null): bool
+    {
+        try {
+            $connection = $db ?: ($this->db ?: Database::getInstance());
+            if (strtolower((string)$connection->getAttribute(PDO::ATTR_DRIVER_NAME)) === 'sqlite') {
+                return $this->db !== null;
+            }
+            $database = (string)$connection->query('SELECT DATABASE()')->fetchColumn();
+            $serverPort = (int)$connection->query('SELECT @@port')->fetchColumn();
+            $configuredHost = strtolower(trim((string)($_ENV['DB_HOST'] ?? getenv('DB_HOST') ?: '')));
+            $configuredPort = (int)($_ENV['DB_PORT'] ?? getenv('DB_PORT') ?: 3306);
+            return in_array($database, ['bd_clinica', 'clinica_dolor_demo_20261010_final'], true)
+                && in_array($configuredHost, ['localhost', '127.0.0.1', '::1'], true)
+                && $configuredPort === 3306 && $serverPort === 3306;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    private static function versionForRecords(array $records): string
+    {
+        $versionRows = array_map(static fn(array $row): array => [
+            'id' => (int)$row['id'],
+            'fecha' => (string)($row['fecha'] ?? ''),
+            'cirugia' => (string)($row['cirugia'] ?? ''),
+            'observaciones' => (string)($row['observaciones'] ?? ''),
+        ], $records);
+        usort($versionRows, static fn(array $left, array $right): int => $right['id'] <=> $left['id']);
+        return hash('sha256', json_encode($versionRows, JSON_UNESCAPED_UNICODE));
+    }
+
+    /** Finishes only the positive, already documented surgery flow. */
     public function finish(int $patientId, ?string $expectedVersion): array
     {
         if ($patientId < 1) {
@@ -412,6 +730,29 @@ final class ConversationalM04Adapter
             return null;
         }
     }
+
+    private function surgeryDateNullable(PDO $db): bool
+    {
+        try {
+            $driver = strtolower((string)$db->getAttribute(PDO::ATTR_DRIVER_NAME));
+            if ($driver === 'sqlite') {
+                $columns = $db->query('PRAGMA table_info(pc_antecedentes_quirurgicos)')->fetchAll(PDO::FETCH_ASSOC);
+                foreach ($columns as $column) {
+                    if (($column['name'] ?? null) === 'fecha') return (int)($column['notnull'] ?? 1) === 0;
+                }
+                return false;
+            }
+            $statement = $db->prepare(
+                'SELECT IS_NULLABLE FROM information_schema.columns
+                 WHERE table_schema = DATABASE() AND table_name = :table AND column_name = :column LIMIT 1'
+            );
+            $statement->execute([':table' => 'pc_antecedentes_quirurgicos', ':column' => 'fecha']);
+            return strtoupper((string)$statement->fetchColumn()) === 'YES';
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
 
     private function findRecord(int $patientId, int $rowId): array
     {

@@ -35,7 +35,7 @@ $assert(str_contains($noBranch, 'dependentResponses'), 'M03 negative dependency 
 $assert(str_contains($noBranch, 'capturarRespuestaEntrevista'), 'M03 confirmed No must use canonical capture contract');
 $assert(!str_contains($noBranch, 'respuesta principal aún no está preparada para guardarse'), 'M03 pending No still has the obsolete rejection');
 $assert(str_contains($m03, 'M03_READBACK_FAILED') && str_contains($m03, 'DIRECT_READBACK_FAILED'), 'M03 readback checks missing');
-$assert(str_contains($m03, 'serverAuthorizesPreviousEdit'), 'M03 edit authorization must remain server-side');
+$assert(str_contains($m03, 'serverAuthorizesHistoricalEdit'), 'M03 historical edit authorization must remain server-side');
 $assert(str_contains($controller, 'expectedVersion') && str_contains($controller, 'saveAndContinue'), 'M03 version and explicit-save request contract missing');
 $assert(str_contains($view, "conversationStages.push({type:'m03'"), 'M03 conversation stage missing');
 $assert(str_contains($view, 'advanceM02') && str_contains($view, 'showNextM03Question'), 'M02-to-M03 navigation/readback hooks missing');

@@ -133,6 +133,8 @@ $themeInsert = $sqlite->prepare('INSERT INTO pac_temas_modulo_3 (id, tema) VALUE
 foreach (($catalog['themes'] ?? []) as $theme) $themeInsert->execute([(int)$theme['id'], (string)$theme['tema']]);
 $questionInsert = $sqlite->prepare('INSERT INTO pac_preguntas_modulo_3 (id, id_tema, pregunta, tipo) VALUES (?, ?, ?, ?)');
 foreach ($questions as $question) $questionInsert->execute([(int)$question['id'], (int)$question['id_tema'], (string)$question['pregunta'], (string)$question['tipo']]);
+$sqlite->exec('CREATE TABLE pc_paciente (id INTEGER PRIMARY KEY)');
+$sqlite->exec('INSERT INTO pc_paciente (id) VALUES (9301), (9302)');
 $adapter = new ConversationalM03Adapter($sqlite);
 $adapterAffirmative = $adapter->interpret(9301, 1, 'Sí');
 $adapterNegative = $adapter->interpret(9301, 1, 'No');
@@ -157,13 +159,15 @@ $textualQuestion = array_values(array_filter($textualRead['questions'], static f
 $assert(($textualQuestion['semanticState'] ?? '') === 'UNKNOWN', 'Textual UNKNOWN readback was not projected semantically');
 $variant = $adapter->interpret(9301, 28, 'No recuerdo exactamente');
 $assert(($variant['semantic_state'] ?? '') === 'NOT_REMEMBERED' && ($variant['structured_value'] ?? '') === 'No recuerdo', 'NOT_REMEMBERED variant was not normalized canonically');
-$blockedNegative = $adapter->capture(9301, [
+$blockedNegative = $adapter->capture(9302, [
     'kind' => 'm03_proposal',
     'question_id' => 27,
     'theme_id' => 7,
     'structured_value' => 'No',
 ], null);
 $assert(($blockedNegative['code'] ?? '') === 'M03_BLOOD_RH_NEGATIVE_INVALID', 'Blood group No capture was not rejected');
+$negativePatientRows = $sqlite->query('SELECT respuesta FROM pac_respuestas_paciente_modulo_3 WHERE id_paciente=9302 AND id_pregunta=27')->fetchAll(PDO::FETCH_COLUMN);
+$assert($negativePatientRows === [], 'Rejected blood-group No must not create or alter a response row');
 $assert($afterRows === (int)$sqlite->query('SELECT COUNT(*) FROM pac_respuestas_paciente_modulo_3')->fetchColumn(), 'Invalid blood/Rh negative capture modified the local fixture');
 
 $sqlite->exec('ALTER TABLE pac_respuestas_paciente_modulo_3 ADD COLUMN estado_respuesta VARCHAR(24) NULL');
